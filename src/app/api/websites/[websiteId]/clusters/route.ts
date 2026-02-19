@@ -87,7 +87,7 @@ export async function POST(
               name: c.name,
               pillarKeyword: c.pillarKeyword,
               supportingKeywords: c.supportingKeywords,
-              status: "PLANNED",
+              status: "PLANNING",
             },
           })
         )
@@ -103,7 +103,7 @@ export async function POST(
         name: body.name,
         pillarKeyword: body.pillarKeyword,
         supportingKeywords: body.supportingKeywords || [],
-        status: "PLANNED",
+        status: "PLANNING",
       },
     });
 
