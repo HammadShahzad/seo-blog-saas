@@ -20,9 +20,9 @@ import {
   Plus,
   CheckCircle2,
   AlertCircle,
-  Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import { ActiveJobsBanner } from "@/components/dashboard/active-jobs-banner";
 
 export default async function WebsiteDashboard({
   params,
@@ -127,20 +127,12 @@ export default async function WebsiteDashboard({
         </div>
       </div>
 
-      {/* Active Jobs Banner */}
+      {/* Active Jobs Banner — live polling */}
       {(activeJobs > 0 || generatingKeywords > 0) && (
-        <Card className="border-blue-200 bg-blue-50">
-          <CardContent className="flex items-center gap-3 p-4">
-            <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
-            <div>
-              <p className="font-medium text-blue-900">Content generation in progress</p>
-              <p className="text-sm text-blue-700">
-                {activeJobs} active job{activeJobs !== 1 ? "s" : ""},{" "}
-                {generatingKeywords} keyword{generatingKeywords !== 1 ? "s" : ""} generating
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+        <ActiveJobsBanner
+          websiteId={websiteId}
+          initialJobCount={activeJobs + generatingKeywords}
+        />
       )}
 
       {/* Stats Grid */}
