@@ -224,7 +224,7 @@ async function ensureTags(
 /**
  * Convert markdown to basic HTML for WordPress
  */
-function markdownToHtml(markdown: string): string {
+export function markdownToHtml(markdown: string): string {
   return markdown
     .replace(/^# (.+)$/gm, "<h1>$1</h1>")
     .replace(/^## (.+)$/gm, "<h2>$1</h2>")

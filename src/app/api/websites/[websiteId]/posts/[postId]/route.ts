@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { runPublishHook } from "@/lib/on-publish";
 
 async function verifyAccess(websiteId: string, userId: string) {
   const membership = await prisma.organizationMember.findFirst({
@@ -70,10 +71,20 @@ export async function PATCH(
       updateData.readingTime = Math.ceil(wc / 200);
     }
 
+    const wasPublished = (await prisma.blogPost.findUnique({
+      where: { id: postId },
+      select: { status: true },
+    }))?.status !== "PUBLISHED";
+
     const post = await prisma.blogPost.update({
       where: { id: postId, websiteId },
       data: updateData,
     });
+
+    // Fire publish hook when transitioning to PUBLISHED
+    if (body.status === "PUBLISHED" && wasPublished) {
+      runPublishHook({ postId, websiteId, triggeredBy: "manual" }).catch(console.error);
+    }
 
     return NextResponse.json(post);
   } catch {

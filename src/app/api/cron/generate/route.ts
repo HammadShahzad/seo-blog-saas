@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { enqueueGenerationJob, processJob, checkGenerationLimit } from "@/lib/job-queue";
+import { runPublishHook } from "@/lib/on-publish";
 
 export async function POST(req: Request) {
   // Verify cron secret
@@ -19,9 +20,29 @@ export async function POST(req: Request) {
   }
 
   const results: { websiteId: string; name: string; action: string; jobId?: string }[] = [];
+  const scheduledResults: { postId: string; title: string }[] = [];
 
   try {
-    // Find all active websites with autoPublish enabled and pending keywords
+    // ── 1. Publish scheduled posts that are due ──────────────
+    const dueScheduledPosts = await prisma.blogPost.findMany({
+      where: {
+        status: "SCHEDULED",
+        scheduledAt: { lte: new Date() },
+      },
+      select: { id: true, title: true, websiteId: true },
+    });
+
+    for (const post of dueScheduledPosts) {
+      await prisma.blogPost.update({
+        where: { id: post.id },
+        data: { status: "PUBLISHED", publishedAt: new Date() },
+      });
+      runPublishHook({ postId: post.id, websiteId: post.websiteId, triggeredBy: "scheduled" })
+        .catch(console.error);
+      scheduledResults.push({ postId: post.id, title: post.title });
+    }
+
+    // ── 2. AI generation for auto-publish websites ──────────────
     const websites = await prisma.website.findMany({
       where: {
         status: "ACTIVE",
@@ -79,8 +100,10 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      processed: results.filter((r) => r.action === "generated").length,
+      scheduledPublished: scheduledResults.length,
+      generated: results.filter((r) => r.action === "generated").length,
       results,
+      scheduledResults,
     });
   } catch (error) {
     console.error("Cron error:", error);

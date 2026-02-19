@@ -7,6 +7,7 @@
 import prisma from "./prisma";
 import { generateBlogPost, ProgressCallback } from "./ai/content-generator";
 import type { JobType } from "@prisma/client";
+import { runPublishHook } from "./on-publish";
 
 export interface JobInput {
   keywordId: string;
@@ -166,6 +167,15 @@ export async function processJob(jobId: string): Promise<void> {
       where: { organization: { websites: { some: { id: input.websiteId } } } },
       data: { postsGeneratedThisMonth: { increment: 1 } },
     });
+
+    // Fire publish hook if auto-published
+    if (input.autoPublish) {
+      runPublishHook({
+        postId: blogPost.id,
+        websiteId: input.websiteId,
+        triggeredBy: "auto",
+      }).catch(console.error);
+    }
 
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

@@ -5,6 +5,19 @@
     },
     "src/app/api/cron/generate/route.ts": {
       "maxDuration": 300
+    },
+    "src/app/api/cron/digest/route.ts": {
+      "maxDuration": 60
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/generate",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/digest",
+      "schedule": "0 9 * * 1"
+    }
+  ]
 }
