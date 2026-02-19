@@ -1,0 +1,624 @@
+// SEO Blog SaaS - Complete Database Schema
+// Multi-tenant, multi-website AI-powered blog platform
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER & AUTHENTICATION
+// ============================================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String?
+  password      String?
+  image         String?
+  emailVerified DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // NextAuth relations
+  accounts Account[]
+  sessions Session[]
+
+  // App relations
+  organizations OrganizationMember[]
+  subscription  Subscription?
+  apiKeys       ApiKey[]
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ============================================
+// ORGANIZATION & MEMBERSHIP
+// ============================================
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members      OrganizationMember[]
+  websites     Website[]
+  subscription Subscription?
+}
+
+model OrganizationMember {
+  id             String   @id @default(uuid())
+  role           MemberRole @default(MEMBER)
+  createdAt      DateTime   @default(now())
+
+  userId         String
+  organizationId String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId])
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+// ============================================
+// WEBSITE (Core multi-site entity)
+// ============================================
+
+model Website {
+  id           String  @id @default(uuid())
+  name         String  // Display name (e.g., "InvoiceCave Blog")
+  domain       String  // e.g., "invoicecave.com"
+  subdomain    String? @unique // e.g., "invoicecave" → invoicecave.blogplatform.com
+  customDomain String? @unique // e.g., "blog.invoicecave.com"
+
+  // Website Context (used by AI for content generation)
+  niche          String // e.g., "invoicing software", "fitness", "saas"
+  description    String // What the website/business does
+  targetAudience String // Who the content is for
+  tone           String @default("professional yet conversational")
+  brandName      String // e.g., "InvoiceCave"
+  brandUrl       String // e.g., "https://www.invoicecave.com"
+  logoUrl        String?
+  faviconUrl     String?
+  primaryColor   String? @default("#4F46E5")
+
+  // SEO Settings
+  defaultMetaTitle  String?
+  sitemapEnabled    Boolean @default(true)
+  robotsTxt         String? @db.Text
+  indexNowKey       String?
+  googleAnalyticsId String?
+  gscPropertyUrl    String?
+
+  // Social Media Credentials (per website)
+  twitterApiKey       String?
+  twitterApiSecret    String?
+  twitterAccessToken  String?
+  twitterAccessSecret String?
+  linkedinAccessToken String?
+
+  // Publishing Settings
+  autoPublish  Boolean @default(false)
+  postsPerWeek Int     @default(3)
+  publishTime  String? @default("09:00")
+  publishDays  String? @default("MON,WED,FRI")
+
+  // Blog Hosting Mode
+  hostingMode HostingMode @default(HOSTED)
+
+  // Webhook/API delivery config
+  webhookUrl    String?
+  webhookSecret String?
+  cmsType       CmsType?
+  cmsApiUrl     String?
+  cmsApiKey     String?
+
+  // Status
+  status   WebsiteStatus @default(ACTIVE)
+  verified Boolean       @default(false)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  blogPosts      BlogPost[]
+  blogKeywords   BlogKeyword[]
+  blogSettings   BlogSettings?
+  topicClusters  TopicCluster[]
+  internalLinks  InternalLinkPair[]
+  contentBriefs  ContentBrief[]
+  analytics      BlogAnalytics[]
+  customPages    CustomPage[]
+  generationJobs GenerationJob[]
+
+  @@index([organizationId])
+  @@index([domain])
+  @@index([subdomain])
+  @@index([customDomain])
+}
+
+enum HostingMode {
+  HOSTED
+  API
+  WEBHOOK
+  HYBRID
+}
+
+enum CmsType {
+  WORDPRESS
+  GHOST
+  WEBFLOW
+  SHOPIFY
+  CUSTOM
+}
+
+enum WebsiteStatus {
+  ACTIVE
+  PAUSED
+  SUSPENDED
+  DELETED
+}
+
+// ============================================
+// BLOG POST
+// ============================================
+
+model BlogPost {
+  id      String @id @default(uuid())
+  title   String
+  slug    String
+  content String @db.Text // Markdown content
+  excerpt String? @db.Text
+
+  // SEO Fields
+  metaTitle         String?
+  metaDescription   String?
+  focusKeyword      String?
+  secondaryKeywords String[]
+
+  // Media
+  featuredImage    String?
+  featuredImageAlt String?
+
+  // Structured Data
+  structuredData Json?
+  socialCaptions Json?
+
+  // Content Metadata
+  wordCount    Int?
+  readingTime  Int?
+  contentScore Int?
+
+  // Status & Publishing
+  status      PostStatus @default(DRAFT)
+  publishedAt DateTime?
+  scheduledAt DateTime?
+
+  // AI Generation Metadata
+  generatedBy     String? // "ai" or "manual"
+  aiModel         String?
+  researchData    Json?
+  generationSteps Json?
+
+  // Tracking
+  views           Int      @default(0)
+  socialPublished Boolean  @default(false)
+  indexedAt        DateTime?
+
+  // Categories & Tags
+  category String?
+  tags     String[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  websiteId String
+  website   Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  keyword   BlogKeyword?
+
+  @@unique([websiteId, slug])
+  @@index([websiteId])
+  @@index([status])
+  @@index([publishedAt])
+}
+
+enum PostStatus {
+  DRAFT
+  REVIEW
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+// ============================================
+// BLOG KEYWORD
+// ============================================
+
+model BlogKeyword {
+  id       String        @id @default(uuid())
+  keyword  String
+  status   KeywordStatus @default(PENDING)
+  priority Int           @default(0)
+
+  // Keyword Research Data
+  searchVolume  Int?
+  difficulty    Int?
+  intent        SearchIntent?
+  parentCluster String?
+
+  notes        String?
+  errorMessage String?
+  retryCount   Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  websiteId  String
+  website    Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  blogPostId String?   @unique
+  blogPost   BlogPost? @relation(fields: [blogPostId], references: [id])
+
+  @@index([websiteId, status])
+  @@index([priority])
+}
+
+enum KeywordStatus {
+  PENDING
+  RESEARCHING
+  GENERATING
+  REVIEW
+  COMPLETED
+  FAILED
+  SKIPPED
+}
+
+enum SearchIntent {
+  INFORMATIONAL
+  TRANSACTIONAL
+  NAVIGATIONAL
+  COMMERCIAL
+}
+
+// ============================================
+// BLOG SETTINGS (per Website)
+// ============================================
+
+model BlogSettings {
+  id          String  @id @default(uuid())
+  autoPublish Boolean @default(false)
+  postsPerWeek Int    @default(3)
+  lastGeneratedAt DateTime?
+
+  // AI Settings
+  preferredModel         String  @default("gemini-2.0-flash")
+  contentLength          ContentLength @default(MEDIUM)
+  includeImages          Boolean @default(true)
+  includeFAQ             Boolean @default(true)
+  includeTableOfContents Boolean @default(true)
+
+  // Style Settings
+  writingStyle     String   @default("informative")
+  avoidTopics      String[]
+  requiredSections String[]
+  ctaText          String?
+  ctaUrl           String?
+
+  // Relations
+  websiteId String  @unique
+  website   Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+}
+
+enum ContentLength {
+  SHORT
+  MEDIUM
+  LONG
+  PILLAR
+}
+
+// ============================================
+// TOPIC CLUSTER
+// ============================================
+
+model TopicCluster {
+  id                 String        @id @default(uuid())
+  name               String
+  pillarKeyword      String
+  pillarPostId       String?
+  supportingKeywords Json
+  status             ClusterStatus @default(PLANNING)
+
+  totalPosts     Int @default(0)
+  publishedPosts Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  websiteId String
+  website   Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+}
+
+enum ClusterStatus {
+  PLANNING
+  IN_PROGRESS
+  COMPLETED
+}
+
+// ============================================
+// INTERNAL LINK PAIR
+// ============================================
+
+model InternalLinkPair {
+  id         String @id @default(uuid())
+  keyword    String
+  url        String
+  usageCount Int    @default(0)
+  maxUsage   Int    @default(5)
+
+  websiteId String
+  website   Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, keyword])
+  @@index([websiteId])
+}
+
+// ============================================
+// CONTENT BRIEF (Pre-generation planning)
+// ============================================
+
+model ContentBrief {
+  id                 String      @id @default(uuid())
+  title              String
+  targetKeyword      String
+  outline            Json
+  competitorUrls     String[]
+  suggestedWordCount Int
+  suggestedHeadings  Json
+  contentGaps        String[]
+  uniqueAngle        String?
+
+  status   BriefStatus @default(DRAFT)
+  approved Boolean     @default(false)
+
+  createdAt DateTime @default(now())
+
+  websiteId String
+  website   Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@index([websiteId])
+}
+
+enum BriefStatus {
+  DRAFT
+  APPROVED
+  GENERATING
+  COMPLETED
+}
+
+// ============================================
+// BLOG ANALYTICS
+// ============================================
+
+model BlogAnalytics {
+  id   String   @id @default(uuid())
+  date DateTime @db.Date
+
+  // Traffic
+  pageViews      Int    @default(0)
+  uniqueVisitors Int    @default(0)
+  avgTimeOnPage  Float?
+  bounceRate     Float?
+
+  // SEO
+  organicTraffic Int    @default(0)
+  avgPosition    Float?
+  impressions    Int    @default(0)
+  clicks         Int    @default(0)
+  ctr            Float?
+
+  // Engagement
+  socialShares Int @default(0)
+  comments     Int @default(0)
+
+  websiteId  String
+  website    Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  blogPostId String?
+
+  @@unique([websiteId, blogPostId, date])
+  @@index([websiteId, date])
+}
+
+// ============================================
+// CUSTOM PAGE (Static pages for hosted blogs)
+// ============================================
+
+model CustomPage {
+  id              String  @id @default(uuid())
+  title           String
+  slug            String
+  content         String  @db.Text
+  metaTitle       String?
+  metaDescription String?
+  isPublished     Boolean @default(false)
+  order           Int     @default(0)
+
+  websiteId String
+  website   Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+
+  @@unique([websiteId, slug])
+}
+
+// ============================================
+// SUBSCRIPTION & BILLING
+// ============================================
+
+model Subscription {
+  id                   String    @id @default(uuid())
+  stripeCustomerId     String    @unique
+  stripeSubscriptionId String?   @unique
+  plan                 PlanTier  @default(FREE)
+  status               SubStatus @default(ACTIVE)
+
+  // Usage Tracking
+  websitesUsed             Int @default(0)
+  postsGeneratedThisMonth  Int @default(0)
+  imagesGeneratedThisMonth Int @default(0)
+  billingCycleStart        DateTime?
+
+  // Limits (based on plan, cached here)
+  maxWebsites      Int @default(1)
+  maxPostsPerMonth Int @default(5)
+  maxImagesPerMonth Int @default(5)
+
+  currentPeriodEnd  DateTime?
+  cancelAtPeriodEnd Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String       @unique
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum PlanTier {
+  FREE
+  STARTER
+  GROWTH
+  AGENCY
+  ENTERPRISE
+}
+
+enum SubStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  TRIALING
+  PAUSED
+}
+
+// ============================================
+// GENERATION JOB (Async job tracking)
+// ============================================
+
+model GenerationJob {
+  id     String    @id @default(uuid())
+  type   JobType
+  status JobStatus @default(QUEUED)
+
+  // Job Data
+  input  Json
+  output Json?
+  error  String?
+
+  // Progress Tracking
+  currentStep String?
+  progress    Int @default(0)
+
+  // Timing
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  websiteId  String
+  website    Website @relation(fields: [websiteId], references: [id], onDelete: Cascade)
+  keywordId  String?
+  blogPostId String?
+
+  @@index([websiteId, status])
+  @@index([status, createdAt])
+}
+
+enum JobType {
+  BLOG_GENERATION
+  TOPIC_CLUSTER
+  CONTENT_BRIEF
+  IMAGE_GENERATION
+  SOCIAL_PUBLISH
+  BULK_GENERATION
+}
+
+enum JobStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ============================================
+// API KEY (for programmatic access)
+// ============================================
+
+model ApiKey {
+  id        String   @id @default(uuid())
+  name      String
+  key       String   @unique // Hashed with SHA-256
+  prefix    String   // First 8 chars for identification
+  scopes    String[] // e.g., ["posts:read", "posts:write"]
+  lastUsed  DateTime?
+  expiresAt DateTime?
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([key])
+  @@index([userId])
+}
