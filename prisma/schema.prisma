@@ -156,6 +156,7 @@ model Website {
   cmsType       CmsType?
   cmsApiUrl     String?
   cmsApiKey     String?
+  ghostConfig   String? @db.Text // JSON: { siteUrl, adminApiKey }
 
   // Status
   status   WebsiteStatus @default(ACTIVE)

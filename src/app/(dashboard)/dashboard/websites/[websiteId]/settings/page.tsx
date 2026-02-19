@@ -27,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Save, Globe, Palette, Bot, Share2, Code, AlertTriangle,
   CheckCircle2, XCircle, Download, Eye, EyeOff, ExternalLink, Plug,
+  Webhook, Zap, Twitter, Linkedin,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -47,7 +48,10 @@ interface WebsiteData {
   publishDays: string;
   hostingMode: string;
   googleAnalyticsId: string | null;
+  gscPropertyUrl: string | null;
+  indexNowKey: string | null;
   twitterApiKey: string | null;
+  linkedinAccessToken: string | null;
   customDomain: string | null;
 }
 
@@ -146,6 +150,10 @@ export default function WebsiteSettingsPage() {
           <TabsTrigger value="wordpress">
             <Plug className="mr-2 h-4 w-4" />
             WordPress
+          </TabsTrigger>
+          <TabsTrigger value="ghost">
+            <Zap className="mr-2 h-4 w-4" />
+            Other CMS
           </TabsTrigger>
           <TabsTrigger value="publishing">
             <Share2 className="mr-2 h-4 w-4" />
@@ -343,27 +351,67 @@ export default function WebsiteSettingsPage() {
           <WordPressSettings websiteId={websiteId} />
         </TabsContent>
 
+        <TabsContent value="ghost" className="space-y-4 mt-4">
+          <GhostSettings websiteId={websiteId} />
+          <WebhookSettings websiteId={websiteId} />
+        </TabsContent>
+
         <TabsContent value="publishing" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Social Media</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                <Twitter className="h-4 w-4" />
+                Twitter / X
+              </CardTitle>
               <CardDescription>
-                Connect social accounts for auto-posting
+                Auto-post a thread when a new article is published
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Twitter/X API Key</Label>
+                <Label>API Key</Label>
                 <Input
                   type="password"
-                  placeholder="Enter API key"
+                  placeholder="Twitter API Key"
                   value={website.twitterApiKey || ""}
                   onChange={(e) => updateField("twitterApiKey", e.target.value)}
                 />
               </div>
-              <p className="text-sm text-muted-foreground">
-                More social platforms coming soon (LinkedIn, Facebook, etc.)
-              </p>
+              <div className="p-3 rounded-lg bg-muted/40 text-xs text-muted-foreground">
+                Requires a Twitter Developer account with Read & Write permissions.{" "}
+                <a href="https://developer.twitter.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  Get API keys →
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Linkedin className="h-4 w-4" />
+                LinkedIn
+              </CardTitle>
+              <CardDescription>
+                Share posts to your LinkedIn company page automatically
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>LinkedIn Access Token</Label>
+                <Input
+                  type="password"
+                  placeholder="LinkedIn OAuth access token"
+                  value={website.linkedinAccessToken || ""}
+                  onChange={(e) => updateField("linkedinAccessToken", e.target.value)}
+                />
+              </div>
+              <div className="p-3 rounded-lg bg-muted/40 text-xs text-muted-foreground">
+                Requires a LinkedIn app with <code className="bg-muted px-1 rounded">w_member_social</code> scope.{" "}
+                <a href="https://www.linkedin.com/developers/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                  LinkedIn Developers →
+                </a>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -371,18 +419,46 @@ export default function WebsiteSettingsPage() {
         <TabsContent value="advanced" className="mt-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Analytics</CardTitle>
+              <CardTitle>Analytics &amp; Search</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Google Analytics ID</Label>
+                <Label>Google Analytics Measurement ID</Label>
                 <Input
                   placeholder="G-XXXXXXXXXX"
                   value={website.googleAnalyticsId || ""}
-                  onChange={(e) =>
-                    updateField("googleAnalyticsId", e.target.value)
-                  }
+                  onChange={(e) => updateField("googleAnalyticsId", e.target.value)}
                 />
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <Label>Google Search Console Property URL</Label>
+                <Input
+                  placeholder="https://yourdomain.com"
+                  value={website.gscPropertyUrl || ""}
+                  onChange={(e) => updateField("gscPropertyUrl", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Your site property URL as registered in Google Search Console
+                </p>
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Zap className="h-3.5 w-3.5 text-primary" />
+                  IndexNow API Key
+                </Label>
+                <Input
+                  placeholder="e.g. a1b2c3d4e5f6..."
+                  value={website.indexNowKey || ""}
+                  onChange={(e) => updateField("indexNowKey", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Submit published posts to Google &amp; Bing instantly.{" "}
+                  <a href="https://www.indexnow.org/faq" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                    Learn more →
+                  </a>
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -418,6 +494,219 @@ export default function WebsiteSettingsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// Ghost Settings Component
+// ─────────────────────────────────────────────────────
+function GhostSettings({ websiteId }: { websiteId: string }) {
+  const [siteUrl, setSiteUrl] = useState("");
+  const [adminApiKey, setAdminApiKey] = useState("");
+  const [showKey, setShowKey] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; siteName?: string; error?: string } | null>(null);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/websites/${websiteId}/ghost`)
+      .then(r => r.json())
+      .then(d => { if (d.connected) { setConnected(true); setSiteUrl(d.siteUrl || ""); } })
+      .catch(() => {});
+  }, [websiteId]);
+
+  const handleTest = async () => {
+    setIsTesting(true); setTestResult(null);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/ghost`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test", siteUrl, adminApiKey }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+      if (data.success) toast.success("Ghost connection successful!"); else toast.error(data.error || "Connection failed");
+    } catch { toast.error("Test failed"); }
+    finally { setIsTesting(false); }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/ghost`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ siteUrl, adminApiKey }),
+      });
+      if (res.ok) { setConnected(true); toast.success("Ghost connected!"); }
+      else toast.error("Failed to save");
+    } catch { toast.error("Something went wrong"); }
+    finally { setIsSaving(false); }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Zap className="h-4 w-4" />
+          Ghost CMS
+        </CardTitle>
+        <CardDescription>Publish posts directly to your Ghost blog</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {connected && (
+          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800">
+            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+            Ghost connected — {siteUrl}
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label>Ghost Site URL</Label>
+          <Input placeholder="https://yourblog.ghost.io" value={siteUrl} onChange={e => setSiteUrl(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Admin API Key</Label>
+          <div className="relative">
+            <Input
+              type={showKey ? "text" : "password"}
+              placeholder="id:secret (from Ghost Admin → Integrations)"
+              value={adminApiKey}
+              onChange={e => setAdminApiKey(e.target.value)}
+              className="pr-10 font-mono text-sm"
+            />
+            <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowKey(v => !v)}>
+              {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Ghost Admin → Integrations → Add custom integration → Copy Admin API Key
+          </p>
+        </div>
+        {testResult && (
+          <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${testResult.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"}`}>
+            {testResult.success ? <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0 text-green-600" /> : <XCircle className="h-4 w-4 mt-0.5 shrink-0 text-red-600" />}
+            {testResult.success ? <>Connected to <strong>{testResult.siteName}</strong></> : testResult.error}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleTest} disabled={isTesting || !siteUrl || !adminApiKey}>
+            {isTesting && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            Test
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={isSaving || !siteUrl || !adminApiKey}>
+            {isSaving && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            Save
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─────────────────────────────────────────────────────
+// Webhook Settings Component
+// ─────────────────────────────────────────────────────
+function WebhookSettings({ websiteId }: { websiteId: string }) {
+  const [webhookUrl, setWebhookUrl] = useState("");
+  const [webhookSecret, setWebhookSecret] = useState("");
+  const [showSecret, setShowSecret] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
+  const [connected, setConnected] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/websites/${websiteId}/webhook`)
+      .then(r => r.json())
+      .then(d => { if (d.connected) { setConnected(true); setWebhookUrl(d.webhookUrl || ""); } })
+      .catch(() => {});
+  }, [websiteId]);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/webhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ webhookUrl, webhookSecret }),
+      });
+      if (res.ok) { setConnected(true); toast.success("Webhook saved!"); }
+      else toast.error("Failed to save webhook");
+    } catch { toast.error("Something went wrong"); }
+    finally { setIsSaving(false); }
+  };
+
+  const handleTest = async () => {
+    setIsTesting(true);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/webhook`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test", webhookUrl, webhookSecret }),
+      });
+      const data = await res.json();
+      if (data.success) toast.success(`Webhook test sent! Server responded ${data.statusCode}`);
+      else toast.error(data.error || "Test failed");
+    } catch { toast.error("Test failed"); }
+    finally { setIsTesting(false); }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Webhook className="h-4 w-4" />
+          Webhook / Custom CMS
+        </CardTitle>
+        <CardDescription>
+          POST every published post to any URL — works with Webflow, Make, Zapier, n8n, custom APIs
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {connected && (
+          <div className="flex items-center gap-2 p-2.5 rounded-lg bg-green-50 border border-green-200 text-sm text-green-800">
+            <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+            Webhook active — {webhookUrl}
+          </div>
+        )}
+        <div className="space-y-2">
+          <Label>Webhook URL</Label>
+          <Input placeholder="https://yourapp.com/api/content" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Secret (optional)</Label>
+          <div className="relative">
+            <Input
+              type={showSecret ? "text" : "password"}
+              placeholder="Used to sign requests with HMAC-SHA256"
+              value={webhookSecret}
+              onChange={e => setWebhookSecret(e.target.value)}
+              className="pr-10"
+            />
+            <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowSecret(v => !v)}>
+              {showSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            We'll send <code className="bg-muted px-1 rounded">X-BlogForge-Signature: sha256=…</code> with each request
+          </p>
+        </div>
+        <div className="p-3 rounded-lg bg-muted/40 text-xs text-muted-foreground space-y-1">
+          <p className="font-medium text-foreground">Payload includes:</p>
+          <p>title, slug, content (Markdown + HTML), excerpt, metaTitle, metaDescription, focusKeyword, featuredImage, tags, wordCount, publishedAt</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleTest} disabled={isTesting || !webhookUrl}>
+            {isTesting && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            Test Webhook
+          </Button>
+          <Button size="sm" onClick={handleSave} disabled={isSaving || !webhookUrl}>
+            {isSaving && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+            Save
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

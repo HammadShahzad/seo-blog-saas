@@ -16,6 +16,7 @@ import {
   LayoutDashboard,
   Zap,
   User,
+  CalendarDays,
 } from "lucide-react";
 import {
   Sidebar,
@@ -105,6 +106,11 @@ export function AppSidebar({ websites, currentWebsiteId, user }: AppSidebarProps
           title: "Internal Links",
           href: `/dashboard/websites/${currentWebsiteId}/links`,
           icon: Link2,
+        },
+        {
+          title: "Calendar",
+          href: `/dashboard/websites/${currentWebsiteId}/calendar`,
+          icon: CalendarDays,
         },
         {
           title: "Analytics",

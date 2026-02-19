@@ -17,7 +17,7 @@ export async function GET(
 
     const links = await prisma.internalLinkPair.findMany({
       where: { websiteId },
-      orderBy: { createdAt: "desc" },
+      orderBy: { keyword: "asc" },
     });
 
     return NextResponse.json(links);
@@ -47,20 +47,11 @@ export async function POST(
       );
     }
 
-    const membership = await prisma.organizationMember.findFirst({
-      where: { userId: session.user.id },
-    });
-
-    if (!membership) {
-      return NextResponse.json({ error: "No organization" }, { status: 404 });
-    }
-
     const link = await prisma.internalLinkPair.create({
       data: {
         keyword: keyword.trim(),
         url: url.trim(),
         websiteId,
-        organizationId: membership.organizationId,
       },
     });
 

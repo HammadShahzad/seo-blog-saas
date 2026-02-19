@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams, useRouter } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Table,
   TableBody,
@@ -28,7 +29,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -42,12 +42,17 @@ import {
   Loader2,
   MoreVertical,
   Trash2,
-  ArrowUp,
-  ArrowDown,
   KeyRound,
   Sparkles,
+  Bot,
+  FileUp,
+  Zap,
+  CheckCircle2,
+  ArrowRight,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 interface Keyword {
   id: string;
@@ -61,6 +66,14 @@ interface Keyword {
   createdAt: string;
 }
 
+interface Suggestion {
+  keyword: string;
+  intent: string;
+  difficulty: string;
+  priority: number;
+  rationale: string;
+}
+
 const STATUS_COLORS: Record<string, string> = {
   PENDING: "bg-yellow-100 text-yellow-800",
   RESEARCHING: "bg-blue-100 text-blue-800",
@@ -71,37 +84,62 @@ const STATUS_COLORS: Record<string, string> = {
   SKIPPED: "bg-gray-100 text-gray-800",
 };
 
+const INTENT_COLORS: Record<string, string> = {
+  informational: "bg-blue-50 text-blue-700",
+  commercial: "bg-purple-50 text-purple-700",
+  transactional: "bg-green-50 text-green-700",
+  navigational: "bg-gray-50 text-gray-700",
+};
+
 export default function KeywordsPage() {
   const params = useParams();
+  const router = useRouter();
   const websiteId = params.websiteId as string;
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  // Dialogs
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [showBulkDialog, setShowBulkDialog] = useState(false);
+  const [showSuggestDialog, setShowSuggestDialog] = useState(false);
+  const [showBulkGenDialog, setShowBulkGenDialog] = useState(false);
+
+  // Add form
   const [newKeyword, setNewKeyword] = useState("");
   const [newNotes, setNewNotes] = useState("");
-  const [bulkKeywords, setBulkKeywords] = useState("");
   const [isAdding, setIsAdding] = useState(false);
 
-  const fetchKeywords = async () => {
+  // Bulk import
+  const [bulkText, setBulkText] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // AI suggestions
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<string>>(new Set());
+  const [isAddingSuggestions, setIsAddingSuggestions] = useState(false);
+
+  // Bulk generation
+  const [isBulkGenerating, setIsBulkGenerating] = useState(false);
+  const [bulkCount, setBulkCount] = useState(3);
+
+  const fetchKeywords = useCallback(async () => {
     try {
       const res = await fetch(`/api/websites/${websiteId}/keywords`);
-      if (res.ok) {
-        const data = await res.json();
-        setKeywords(data);
-      }
+      if (res.ok) setKeywords(await res.json());
     } catch {
       toast.error("Failed to load keywords");
     } finally {
       setIsLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchKeywords();
   }, [websiteId]);
 
-  const handleAddKeyword = async () => {
+  useEffect(() => { fetchKeywords(); }, [fetchKeywords]);
+
+  // ── Add single keyword ──────────────────────────────────
+  const handleAdd = async () => {
     if (!newKeyword.trim()) return;
     setIsAdding(true);
     try {
@@ -112,189 +150,214 @@ export default function KeywordsPage() {
       });
       if (res.ok) {
         toast.success("Keyword added");
-        setNewKeyword("");
-        setNewNotes("");
-        setShowAddDialog(false);
+        setNewKeyword(""); setNewNotes(""); setShowAddDialog(false);
         fetchKeywords();
       } else {
-        const data = await res.json();
-        toast.error(data.error || "Failed to add keyword");
+        const d = await res.json();
+        toast.error(d.error || "Failed to add keyword");
       }
-    } catch {
-      toast.error("Failed to add keyword");
-    } finally {
-      setIsAdding(false);
-    }
+    } catch { toast.error("Failed to add keyword"); }
+    finally { setIsAdding(false); }
   };
 
-  const handleBulkAdd = async () => {
-    const keywordList = bulkKeywords
-      .split("\n")
-      .map((k) => k.trim())
-      .filter(Boolean);
-    if (keywordList.length === 0) return;
-    setIsAdding(true);
+  // ── Bulk text import ────────────────────────────────────
+  const handleBulkImport = async (keywordList: string[]) => {
+    const clean = keywordList.map(k => k.trim()).filter(Boolean);
+    if (!clean.length) return;
+    setIsImporting(true);
     try {
-      const res = await fetch(`/api/websites/${websiteId}/keywords/bulk`, {
+      const res = await fetch(`/api/websites/${websiteId}/keywords/import`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keywords: keywordList }),
+        body: JSON.stringify({ keywords: clean }),
       });
+      const data = await res.json();
       if (res.ok) {
-        toast.success(`${keywordList.length} keywords added`);
-        setBulkKeywords("");
-        setShowBulkDialog(false);
+        toast.success(`Imported ${data.imported} keywords${data.skipped ? ` (${data.skipped} skipped — already exist)` : ""}`);
+        setBulkText(""); setShowBulkDialog(false);
         fetchKeywords();
       } else {
-        const data = await res.json();
-        toast.error(data.error || "Failed to add keywords");
+        toast.error(data.error || "Import failed");
       }
-    } catch {
-      toast.error("Failed to add keywords");
-    } finally {
-      setIsAdding(false);
-    }
+    } catch { toast.error("Import failed"); }
+    finally { setIsImporting(false); }
   };
 
-  const handleDeleteKeyword = async (id: string) => {
+  // ── CSV file upload ─────────────────────────────────────
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split(/[\r\n,]+/).map(l => l.trim()).filter(Boolean);
+      // Skip header row if it's "keyword" or similar
+      const keywords = lines.filter(l => !["keyword", "keywords", "term", "query"].includes(l.toLowerCase()));
+      handleBulkImport(keywords);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  // ── AI keyword suggestions ──────────────────────────────
+  const handleGetSuggestions = async () => {
+    setIsLoadingSuggestions(true);
+    setSuggestions([]);
+    setSelectedSuggestions(new Set());
+    setShowSuggestDialog(true);
     try {
-      const res = await fetch(`/api/websites/${websiteId}/keywords/${id}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/websites/${websiteId}/keywords/suggest`, {
+        method: "POST",
       });
+      const data = await res.json();
+      if (res.ok) setSuggestions(data.suggestions || []);
+      else toast.error(data.error || "Failed to generate suggestions");
+    } catch { toast.error("Failed to generate suggestions"); }
+    finally { setIsLoadingSuggestions(false); }
+  };
+
+  const handleAddSuggestions = async () => {
+    const toAdd = suggestions.filter(s => selectedSuggestions.has(s.keyword)).map(s => s.keyword);
+    if (!toAdd.length) return;
+    setIsAddingSuggestions(true);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/keywords/import`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords: toAdd }),
+      });
+      const data = await res.json();
       if (res.ok) {
-        toast.success("Keyword deleted");
+        toast.success(`Added ${data.imported} keywords to queue`);
+        setShowSuggestDialog(false);
         fetchKeywords();
       }
-    } catch {
-      toast.error("Failed to delete keyword");
-    }
+    } catch { toast.error("Failed to add keywords"); }
+    finally { setIsAddingSuggestions(false); }
   };
 
+  // ── Bulk generation ─────────────────────────────────────
+  const handleBulkGenerate = async () => {
+    setIsBulkGenerating(true);
+    try {
+      const keywordIds = selected.size > 0 ? Array.from(selected) : undefined;
+      const res = await fetch(`/api/websites/${websiteId}/generate/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywordIds, count: bulkCount }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(data.message);
+        setShowBulkGenDialog(false);
+        setSelected(new Set());
+        router.push(`/dashboard/websites/${websiteId}`);
+      } else {
+        toast.error(data.error || "Bulk generation failed");
+      }
+    } catch { toast.error("Failed to start bulk generation"); }
+    finally { setIsBulkGenerating(false); }
+  };
+
+  // ── Delete ──────────────────────────────────────────────
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/keywords/${id}`, { method: "DELETE" });
+      if (res.ok) { toast.success("Keyword deleted"); fetchKeywords(); }
+    } catch { toast.error("Failed to delete"); }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const pendingKeywords = keywords.filter(k => k.status === "PENDING");
   const statusCounts = {
-    pending: keywords.filter((k) => k.status === "PENDING").length,
-    generating: keywords.filter((k) =>
-      ["RESEARCHING", "GENERATING"].includes(k.status)
-    ).length,
-    completed: keywords.filter((k) => k.status === "COMPLETED").length,
-    failed: keywords.filter((k) => k.status === "FAILED").length,
+    pending: keywords.filter(k => k.status === "PENDING").length,
+    generating: keywords.filter(k => ["RESEARCHING","GENERATING"].includes(k.status)).length,
+    completed: keywords.filter(k => k.status === "COMPLETED").length,
+    failed: keywords.filter(k => k.status === "FAILED").length,
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold">Keywords</h2>
-          <p className="text-muted-foreground">
-            Manage your content generation keyword queue
-          </p>
+          <p className="text-muted-foreground">Manage your content generation queue</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Dialog open={showBulkDialog} onOpenChange={setShowBulkDialog}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Upload className="mr-2 h-4 w-4" />
-                Bulk Import
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Bulk Import Keywords</DialogTitle>
-                <DialogDescription>
-                  Enter one keyword per line
-                </DialogDescription>
-              </DialogHeader>
-              <Textarea
-                placeholder={"how to create an invoice\nbest invoicing software\ninvoice template free"}
-                value={bulkKeywords}
-                onChange={(e) => setBulkKeywords(e.target.value)}
-                rows={8}
-              />
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowBulkDialog(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleBulkAdd} disabled={isAdding}>
-                  {isAdding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Import {bulkKeywords.split("\n").filter(Boolean).length} Keywords
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* CSV upload (hidden input) */}
+          <input ref={fileInputRef} type="file" accept=".csv,.txt" className="hidden" onChange={handleCSVUpload} />
 
-          <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Keyword
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Add Keyword</DialogTitle>
-                <DialogDescription>
-                  Add a new target keyword to the generation queue
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div>
-                  <Input
-                    placeholder="Enter keyword or phrase"
-                    value={newKeyword}
-                    onChange={(e) => setNewKeyword(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Textarea
-                    placeholder="Notes (optional) - e.g., special instructions"
-                    value={newNotes}
-                    onChange={(e) => setNewNotes(e.target.value)}
-                    rows={3}
-                  />
-                </div>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                  Cancel
-                </Button>
-                <Button onClick={handleAddKeyword} disabled={isAdding || !newKeyword.trim()}>
-                  {isAdding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Add Keyword
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+          <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+            <FileUp className="mr-2 h-4 w-4" />
+            Import CSV
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={() => setShowBulkDialog(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Paste Keywords
+          </Button>
+
+          <Button variant="outline" size="sm" onClick={handleGetSuggestions} disabled={isLoadingSuggestions}>
+            {isLoadingSuggestions ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
+            AI Suggest
+          </Button>
+
+          {pendingKeywords.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setShowBulkGenDialog(true)}
+              className="border-primary text-primary hover:bg-primary/5">
+              <Bot className="mr-2 h-4 w-4" />
+              Bulk Generate
+            </Button>
+          )}
+
+          <Button size="sm" onClick={() => setShowAddDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Keyword
+          </Button>
         </div>
       </div>
 
-      {/* Status Summary */}
-      <div className="grid grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-yellow-600">{statusCounts.pending}</p>
-            <p className="text-xs text-muted-foreground">Pending</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-blue-600">{statusCounts.generating}</p>
-            <p className="text-xs text-muted-foreground">Generating</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">{statusCounts.completed}</p>
-            <p className="text-xs text-muted-foreground">Completed</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4 text-center">
-            <p className="text-2xl font-bold text-red-600">{statusCounts.failed}</p>
-            <p className="text-xs text-muted-foreground">Failed</p>
-          </CardContent>
-        </Card>
+      {/* Status summary */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: "Pending", value: statusCounts.pending, color: "text-yellow-600" },
+          { label: "Generating", value: statusCounts.generating, color: "text-blue-600" },
+          { label: "Completed", value: statusCounts.completed, color: "text-green-600" },
+          { label: "Failed", value: statusCounts.failed, color: "text-red-600" },
+        ].map(s => (
+          <Card key={s.label}>
+            <CardContent className="p-4 text-center">
+              <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+              <p className="text-xs text-muted-foreground">{s.label}</p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
 
-      {/* Keywords Table */}
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center justify-between p-3 rounded-lg bg-primary/5 border border-primary/20">
+          <p className="text-sm font-medium">{selected.size} keyword{selected.size !== 1 ? "s" : ""} selected</p>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={() => setShowBulkGenDialog(true)}>
+              <Bot className="mr-2 h-3.5 w-3.5" />
+              Generate Selected
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
+              Deselect All
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Keywords table */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
@@ -305,80 +368,90 @@ export default function KeywordsPage() {
             <div className="flex flex-col items-center justify-center py-16 text-center">
               <KeyRound className="h-10 w-10 text-muted-foreground mb-3" />
               <h3 className="text-lg font-semibold mb-2">No keywords yet</h3>
-              <p className="text-muted-foreground max-w-md mb-4">
-                Add keywords to start generating AI-powered blog content.
+              <p className="text-muted-foreground max-w-sm mb-4 text-sm">
+                Add keywords manually, import a CSV, or let AI suggest the best keywords for your niche.
               </p>
-              <Button onClick={() => setShowAddDialog(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Your First Keyword
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={handleGetSuggestions}>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  AI Suggest Keywords
+                </Button>
+                <Button onClick={() => setShowAddDialog(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Manually
+                </Button>
+              </div>
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={selected.size === pendingKeywords.length && pendingKeywords.length > 0}
+                      onCheckedChange={(v) => {
+                        if (v) setSelected(new Set(pendingKeywords.map(k => k.id)));
+                        else setSelected(new Set());
+                      }}
+                    />
+                  </TableHead>
                   <TableHead>Keyword</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Intent</TableHead>
                   <TableHead>Priority</TableHead>
-                  <TableHead>Volume</TableHead>
-                  <TableHead>Difficulty</TableHead>
                   <TableHead>Notes</TableHead>
-                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead className="w-10"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {keywords.map((kw) => (
-                  <TableRow key={kw.id}>
+                  <TableRow key={kw.id} className={selected.has(kw.id) ? "bg-primary/5" : ""}>
+                    <TableCell>
+                      {kw.status === "PENDING" && (
+                        <Checkbox
+                          checked={selected.has(kw.id)}
+                          onCheckedChange={() => toggleSelect(kw.id)}
+                        />
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">{kw.keyword}</TableCell>
                     <TableCell>
-                      <span
-                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLORS[kw.status] || "bg-gray-100 text-gray-800"}`}
-                      >
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLORS[kw.status] || "bg-gray-100 text-gray-800"}`}>
                         {kw.status.toLowerCase()}
                       </span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm">{kw.priority}</span>
+                      {kw.intent ? (
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${INTENT_COLORS[kw.intent] || "bg-gray-50 text-gray-700"}`}>
+                          {kw.intent}
+                        </span>
+                      ) : <span className="text-muted-foreground text-xs">—</span>}
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {kw.searchVolume?.toLocaleString() || "-"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-sm text-muted-foreground">
-                        {kw.difficulty || "-"}
-                      </span>
+                      <span className="text-sm text-muted-foreground">{kw.priority}</span>
                     </TableCell>
                     <TableCell>
                       <span className="text-sm text-muted-foreground truncate max-w-[150px] block">
-                        {kw.notes || "-"}
+                        {kw.notes || "—"}
                       </span>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                          <Button variant="ghost" size="icon" className="h-7 w-7">
                             <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem>
-                            <ArrowUp className="mr-2 h-4 w-4" />
-                            Increase Priority
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <ArrowDown className="mr-2 h-4 w-4" />
-                            Decrease Priority
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Sparkles className="mr-2 h-4 w-4" />
-                            Generate Now
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => handleDeleteKeyword(kw.id)}
-                          >
+                          {kw.status === "PENDING" && (
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/websites/${websiteId}/generator`}>
+                                <Zap className="mr-2 h-4 w-4" />
+                                Generate Now
+                              </Link>
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(kw.id)}>
                             <Trash2 className="mr-2 h-4 w-4" />
                             Delete
                           </DropdownMenuItem>
@@ -392,6 +465,186 @@ export default function KeywordsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Add Keyword Dialog ── */}
+      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Keyword</DialogTitle>
+            <DialogDescription>Add a target keyword to the generation queue</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="e.g., how to create an invoice" value={newKeyword} onChange={e => setNewKeyword(e.target.value)} onKeyDown={e => e.key === "Enter" && handleAdd()} />
+            <Textarea placeholder="Notes (optional)" value={newNotes} onChange={e => setNewNotes(e.target.value)} rows={2} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button>
+            <Button onClick={handleAdd} disabled={isAdding || !newKeyword.trim()}>
+              {isAdding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Add Keyword
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Bulk paste Dialog ── */}
+      <Dialog open={showBulkDialog} onOpenChange={setShowBulkDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Paste Keywords</DialogTitle>
+            <DialogDescription>One keyword per line. Duplicates will be skipped.</DialogDescription>
+          </DialogHeader>
+          <Textarea
+            placeholder={"how to create an invoice\nbest invoicing software\ninvoice template free\n..."}
+            value={bulkText}
+            onChange={e => setBulkText(e.target.value)}
+            rows={10}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkDialog(false)}>Cancel</Button>
+            <Button
+              onClick={() => handleBulkImport(bulkText.split("\n"))}
+              disabled={isImporting || !bulkText.trim()}
+            >
+              {isImporting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Import {bulkText.split("\n").filter(Boolean).length} Keywords
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── AI Suggestions Dialog ── */}
+      <Dialog open={showSuggestDialog} onOpenChange={setShowSuggestDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI Keyword Suggestions
+            </DialogTitle>
+            <DialogDescription>
+              AI-generated keyword ideas based on your niche. Select ones to add.
+            </DialogDescription>
+          </DialogHeader>
+
+          {isLoadingSuggestions ? (
+            <div className="flex flex-col items-center py-12 gap-3">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-sm text-muted-foreground">Analyzing your niche with AI…</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm text-muted-foreground">{suggestions.length} suggestions</p>
+                <Button variant="ghost" size="sm" onClick={() => {
+                  if (selectedSuggestions.size === suggestions.length) setSelectedSuggestions(new Set());
+                  else setSelectedSuggestions(new Set(suggestions.map(s => s.keyword)));
+                }}>
+                  {selectedSuggestions.size === suggestions.length ? "Deselect All" : "Select All"}
+                </Button>
+              </div>
+              {suggestions.map(s => (
+                <div
+                  key={s.keyword}
+                  onClick={() => {
+                    setSelectedSuggestions(prev => {
+                      const next = new Set(prev);
+                      next.has(s.keyword) ? next.delete(s.keyword) : next.add(s.keyword);
+                      return next;
+                    });
+                  }}
+                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all ${
+                    selectedSuggestions.has(s.keyword) ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                  }`}
+                >
+                  <Checkbox checked={selectedSuggestions.has(s.keyword)} className="mt-0.5 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-sm">{s.keyword}</p>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${INTENT_COLORS[s.intent] || "bg-gray-50 text-gray-700"}`}>
+                        {s.intent}
+                      </span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                        s.difficulty === "low" ? "bg-green-50 text-green-700" :
+                        s.difficulty === "medium" ? "bg-yellow-50 text-yellow-700" :
+                        "bg-red-50 text-red-700"
+                      }`}>
+                        {s.difficulty} difficulty
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5">{s.rationale}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSuggestDialog(false)}>Cancel</Button>
+            <Button
+              onClick={handleAddSuggestions}
+              disabled={isAddingSuggestions || selectedSuggestions.size === 0}
+            >
+              {isAddingSuggestions && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Add {selectedSuggestions.size} Keywords
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Bulk Generate Dialog ── */}
+      <Dialog open={showBulkGenDialog} onOpenChange={setShowBulkGenDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5 text-primary" />
+              Bulk Generate Posts
+            </DialogTitle>
+            <DialogDescription>
+              {selected.size > 0
+                ? `Generate posts for ${selected.size} selected keyword${selected.size !== 1 ? "s" : ""}`
+                : `Generate posts from the top pending keywords`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {selected.size === 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">How many posts to generate?</p>
+                <div className="flex gap-2">
+                  {[1, 3, 5, 10].map(n => (
+                    <Button
+                      key={n}
+                      variant={bulkCount === n ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setBulkCount(n)}
+                      disabled={n > pendingKeywords.length}
+                    >
+                      {n}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {pendingKeywords.length} pending keywords available
+                </p>
+              </div>
+            )}
+            <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+              <p className="font-medium">This will use {selected.size > 0 ? selected.size : bulkCount} post credits from your monthly limit.</p>
+              <p className="text-xs mt-0.5">Posts will be saved as drafts unless auto-publish is enabled.</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkGenDialog(false)}>Cancel</Button>
+            <Button onClick={handleBulkGenerate} disabled={isBulkGenerating}>
+              {isBulkGenerating ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Starting…</>
+              ) : (
+                <><Zap className="mr-2 h-4 w-4" />Start Generating</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

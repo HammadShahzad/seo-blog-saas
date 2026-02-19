@@ -28,9 +28,10 @@ export async function GET(
         currentStep: true,
         progress: true,
         error: true,
-        keyword: true,
+        keywordId: true,
         createdAt: true,
         blogPostId: true,
+        input: true,
       },
     });
 
