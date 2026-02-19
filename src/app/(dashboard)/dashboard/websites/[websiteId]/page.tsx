@@ -112,6 +112,13 @@ export default async function WebsiteDashboard({
           <Badge variant={website.status === "ACTIVE" ? "default" : "secondary"}>
             {website.status.toLowerCase()}
           </Badge>
+          {website.subdomain && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/blog/${website.subdomain}`} target="_blank">
+                View Blog ↗
+              </Link>
+            </Button>
+          )}
           <Button asChild variant="outline" size="sm">
             <Link href={`/dashboard/websites/${websiteId}/settings`}>
               Settings
