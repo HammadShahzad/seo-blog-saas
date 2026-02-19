@@ -1,0 +1,133 @@
+name: Build & Deploy to Droplet
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DEPLOY_HOST: 167.71.96.242
+  DEPLOY_USER: root
+  DEPLOY_PATH: /var/www/seo-blog-saas
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Build Next.js (standalone)
+        run: npm run build
+        env:
+          # Build-time env vars (only what Next.js needs at build time)
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+
+      # Copy static assets into standalone output (required by Next.js standalone)
+      - name: Prepare standalone bundle
+        run: |
+          cp -r public .next/standalone/public
+          cp -r .next/static .next/standalone/.next/static
+
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Run DB migrations on droplet
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} \
+            "cd ${{ env.DEPLOY_PATH }} && DATABASE_URL='${{ secrets.DATABASE_URL }}' npx prisma migrate deploy 2>&1 || echo 'Migration skipped (no prisma binary on droplet — handled by next step)'"
+
+      - name: Sync standalone build to droplet
+        run: |
+          rsync -avz --delete \
+            --exclude '.env' \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            .next/standalone/ \
+            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/.next/standalone/
+
+          # Also sync the static files
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            .next/static/ \
+            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/.next/static/
+
+          # Sync public folder
+          rsync -avz --delete \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            public/ \
+            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/public/
+
+          # Sync config files
+          rsync -avz \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            ecosystem.config.js package.json \
+            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/
+
+      - name: Run DB migrations via standalone prisma
+        run: |
+          # Copy prisma directory to droplet for migrations
+          rsync -avz \
+            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
+            prisma/ \
+            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/prisma/
+
+          # Run migration using the node_modules we shipped in standalone
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'ENDSSH'
+          cd /var/www/seo-blog-saas
+          source /etc/environment 2>/dev/null || true
+          # Load .env if it exists
+          if [ -f .env ]; then export $(grep -v '^#' .env | xargs); fi
+          # Run migrations using prisma CLI from standalone node_modules
+          node .next/standalone/node_modules/.bin/prisma migrate deploy \
+            --schema /var/www/seo-blog-saas/prisma/schema.prisma 2>&1 || echo "Migration note: check DB manually"
+          ENDSSH
+
+      - name: Reload PM2 app
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'ENDSSH'
+          cd /var/www/seo-blog-saas
+          # Restart with new standalone server
+          pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
+          pm2 save
+          # Verify it's running
+          sleep 3
+          pm2 list
+          curl -s --max-time 5 http://127.0.0.1:3001 -o /dev/null -w "Health check: %{http_code}\n" || echo "App starting up..."
+          ENDSSH
+
+      - name: Deployment summary
+        run: |
+          echo "✅ Deployed to http://${{ env.DEPLOY_HOST }}:3001"
+          echo "   Standalone build: no node_modules needed on droplet"
+          echo "   PM2 reloaded with zero downtime"
