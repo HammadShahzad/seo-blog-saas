@@ -33,6 +33,9 @@ import {
   BarChart3,
   Image,
   Tags,
+  Plug,
+  CheckCircle2,
+  ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -81,6 +84,8 @@ export default function PostEditorPage() {
   });
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPushingToWP, setIsPushingToWP] = useState(false);
+  const [wpResult, setWpResult] = useState<{ url?: string; editUrl?: string } | null>(null);
   const [tagInput, setTagInput] = useState("");
   const [autoSlug, setAutoSlug] = useState(isNew);
 
@@ -158,6 +163,36 @@ export default function PostEditorPage() {
     }
   };
 
+  const handlePushToWordPress = async (status: "draft" | "publish") => {
+    if (isNew || !postId) {
+      toast.error("Save the post first before pushing to WordPress");
+      return;
+    }
+    setIsPushingToWP(true);
+    setWpResult(null);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/wordpress/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, status }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setWpResult({ url: data.wpPostUrl, editUrl: data.wpEditUrl });
+        toast.success(`Pushed to WordPress as ${status}!`);
+      } else {
+        toast.error(data.error || "Failed to push to WordPress");
+        if (data.error?.includes("not connected")) {
+          toast.error("Go to Website Settings → WordPress to connect first");
+        }
+      }
+    } catch {
+      toast.error("Failed to push to WordPress");
+    } finally {
+      setIsPushingToWP(false);
+    }
+  };
+
   const addTag = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && tagInput.trim()) {
       e.preventDefault();
@@ -206,7 +241,7 @@ export default function PostEditorPage() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <Button
             variant="outline"
             size="sm"
@@ -218,18 +253,76 @@ export default function PostEditorPage() {
             ) : (
               <Save className="mr-2 h-4 w-4" />
             )}
-            Save Draft
+            Save
           </Button>
+
+          {/* WordPress push dropdown */}
+          {!isNew && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePushToWordPress("draft")}
+                disabled={isPushingToWP || isSaving}
+                className="border-[#21759b] text-[#21759b] hover:bg-[#21759b]/5"
+              >
+                {isPushingToWP ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plug className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                WP Draft
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handlePushToWordPress("publish")}
+                disabled={isPushingToWP || isSaving}
+                className="bg-[#21759b] hover:bg-[#21759b]/90"
+              >
+                {isPushingToWP ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plug className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                WP Publish
+              </Button>
+            </div>
+          )}
+
           <Button
             size="sm"
             onClick={() => handleSave("PUBLISHED")}
             disabled={isSaving}
           >
             <Send className="mr-2 h-4 w-4" />
-            Publish
+            Publish Here
           </Button>
         </div>
       </div>
+
+      {/* WordPress push success banner */}
+      {wpResult && (
+        <div className="flex items-center justify-between p-3 rounded-lg bg-[#21759b]/10 border border-[#21759b]/20 text-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-[#21759b]" />
+            <span className="font-medium text-[#21759b]">Successfully pushed to WordPress</span>
+          </div>
+          <div className="flex gap-2">
+            {wpResult.url && (
+              <a href={wpResult.url} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-[#21759b] hover:underline flex items-center gap-1">
+                View Post <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {wpResult.editUrl && (
+              <a href={wpResult.editUrl} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-[#21759b] hover:underline flex items-center gap-1 ml-3">
+                Edit in WP <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Main Editor */}
