@@ -13,7 +13,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ArrowLeft, ArrowRight, Loader2, Globe, Palette, Target, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Loader2,
+  Globe,
+  Palette,
+  Target,
+  Sparkles,
+  CheckCircle2,
+  RefreshCw,
+} from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -27,6 +38,8 @@ export default function NewWebsitePage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiAnalyzed, setAiAnalyzed] = useState(false);
   const [formData, setFormData] = useState({
     name: "",
     domain: "",
@@ -41,33 +54,90 @@ export default function NewWebsitePage() {
 
   const updateField = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
 
-    // Auto-fill brand URL when domain changes
-    if (field === "domain" && !formData.brandUrl) {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: value,
-        brandUrl: value ? `https://www.${value}` : "",
-      }));
-    }
+  const canProceedStep1 = formData.name.trim() && formData.domain.trim();
 
-    // Auto-fill brand name from name
-    if (field === "name" && !formData.brandName) {
-      setFormData((prev) => ({
-        ...prev,
-        [field]: value,
-        brandName: value,
-      }));
+  const handleAnalyzeAndNext = async () => {
+    setIsAnalyzing(true);
+    try {
+      const res = await fetch("/api/websites/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          domain: formData.domain,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setFormData((prev) => ({
+          ...prev,
+          brandName: data.brandName || prev.name,
+          brandUrl: data.brandUrl || `https://${prev.domain}`,
+          primaryColor: data.primaryColor || prev.primaryColor,
+          niche: data.niche || "",
+          description: data.description || "",
+          targetAudience: data.targetAudience || "",
+          tone: data.tone || prev.tone,
+        }));
+        setAiAnalyzed(true);
+        toast.success("AI analyzed your website — review and confirm below");
+      } else {
+        toast.error("Could not analyze website, please fill in manually");
+        setFormData((prev) => ({
+          ...prev,
+          brandName: prev.name,
+          brandUrl: `https://${prev.domain}`,
+        }));
+      }
+    } catch {
+      toast.error("Analysis failed, please fill in manually");
+    } finally {
+      setIsAnalyzing(false);
+      setStep(2);
     }
   };
 
-  const canProceed = () => {
-    if (step === 1) return formData.name && formData.domain;
-    if (step === 2) return formData.brandName && formData.brandUrl;
-    if (step === 3)
-      return formData.niche && formData.description && formData.targetAudience;
-    return false;
+  const handleReAnalyze = async () => {
+    setIsAnalyzing(true);
+    setAiAnalyzed(false);
+    try {
+      const res = await fetch("/api/websites/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
+          domain: formData.domain,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setFormData((prev) => ({
+          ...prev,
+          brandName: data.brandName || prev.name,
+          brandUrl: data.brandUrl || `https://${prev.domain}`,
+          primaryColor: data.primaryColor || prev.primaryColor,
+          niche: data.niche || "",
+          description: data.description || "",
+          targetAudience: data.targetAudience || "",
+          tone: data.tone || prev.tone,
+        }));
+        setAiAnalyzed(true);
+        toast.success("Re-analyzed successfully");
+      }
+    } catch {
+      toast.error("Re-analysis failed");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
+
+  const canProceedStep2 = formData.brandName && formData.brandUrl;
+  const canProceedStep3 =
+    formData.niche && formData.description && formData.targetAudience;
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -140,7 +210,7 @@ export default function NewWebsitePage() {
           <CardHeader>
             <CardTitle>Basic Information</CardTitle>
             <CardDescription>
-              Tell us about your website
+              Enter your website name and domain — AI will handle the rest
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -169,71 +239,138 @@ export default function NewWebsitePage() {
                 Your website&apos;s domain name (without https://)
               </p>
             </div>
+
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10">
+              <Sparkles className="h-4 w-4 text-primary shrink-0" />
+              <p className="text-sm text-muted-foreground">
+                AI will automatically research your website and fill in brand
+                details and content strategy
+              </p>
+            </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Step 2: Brand Details */}
+      {/* Step 2: Brand Details (AI-filled, editable) */}
       {step === 2 && (
         <Card>
           <CardHeader>
-            <CardTitle>Brand Details</CardTitle>
-            <CardDescription>
-              Configure your brand identity for content generation
-            </CardDescription>
+            <div className="flex items-start justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  Brand Details
+                  {aiAnalyzed && !isAnalyzing && (
+                    <Badge
+                      variant="secondary"
+                      className="text-xs gap-1 bg-green-50 text-green-700 border-green-200"
+                    >
+                      <CheckCircle2 className="h-3 w-3" />
+                      AI filled
+                    </Badge>
+                  )}
+                  {isAnalyzing && (
+                    <Badge variant="secondary" className="text-xs gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      Analyzing…
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  {isAnalyzing
+                    ? "Researching your website with AI…"
+                    : "Review and adjust the AI-generated brand details"}
+                </CardDescription>
+              </div>
+              {!isAnalyzing && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="shrink-0 text-muted-foreground"
+                  onClick={handleReAnalyze}
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Re-analyze
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="brandName">Brand Name</Label>
-              <Input
-                id="brandName"
-                placeholder="e.g., InvoiceCave"
-                value={formData.brandName}
-                onChange={(e) => updateField("brandName", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="brandUrl">Brand URL</Label>
-              <Input
-                id="brandUrl"
-                placeholder="e.g., https://www.invoicecave.com"
-                value={formData.brandUrl}
-                onChange={(e) => updateField("brandUrl", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="primaryColor">Brand Color</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  id="primaryColor"
-                  value={formData.primaryColor}
-                  onChange={(e) => updateField("primaryColor", e.target.value)}
-                  className="h-10 w-10 rounded border cursor-pointer"
-                />
-                <Input
-                  value={formData.primaryColor}
-                  onChange={(e) => updateField("primaryColor", e.target.value)}
-                  className="w-32"
-                />
+            {isAnalyzing ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm">
+                  Researching {formData.domain} with Perplexity + Gemini…
+                </p>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="brandName">Brand Name</Label>
+                  <Input
+                    id="brandName"
+                    placeholder="e.g., InvoiceCave"
+                    value={formData.brandName}
+                    onChange={(e) => updateField("brandName", e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="brandUrl">Brand URL</Label>
+                  <Input
+                    id="brandUrl"
+                    placeholder="e.g., https://www.invoicecave.com"
+                    value={formData.brandUrl}
+                    onChange={(e) => updateField("brandUrl", e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="primaryColor">Brand Color</Label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      id="primaryColor"
+                      value={formData.primaryColor}
+                      onChange={(e) =>
+                        updateField("primaryColor", e.target.value)
+                      }
+                      className="h-10 w-10 rounded border cursor-pointer"
+                    />
+                    <Input
+                      value={formData.primaryColor}
+                      onChange={(e) =>
+                        updateField("primaryColor", e.target.value)
+                      }
+                      className="w-32"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Step 3: Content Strategy */}
+      {/* Step 3: Content Strategy (AI-filled, editable) */}
       {step === 3 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               Content Strategy
+              {aiAnalyzed && (
+                <Badge
+                  variant="secondary"
+                  className="text-xs gap-1 bg-green-50 text-green-700 border-green-200"
+                >
+                  <CheckCircle2 className="h-3 w-3" />
+                  AI filled
+                </Badge>
+              )}
               <Sparkles className="h-4 w-4 text-primary" />
             </CardTitle>
             <CardDescription>
-              This information helps our AI generate relevant, targeted content
+              Review the AI-generated content strategy — adjust anything that
+              needs fine-tuning
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -254,7 +391,7 @@ export default function NewWebsitePage() {
               <Label htmlFor="description">Business Description</Label>
               <Textarea
                 id="description"
-                placeholder="e.g., Cloud-based invoicing and accounting platform that helps freelancers and small businesses manage their finances"
+                placeholder="e.g., Cloud-based invoicing and accounting platform…"
                 value={formData.description}
                 onChange={(e) => updateField("description", e.target.value)}
                 rows={3}
@@ -265,9 +402,11 @@ export default function NewWebsitePage() {
               <Label htmlFor="targetAudience">Target Audience</Label>
               <Textarea
                 id="targetAudience"
-                placeholder="e.g., Freelancers, small business owners, accountants, and solopreneurs"
+                placeholder="e.g., Freelancers, small business owners, accountants…"
                 value={formData.targetAudience}
-                onChange={(e) => updateField("targetAudience", e.target.value)}
+                onChange={(e) =>
+                  updateField("targetAudience", e.target.value)
+                }
                 rows={2}
               />
             </div>
@@ -299,15 +438,35 @@ export default function NewWebsitePage() {
           Back
         </Button>
 
-        {step < 3 ? (
-          <Button onClick={() => setStep((s) => s + 1)} disabled={!canProceed()}>
+        {step === 1 ? (
+          <Button
+            onClick={handleAnalyzeAndNext}
+            disabled={!canProceedStep1 || isAnalyzing}
+          >
+            {isAnalyzing ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Analyzing…
+              </>
+            ) : (
+              <>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Analyze & Continue
+              </>
+            )}
+          </Button>
+        ) : step === 2 ? (
+          <Button
+            onClick={() => setStep(3)}
+            disabled={!canProceedStep2 || isAnalyzing}
+          >
             Next
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
         ) : (
           <Button
             onClick={handleSubmit}
-            disabled={!canProceed() || isLoading}
+            disabled={!canProceedStep3 || isLoading}
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Create Website
