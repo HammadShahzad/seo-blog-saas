@@ -394,15 +394,19 @@ export default function PostEditorPage() {
         <div className="space-y-4">
           <Tabs defaultValue="seo">
             <TabsList className="w-full">
-              <TabsTrigger value="seo" className="flex-1">
+              <TabsTrigger value="seo" className="flex-1 text-xs px-2">
                 <BarChart3 className="mr-1 h-3 w-3" />
                 SEO
               </TabsTrigger>
-              <TabsTrigger value="meta" className="flex-1">
+              <TabsTrigger value="meta" className="flex-1 text-xs px-2">
                 <FileText className="mr-1 h-3 w-3" />
                 Meta
               </TabsTrigger>
-              <TabsTrigger value="social" className="flex-1">
+              <TabsTrigger value="image" className="flex-1 text-xs px-2">
+                <Image className="mr-1 h-3 w-3" />
+                Image
+              </TabsTrigger>
+              <TabsTrigger value="social" className="flex-1 text-xs px-2">
                 <Tags className="mr-1 h-3 w-3" />
                 Social
               </TabsTrigger>
@@ -548,7 +552,10 @@ export default function PostEditorPage() {
                   />
                 </CardContent>
               </Card>
+            </TabsContent>
 
+            {/* Image Tab */}
+            <TabsContent value="image" className="space-y-4 mt-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
