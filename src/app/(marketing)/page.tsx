@@ -128,7 +128,7 @@ export default function LandingPage() {
                 icon: Image,
                 title: "AI Images",
                 description:
-                  "Imagen 4.0 creates unique featured images. No stock photos needed.",
+                  "Imagen 3 creates unique featured images. No stock photos needed.",
               },
               {
                 icon: Link2,

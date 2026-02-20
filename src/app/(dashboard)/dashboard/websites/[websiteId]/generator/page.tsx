@@ -397,7 +397,7 @@ export default function GeneratorPage() {
                 <div>
                   <Label>Include AI Image</Label>
                   <p className="text-xs text-muted-foreground">
-                    Imagen 4.0 featured image
+                    Imagen 3 featured image
                   </p>
                 </div>
                 <Switch
@@ -445,7 +445,7 @@ export default function GeneratorPage() {
               {[
                 { label: "Research", model: "Perplexity Sonar", configured: !!process.env.NEXT_PUBLIC_HAS_PERPLEXITY },
                 { label: "Writing", model: "Gemini 2.0 Flash", configured: true },
-                { label: "Images", model: "Imagen 4.0", configured: true },
+                { label: "Images", model: "Imagen 3", configured: true },
               ].map((m) => (
                 <div key={m.label} className="flex items-center justify-between p-2.5 rounded-lg border">
                   <div>

@@ -293,7 +293,7 @@ Return valid JSON with all these keys.`,
   let featuredImageAlt = metadata.featuredImageAlt || keyword;
 
   if (includeImages && process.env.GOOGLE_AI_API_KEY) {
-    await progress("image", "Generating featured image with Imagen 4.0...");
+    await progress("image", "Generating featured image with Imagen 3...");
     try {
       const imagePrompt = await generateText(
         `Create a professional, eye-catching image prompt for a blog post titled: "${outline.title}"
