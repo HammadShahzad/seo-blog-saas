@@ -16,7 +16,14 @@ export async function POST(
 
     const website = await prisma.website.findUnique({
       where: { id: websiteId },
-      select: { niche: true, targetAudience: true, brandName: true },
+      select: {
+        niche: true,
+        targetAudience: true,
+        brandName: true,
+        description: true,
+        brandUrl: true,
+        domain: true,
+      },
     });
 
     if (!website) {
@@ -29,6 +36,11 @@ export async function POST(
       select: { keyword: true },
     });
     const existingSet = new Set(existing.map((k) => k.keyword.toLowerCase()));
+    const existingList = existing.length > 0
+      ? `\n\nAlready added keywords (do NOT repeat these):\n${existing.slice(0, 50).map(k => `- ${k.keyword}`).join("\n")}`
+      : "";
+
+    const websiteUrl = website.brandUrl || (website.domain ? `https://${website.domain}` : "");
 
     interface SuggestionsResponse {
       keywords: Array<{
@@ -41,27 +53,35 @@ export async function POST(
     }
 
     const result = await generateJSON<SuggestionsResponse>(
-      `Generate 20 high-value SEO keyword ideas for a "${website.niche}" website targeting "${website.targetAudience}".
+      `You are an SEO strategist for the following business. Generate 20 high-value blog keyword ideas STRICTLY relevant to this specific business.
 
-Focus on:
-- Long-tail keywords with clear search intent
+## Business Details:
+- Brand: ${website.brandName}${websiteUrl ? ` (${websiteUrl})` : ""}
+- Niche: ${website.niche}
+- Description: ${website.description || "N/A"}
+- Target audience: ${website.targetAudience}
+
+## Rules:
+- Every keyword MUST directly relate to ${website.brandName}'s niche: "${website.niche}"
+- Do NOT suggest generic or off-topic keywords unrelated to this business
+- Focus on keywords that a potential customer of ${website.brandName} would actually search for
+- Long-tail keywords (3-6 words) that can support a 1000-2000 word blog post
 - Mix of informational ("how to..."), commercial ("best..."), and comparison keywords
-- Keywords that can support 1000-2000 word blog posts
-- Realistic search volume potential (not too competitive, not too niche)
+- Realistic difficulty — not too broad (entire industry), not too obscure${existingList}
 
 Return JSON:
 {
   "keywords": [
     {
-      "keyword": "how to create an invoice for freelancers",
+      "keyword": "exact keyword phrase here",
       "intent": "informational",
       "difficulty": "low",
       "priority": 8,
-      "rationale": "High search volume, directly relevant, easy to rank"
+      "rationale": "Why this keyword is relevant to ${website.brandName} and its audience"
     }
   ]
 }`,
-      "You are an expert SEO strategist. Return only valid JSON."
+      `You are an SEO strategist specializing in the ${website.niche} industry for ${website.brandName}. Return only valid JSON. Every keyword must be directly relevant to this specific business.`
     );
 
     // Filter out already existing keywords

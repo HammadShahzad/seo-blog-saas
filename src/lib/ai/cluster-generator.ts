@@ -54,24 +54,26 @@ async function researchSeedTopic(
         messages: [
           {
             role: "system",
-            content: `You are an SEO content strategist specializing in the ${niche} niche. Provide detailed keyword research and competitor analysis.`,
+            content: `You are an SEO content strategist specializing in the ${niche} niche. Only provide research directly relevant to the ${niche} industry and ${brandName}'s target audience. Do not suggest off-topic or generic content.`,
           },
           {
             role: "user",
-            content: `Research the topic "${seedTopic}" for a content cluster strategy for ${brandName} (${brandUrl}).
+            content: `Research the topic "${seedTopic}" for a content cluster for ${brandName} (${brandUrl}), which is a ${niche} business.
+
+IMPORTANT: All research must be specifically relevant to the ${niche} niche and ${brandName}'s audience. Do not suggest topics outside this niche.
 
 I need:
-1. What are the top 10 ranking articles for this topic? List their titles and what they cover.
-2. What are 20-25 related long-tail keywords people search for?
-3. What subtopics do top-ranking pages cover that we should include?
-4. What questions do people frequently ask about this topic?
-5. What content gaps exist (things competitors miss)?
+1. Top ranking articles specifically about "${seedTopic}" in the context of ${niche} — list their titles and what angles they cover
+2. 15-20 long-tail keyword variations of "${seedTopic}" that are relevant to ${niche}
+3. Specific subtopics that top-ranking pages cover for this niche
+4. Common questions ${niche} audiences ask about "${seedTopic}"
+5. Content gaps — what are competitors missing about "${seedTopic}" in the ${niche} space?
 
-Focus on keywords relevant to ${niche} and ${brandName}'s target audience.`,
+Stay strictly within the ${niche} niche.`,
           },
         ],
-        max_tokens: 4000,
-        temperature: 0.2,
+        max_tokens: 3000,
+        temperature: 0.1,
       }),
       signal: AbortSignal.timeout(30000),
     });
@@ -108,7 +110,7 @@ export async function generateClusterPreview(
     : "";
 
   const result = await generateJSON<ClusterPreview>(
-    `You are an expert SEO content strategist. Based on the research below, create a topic cluster for "${seedTopic}".
+    `You are an SEO content strategist for ${website.brandName}, a ${website.niche} business. Create a topic cluster for "${seedTopic}".
 
 ## Business Context:
 - Brand: ${website.brandName} (${website.brandUrl})
@@ -117,44 +119,40 @@ export async function generateClusterPreview(
 - Target audience: ${website.targetAudience}
 
 ## Research Data:
-${research.substring(0, 5000)}${existingSection}
+${research.substring(0, 4000)}${existingSection}
 
-## Instructions:
-Create a topic cluster with:
-1. ONE pillar article (broad, comprehensive, 2500-4000 word target) that covers the main topic
-2. 10-15 supporting articles (specific long-tail keywords, 1200-2000 word target each)
-
-## Rules:
-- All keywords must be specific to ${website.brandName}'s niche: ${website.niche}
-- Pillar keyword should be broad with high search volume potential
-- Supporting keywords should be specific long-tail (3-6 words)
-- Each keyword must be unique and target a distinct angle
-- Include a mix of search intents: informational, transactional, commercial
-- Do NOT duplicate any existing keywords listed above
-- Each keyword gets a brief description of what the article should cover
+## STRICT RULES — read carefully:
+- Every single keyword MUST be directly about "${seedTopic}" as it relates to ${website.niche}
+- Do NOT suggest generic keywords unrelated to "${seedTopic}" or the ${website.niche} niche
+- Do NOT invent topics that aren't covered in the research or aren't clearly part of this niche
+- All keywords must be things ${website.targetAudience} would actually search for
+- Pillar: ONE broad keyword directly about "${seedTopic}" (2500-4000 words)
+- Supporting: 8-12 specific long-tail variations of "${seedTopic}" (1200-2000 words each, 3-6 words)
+- Each keyword must target a distinct, specific angle of "${seedTopic}"
+- Do NOT repeat any existing keywords listed above
 
 Return valid JSON only:
 {
-  "pillarTitle": "The pillar cluster theme name",
-  "description": "Brief description of the cluster theme (1-2 sentences)",
+  "pillarTitle": "cluster theme name",
+  "description": "1-2 sentence description of this cluster",
   "keywords": [
     {
-      "keyword": "exact keyword to target",
+      "keyword": "exact keyword phrase",
       "role": "pillar",
       "searchIntent": "informational",
       "suggestedWordCount": 3000,
-      "description": "What this article should cover in 1-2 sentences"
+      "description": "what this article covers in 1-2 sentences"
     },
     {
-      "keyword": "long tail supporting keyword",
+      "keyword": "specific long-tail keyword about ${seedTopic}",
       "role": "supporting",
       "searchIntent": "informational",
       "suggestedWordCount": 1500,
-      "description": "What this article should cover"
+      "description": "what this article covers"
     }
   ]
 }`,
-    `You are an expert SEO content strategist for ${website.brandName}. Return valid JSON only.`,
+    `You are an SEO content strategist for ${website.brandName} in the ${website.niche} niche. Every keyword must relate directly to "${seedTopic}". Return valid JSON only.`,
   );
 
   // Ensure exactly one pillar
