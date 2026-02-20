@@ -36,6 +36,8 @@ import {
   Plug,
   CheckCircle2,
   ExternalLink,
+  RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -86,6 +88,8 @@ export default function PostEditorPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isPushingToWP, setIsPushingToWP] = useState(false);
   const [wpResult, setWpResult] = useState<{ url?: string; editUrl?: string } | null>(null);
+  const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
+  const [imagePromptInput, setImagePromptInput] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [autoSlug, setAutoSlug] = useState(isNew);
 
@@ -190,6 +194,36 @@ export default function PostEditorPage() {
       toast.error("Failed to push to WordPress");
     } finally {
       setIsPushingToWP(false);
+    }
+  };
+
+  const handleRegenerateImage = async (customPrompt?: string) => {
+    if (isNew || !postId) {
+      toast.error("Save the post first before regenerating the image");
+      return;
+    }
+    setIsRegeneratingImage(true);
+    try {
+      const res = await fetch(
+        `/api/websites/${websiteId}/posts/${postId}/regenerate-image`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(customPrompt ? { prompt: customPrompt } : {}),
+        }
+      );
+      const data = await res.json();
+      if (res.ok) {
+        updateField("featuredImage", data.imageUrl);
+        toast.success("New image generated and saved!");
+        setImagePromptInput("");
+      } else {
+        toast.error(data.error || "Failed to generate image");
+      }
+    } catch {
+      toast.error("Image generation failed");
+    } finally {
+      setIsRegeneratingImage(false);
     }
   };
 
@@ -522,26 +556,92 @@ export default function PostEditorPage() {
                     Featured Image
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-2">
-                  {post.featuredImage && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={post.featuredImage}
-                      alt={post.featuredImageAlt || "Featured image"}
-                      className="w-full rounded-lg aspect-video object-cover"
-                    />
+                <CardContent className="space-y-3">
+                  {/* Preview */}
+                  {post.featuredImage ? (
+                    <div className="relative group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={post.featuredImage}
+                        alt={post.featuredImageAlt || "Featured image"}
+                        className="w-full rounded-lg aspect-video object-cover"
+                      />
+                      {isRegeneratingImage && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
+                          <div className="text-center text-white">
+                            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+                            <p className="text-xs">Generating with Imagen AI…</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className={`w-full aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-muted-foreground gap-2 ${isRegeneratingImage ? "border-primary/50 bg-primary/5" : ""}`}>
+                      {isRegeneratingImage
+                        ? <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-xs">Generating with Imagen AI…</p></>
+                        : <><Image className="h-6 w-6" /><p className="text-xs">No image yet</p></>
+                      }
+                    </div>
                   )}
+
+                  {/* AI Regenerate buttons */}
+                  {!isNew && (
+                    <div className="space-y-2">
+                      <Button
+                        size="sm"
+                        className="w-full"
+                        variant="outline"
+                        onClick={() => handleRegenerateImage()}
+                        disabled={isRegeneratingImage}
+                      >
+                        {isRegeneratingImage
+                          ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                          : <Sparkles className="mr-2 h-3.5 w-3.5" />
+                        }
+                        {post.featuredImage ? "Regenerate with AI" : "Generate with AI"}
+                      </Button>
+
+                      {/* Custom prompt input */}
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          placeholder="Custom prompt (optional)…"
+                          value={imagePromptInput}
+                          onChange={(e) => setImagePromptInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && imagePromptInput.trim()) {
+                              handleRegenerateImage(imagePromptInput.trim());
+                            }
+                          }}
+                          className="flex-1 h-7 text-xs px-2 border rounded-md bg-background"
+                          disabled={isRegeneratingImage}
+                        />
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2"
+                          onClick={() => imagePromptInput.trim() && handleRegenerateImage(imagePromptInput.trim())}
+                          disabled={isRegeneratingImage || !imagePromptInput.trim()}
+                          title="Generate from custom prompt"
+                        >
+                          <RefreshCw className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Manual URL override */}
                   <Input
-                    placeholder="Image URL"
+                    placeholder="Or paste image URL directly"
                     value={post.featuredImage || ""}
                     onChange={(e) => updateField("featuredImage", e.target.value)}
-                    className="text-sm"
+                    className="text-xs h-8"
                   />
                   <Input
                     placeholder="Alt text"
                     value={post.featuredImageAlt || ""}
                     onChange={(e) => updateField("featuredImageAlt", e.target.value)}
-                    className="text-sm"
+                    className="text-xs h-8"
                   />
                 </CardContent>
               </Card>
