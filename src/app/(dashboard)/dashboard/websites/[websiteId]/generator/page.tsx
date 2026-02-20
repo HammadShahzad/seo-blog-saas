@@ -187,6 +187,15 @@ export default function GeneratorPage() {
     }
   };
 
+  const handleDismiss = async (jobId: string) => {
+    setActiveJobs(prev => prev.filter(j => j.id !== jobId));
+    await fetch(`/api/websites/${websiteId}/jobs`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "dismiss", jobId }),
+    }).catch(() => {});
+  };
+
   const handleGenerate = async () => {
     setIsStarting(true);
     try {
@@ -256,7 +265,7 @@ export default function GeneratorPage() {
                 {runningJobs.length} active job{runningJobs.length > 1 ? "s" : ""}
               </h3>
               {runningJobs.map(job => (
-                <JobCard key={job.id} job={job} websiteId={websiteId} onRetry={handleRetry} />
+                <JobCard key={job.id} job={job} websiteId={websiteId} onRetry={handleRetry} onDismiss={handleDismiss} />
               ))}
             </div>
           )}
@@ -269,7 +278,7 @@ export default function GeneratorPage() {
                 {completedJobs.length} completed
               </h3>
               {completedJobs.map(job => (
-                <JobCard key={job.id} job={job} websiteId={websiteId} onRetry={handleRetry} />
+                <JobCard key={job.id} job={job} websiteId={websiteId} onRetry={handleRetry} onDismiss={handleDismiss} />
               ))}
             </div>
           )}
@@ -282,7 +291,7 @@ export default function GeneratorPage() {
                 {failedJobs.length} failed
               </h3>
               {failedJobs.map(job => (
-                <JobCard key={job.id} job={job} websiteId={websiteId} onRetry={handleRetry} />
+                <JobCard key={job.id} job={job} websiteId={websiteId} onRetry={handleRetry} onDismiss={handleDismiss} />
               ))}
             </div>
           )}
@@ -453,7 +462,17 @@ export default function GeneratorPage() {
   );
 }
 
-function JobCard({ job, websiteId, onRetry }: { job: JobStatus; websiteId: string; onRetry?: (jobId: string) => void }) {
+function JobCard({
+  job,
+  websiteId,
+  onRetry,
+  onDismiss,
+}: {
+  job: JobStatus;
+  websiteId: string;
+  onRetry?: (jobId: string) => void;
+  onDismiss?: (jobId: string) => void;
+}) {
   const isRunning = job.status === "QUEUED" || job.status === "PROCESSING";
   const isCompleted = job.status === "COMPLETED";
   const isFailed = job.status === "FAILED";
@@ -466,6 +485,7 @@ function JobCard({ job, websiteId, onRetry }: { job: JobStatus; websiteId: strin
       "border-primary/20 bg-primary/5"
     }>
       <CardContent className="pt-4 pb-4 space-y-3">
+        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             {isRunning && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
@@ -473,18 +493,30 @@ function JobCard({ job, websiteId, onRetry }: { job: JobStatus; websiteId: strin
             {isFailed && <XCircle className="h-4 w-4 text-red-600 shrink-0" />}
             <span className="text-sm font-medium truncate">{keyword}</span>
           </div>
-          <span className="text-sm font-medium tabular-nums shrink-0 ml-2">{job.progress}%</span>
+          <div className="flex items-center gap-2 shrink-0 ml-2">
+            <span className="text-sm font-medium tabular-nums">{job.progress}%</span>
+            {/* Dismiss × for completed or failed */}
+            {!isRunning && (
+              <button
+                onClick={() => onDismiss?.(job.id)}
+                className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
+                aria-label="Dismiss"
+              >
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         <Progress value={job.progress} className="h-1.5" />
 
+        {/* Pipeline steps */}
         <div className="grid grid-cols-4 gap-1 sm:grid-cols-7">
           {PIPELINE_STEPS.map((step) => {
             const stepIdx = PIPELINE_STEPS.findIndex(s => s.id === step.id);
             const currentIdx = PIPELINE_STEPS.findIndex(s => s.id === job.currentStep);
             const isDone = isCompleted || (currentIdx > stepIdx);
             const isCurrent = job.currentStep === step.id;
-
             return (
               <div
                 key={step.id}
@@ -507,26 +539,37 @@ function JobCard({ job, websiteId, onRetry }: { job: JobStatus; websiteId: strin
           })}
         </div>
 
+        {/* Failed: error + action buttons */}
         {isFailed && (
-          <div className="flex items-center justify-between gap-2 p-2 bg-red-100 rounded">
-            <p className="text-xs text-red-700 flex-1">
+          <div className="space-y-2">
+            <p className="text-xs text-red-700 bg-red-100 px-2 py-1.5 rounded">
               {job.error || "Generation failed"}
             </p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-red-300 h-7 text-xs shrink-0 text-red-700 hover:bg-red-200"
-              onClick={() => onRetry?.(job.id)}
-            >
-              <RefreshCw className="mr-1 h-3 w-3" />
-              Retry
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                className="flex-1 h-8 text-xs"
+                onClick={() => onRetry?.(job.id)}
+              >
+                <RefreshCw className="mr-1.5 h-3 w-3" />
+                Retry
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-1 h-8 text-xs text-muted-foreground"
+                onClick={() => onDismiss?.(job.id)}
+              >
+                Remove
+              </Button>
+            </div>
           </div>
         )}
 
+        {/* Completed: post title + edit button */}
         {isCompleted && job.blogPost && (
-          <div className="flex items-center justify-between p-2 bg-green-100 rounded">
-            <p className="text-xs font-medium text-green-900 truncate mr-2">
+          <div className="flex items-center justify-between gap-2 p-2 bg-green-100 rounded">
+            <p className="text-xs font-medium text-green-900 truncate">
               {job.blogPost.title}
             </p>
             <Button asChild size="sm" variant="outline" className="border-green-300 h-7 text-xs shrink-0">

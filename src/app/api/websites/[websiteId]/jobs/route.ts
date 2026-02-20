@@ -13,6 +13,15 @@ export async function POST(
     if ("error" in access) return access.error;
 
     const body = await req.json();
+
+    // Dismiss a job (completed or failed) — just deletes it from view
+    if (body.action === "dismiss" && body.jobId) {
+      await prisma.generationJob.delete({
+        where: { id: body.jobId, websiteId },
+      }).catch(() => {});
+      return NextResponse.json({ success: true });
+    }
+
     if (body.action !== "retry" || !body.jobId) {
       return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
