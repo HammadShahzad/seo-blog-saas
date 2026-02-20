@@ -1,6 +1,6 @@
 /**
  * AI Image Generation Pipeline
- * Imagen 3.0 → Sharp resize → WebP → Backblaze B2
+ * Imagen 4.0 → Sharp resize → WebP → Backblaze B2
  */
 import sharp from "sharp";
 import { uploadToB2 } from "./backblaze";
@@ -14,7 +14,7 @@ export async function generateBlogImage(
   if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
   apiKey = apiKey.replace(/\\n/g, "").trim();
 
-  // Generate image with Imagen 3.0
+  // Generate image with Imagen 4.0
   const imageBytes = await generateWithImagen(prompt, apiKey);
 
   // Process with Sharp: resize to 1200x630 (OG image size) and convert to WebP
@@ -34,9 +34,8 @@ export async function generateBlogImage(
 }
 
 async function generateWithImagen(prompt: string, apiKey: string): Promise<Buffer> {
-  // Imagen 3.0 via Vertex AI / Generative Language API
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${apiKey}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
