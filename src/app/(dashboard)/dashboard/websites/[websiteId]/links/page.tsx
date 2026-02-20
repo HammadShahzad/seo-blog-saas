@@ -148,10 +148,10 @@ function ResultStatusBanner({ steps }: { steps: StepStatus }) {
         <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
         <div>
           <p className="font-medium text-amber-800">
-            Couldn&apos;t crawl your website directly
+            Couldn&apos;t crawl your website
           </p>
           <p className="text-amber-700 text-xs mt-0.5">
-            Gemini generated links based on your domain pattern instead — results may be less precise
+            Make sure your website URL is correct and publicly accessible, then try again.
           </p>
         </div>
       </div>
@@ -354,12 +354,12 @@ export default function InternalLinksPage() {
       {/* Info */}
       <Card className="bg-primary/5 border-primary/10">
         <CardContent className="flex items-start gap-3 p-4">
-          <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+          <Globe className="h-5 w-5 text-primary mt-0.5 shrink-0" />
           <div className="text-sm">
-            <p className="font-medium">Auto-generate scans your site</p>
+            <p className="font-medium">Only links from your actual website</p>
             <p className="text-muted-foreground mt-0.5">
-              Click <strong>Auto-generate with AI</strong> — we crawl your website directly,
-              Gemini maps them to keyword→URL pairs. Review and save the ones you want.
+              We crawl your website directly to discover real pages, then map keywords to those URLs.
+              No invented or external links — only URLs that actually exist on your site.
             </p>
           </div>
         </CardContent>

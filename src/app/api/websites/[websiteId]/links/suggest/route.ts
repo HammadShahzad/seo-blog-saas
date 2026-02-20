@@ -28,40 +28,47 @@ async function generateLinkPairsWithGemini(
   domain: string,
   websiteName: string,
   niche: string,
-  pagesContext: string,
+  crawledPages: { title: string; url: string }[],
   existingKeywords: string[]
 ): Promise<{ links: SuggestedLink[]; status: "ok" | "failed"; error?: string }> {
   if (!process.env.GOOGLE_AI_API_KEY) return { links: [], status: "failed" };
+  if (crawledPages.length === 0) return { links: [], status: "failed", error: "No pages crawled" };
 
   const existingList =
     existingKeywords.length > 0
       ? `\n\nAlready mapped keywords (skip these): ${existingKeywords.join(", ")}`
       : "";
 
-  const pagesSection = pagesContext
-    ? `\n\nPages discovered on the site:\n${pagesContext}`
-    : `\n\nWebsite domain: ${domain} — no page list available, use the domain to infer likely pages (homepage, /pricing, /features, /about, /blog, etc.)`;
+  // Build a strict list of ONLY crawled URLs for the AI to choose from
+  const pagesList = crawledPages
+    .map((p, i) => `${i + 1}. "${p.title}" → ${p.url}`)
+    .join("\n");
 
-  const prompt = `You are an SEO internal linking expert. Generate keyword → URL pairs for internal linking on the website "${websiteName}" (${domain}) in the "${niche}" niche.${pagesSection}${existingList}
+  const prompt = `You are an SEO internal linking expert. Generate keyword → URL pairs for the website "${websiteName}" (${domain}) in the "${niche}" niche.
 
-For each important page/feature/topic on this website, create a keyword that:
-1. Is a natural phrase someone would write in a blog post (2-5 words)
-2. Accurately describes what that page is about
-3. Is different from existing keywords listed above
+STRICT RULES:
+- You MUST ONLY use URLs from the list below. Do NOT invent or guess any URLs.
+- Every URL in your response must exactly match one of the URLs provided below.
+- Do not use any external URLs or URLs from other domains.
+${existingList}
 
-Generate 15-25 high-value internal link pairs. Return a JSON array:
+Crawled pages from the website (use ONLY these URLs):
+${pagesList}
+
+For each page, create 1-2 natural keyword phrases that someone might write in a blog post.
+Generate up to 25 keyword → URL pairs. Return a JSON array:
 [
   {
-    "keyword": "the keyword phrase",
-    "url": "https://full-url-to-page",
-    "reason": "one sentence why this link is valuable for SEO"
+    "keyword": "natural phrase 2-5 words",
+    "url": "exact URL from the list above",
+    "reason": "one sentence why this link is valuable"
   }
 ]`;
 
   try {
     const links = await generateJSON<SuggestedLink[]>(
       prompt,
-      "You are an SEO internal linking expert. Return a JSON array only."
+      "You are an SEO internal linking expert. Return a JSON array only. Only use URLs provided to you."
     );
     return { links: Array.isArray(links) ? links : [], status: Array.isArray(links) && links.length > 0 ? "ok" : "failed" };
   } catch (err) {
@@ -116,7 +123,7 @@ export async function POST(
 
     // Crawl the actual website directly — no Perplexity needed
     let crawlStatus: "ok" | "failed" = "failed";
-    let pagesContext = "";
+    let crawledPages: { title: string; url: string }[] = [];
     let pagesFound = 0;
 
     try {
@@ -133,32 +140,48 @@ export async function POST(
       if (crawlResult.pages.length > 0) {
         crawlStatus = "ok";
         pagesFound = crawlResult.pages.length;
-        pagesContext = crawlResult.pages
-          .map((p) => `${p.title} | ${p.url}`)
-          .join("\n");
+        crawledPages = crawlResult.pages;
       }
     } catch (err) {
       console.error("[Crawl error]", err);
     }
 
-    // Generate keyword→URL pairs with Gemini using crawled pages
+    // If crawl failed, return early — we only use real crawled URLs
+    if (crawlStatus !== "ok" || crawledPages.length === 0) {
+      return NextResponse.json({
+        suggestions: [],
+        steps: { crawl: "failed", gemini: "failed", pagesFound: 0 },
+      } as SuggestResponse);
+    }
+
+    // Build a set of valid crawled URLs for strict post-filter
+    const crawledUrlSet = new Set(crawledPages.map((p) => p.url.replace(/\/$/, "")));
+    const domainOrigin = new URL(domain).origin;
+
+    // Generate keyword→URL pairs with Gemini using only crawled pages
     const geminiResult = await generateLinkPairsWithGemini(
       domain,
       website.name,
       website.niche ?? "general",
-      pagesContext,
+      crawledPages,
       existingKeywords
     );
 
-    // Filter valid suggestions
+    // Strict filter: only allow URLs that were actually crawled from this domain
     const existing = new Set(existingKeywords.map((k) => k.toLowerCase()));
-    const filtered = geminiResult.links.filter(
-      (s) =>
-        s.keyword?.trim() &&
-        s.url?.trim() &&
-        !existing.has(s.keyword.toLowerCase()) &&
-        (s.url.startsWith("http://") || s.url.startsWith("https://"))
-    );
+    const filtered = geminiResult.links.filter((s) => {
+      if (!s.keyword?.trim() || !s.url?.trim()) return false;
+      if (existing.has(s.keyword.toLowerCase())) return false;
+      // Must be a real URL from the crawled set
+      const normalizedUrl = s.url.replace(/\/$/, "");
+      if (!crawledUrlSet.has(normalizedUrl)) return false;
+      // Must be same-origin as the website
+      try {
+        return new URL(s.url).origin === domainOrigin;
+      } catch {
+        return false;
+      }
+    });
 
     const response: SuggestResponse = {
       suggestions: filtered,
