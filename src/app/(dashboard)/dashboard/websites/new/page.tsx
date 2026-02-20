@@ -25,6 +25,7 @@ import {
   CheckCircle2,
   RefreshCw,
 } from "lucide-react";
+import { AiLoading, AI_STEPS } from "@/components/ui/ai-loading";
 import Link from "next/link";
 import { toast } from "sonner";
 
@@ -296,12 +297,7 @@ export default function NewWebsitePage() {
           </CardHeader>
           <CardContent className="space-y-4">
             {isAnalyzing ? (
-              <div className="flex flex-col items-center justify-center py-10 gap-3 text-muted-foreground">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm">
-                  Researching {formData.domain} with Perplexity + Gemini…
-                </p>
-              </div>
+              <AiLoading steps={[...AI_STEPS.analyze]} />
             ) : (
               <>
                 <div className="space-y-2">

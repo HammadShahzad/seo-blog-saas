@@ -53,6 +53,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { AiLoading, AI_STEPS } from "@/components/ui/ai-loading";
 
 interface Keyword {
   id: string;
@@ -527,10 +528,7 @@ export default function KeywordsPage() {
           </DialogHeader>
 
           {isLoadingSuggestions ? (
-            <div className="flex flex-col items-center py-12 gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Analyzing your niche with AI…</p>
-            </div>
+            <AiLoading steps={[...AI_STEPS.keywordSuggest]} />
           ) : (
             <div className="space-y-2">
               <div className="flex items-center justify-between mb-3">

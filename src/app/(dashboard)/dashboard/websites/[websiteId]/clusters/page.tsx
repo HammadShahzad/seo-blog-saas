@@ -37,6 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AiLoading, AI_STEPS } from "@/components/ui/ai-loading";
 
 interface TopicCluster {
   id: string;
@@ -319,10 +320,15 @@ export default function ClustersPage() {
             ) : (
               <Sparkles className="mr-2 h-4 w-4" />
             )}
-            {isGenerating ? "Researching site…" : "Generate with AI"}
+            {isGenerating ? "Researching…" : "Generate with AI"}
           </Button>
         </div>
       </div>
+
+      {/* AI Loading State */}
+      {isGenerating && (
+        <AiLoading steps={[...AI_STEPS.clusters]} />
+      )}
 
       {/* Info card */}
       <Card className="bg-primary/5 border-primary/10">
@@ -347,23 +353,25 @@ export default function ClustersPage() {
 
       {clusters.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
-            <Network className="h-12 w-12 text-muted-foreground/40 mb-4" />
-            <h3 className="text-lg font-semibold mb-2">
-              No topic clusters yet
-            </h3>
-            <p className="text-muted-foreground text-sm max-w-sm mb-6">
-              AI researches your actual website with Perplexity then generates
-              clusters specific to your business — not generic templates.
-            </p>
-            <Button onClick={handleAIGenerate} disabled={isGenerating}>
-              {isGenerating ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="mr-2 h-4 w-4" />
-              )}
-              {isGenerating ? "Researching site…" : "Generate with AI"}
-            </Button>
+          <CardContent className="py-6">
+            {isGenerating ? (
+              <AiLoading steps={[...AI_STEPS.clusters]} />
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 text-center">
+                <Network className="h-12 w-12 text-muted-foreground/40 mb-4" />
+                <h3 className="text-lg font-semibold mb-2">
+                  No topic clusters yet
+                </h3>
+                <p className="text-muted-foreground text-sm max-w-sm mb-6">
+                  AI researches your actual website with Perplexity then generates
+                  clusters specific to your business — not generic templates.
+                </p>
+                <Button onClick={handleAIGenerate}>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate with AI
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : (

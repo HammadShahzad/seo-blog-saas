@@ -33,6 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { AiLoading, AI_STEPS } from "@/components/ui/ai-loading";
 
 interface InternalLink {
   id: string;
@@ -60,9 +61,7 @@ export default function InternalLinksPage() {
   // AI suggestion state
   const [isGenerating, setIsGenerating] = useState(false);
   const [suggestions, setSuggestions] = useState<SuggestedLink[]>([]);
-  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(
-    new Set()
-  );
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
   const [isSavingSuggestions, setIsSavingSuggestions] = useState(false);
   const [showSuggestionsDialog, setShowSuggestionsDialog] = useState(false);
 
@@ -90,7 +89,6 @@ export default function InternalLinksPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newLink),
       });
-
       if (res.ok) {
         toast.success("Link pair added");
         setNewLink({ keyword: "", url: "" });
@@ -109,10 +107,9 @@ export default function InternalLinksPage() {
   const handleDelete = async (linkId: string) => {
     setDeletingId(linkId);
     try {
-      const res = await fetch(
-        `/api/websites/${websiteId}/links?id=${linkId}`,
-        { method: "DELETE" }
-      );
+      const res = await fetch(`/api/websites/${websiteId}/links?id=${linkId}`, {
+        method: "DELETE",
+      });
       if (res.ok) {
         toast.success("Link removed");
         setLinks((prev) => prev.filter((l) => l.id !== linkId));
@@ -126,7 +123,6 @@ export default function InternalLinksPage() {
 
   const handleAutoGenerate = async () => {
     setIsGenerating(true);
-    toast.info("Scanning your website pages with AI…", { duration: 3000 });
     try {
       const res = await fetch(`/api/websites/${websiteId}/links/suggest`, {
         method: "POST",
@@ -140,15 +136,10 @@ export default function InternalLinksPage() {
       }
 
       setSuggestions(data.suggestions);
-      // Pre-select all
-      setSelectedSuggestions(
-        new Set(data.suggestions.map((_: SuggestedLink, i: number) => i))
-      );
+      setSelectedSuggestions(new Set(data.suggestions.map((_: SuggestedLink, i: number) => i)));
       setShowSuggestionsDialog(true);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to generate suggestions"
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to generate suggestions");
     } finally {
       setIsGenerating(false);
     }
@@ -165,14 +156,10 @@ export default function InternalLinksPage() {
 
   const handleSaveSuggestions = async () => {
     const toSave = suggestions.filter((_, i) => selectedSuggestions.has(i));
-    if (!toSave.length) {
-      toast.warning("No links selected");
-      return;
-    }
+    if (!toSave.length) { toast.warning("No links selected"); return; }
 
     setIsSavingSuggestions(true);
-    let saved = 0;
-    let skipped = 0;
+    let saved = 0, skipped = 0;
 
     for (const link of toSave) {
       try {
@@ -181,23 +168,15 @@ export default function InternalLinksPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ keyword: link.keyword, url: link.url }),
         });
-        if (res.ok) saved++;
-        else skipped++;
-      } catch {
-        skipped++;
-      }
+        if (res.ok) saved++; else skipped++;
+      } catch { skipped++; }
     }
 
     await fetchLinks();
     setShowSuggestionsDialog(false);
     setSuggestions([]);
     setIsSavingSuggestions(false);
-
-    if (skipped > 0) {
-      toast.success(`Saved ${saved} link pairs (${skipped} skipped)`);
-    } else {
-      toast.success(`Added ${saved} internal link pairs`);
-    }
+    toast.success(skipped > 0 ? `Saved ${saved} link pairs (${skipped} skipped)` : `Added ${saved} internal link pairs`);
   };
 
   const filtered = links.filter(
@@ -216,6 +195,7 @@ export default function InternalLinksPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -226,178 +206,149 @@ export default function InternalLinksPage() {
             Keyword → URL pairs automatically inserted into AI-generated content
           </p>
         </div>
-        <Button
-          onClick={handleAutoGenerate}
-          disabled={isGenerating}
-          className="gap-2 shrink-0"
-        >
-          {isGenerating ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <Sparkles className="h-4 w-4" />
-          )}
-          {isGenerating ? "Scanning site…" : "Auto-generate with AI"}
+        <Button onClick={handleAutoGenerate} disabled={isGenerating} className="gap-2 shrink-0">
+          {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+          {isGenerating ? "Scanning…" : "Auto-generate with AI"}
         </Button>
       </div>
 
-      {/* How it works */}
-      <Card className="bg-primary/5 border-primary/10">
-        <CardContent className="flex items-start gap-3 p-4">
-          <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
-          <div className="text-sm">
-            <p className="font-medium">Auto-generate scans your site</p>
-            <p className="text-muted-foreground mt-0.5">
-              Click <strong>Auto-generate with AI</strong> — it uses Perplexity
-              to discover your website&apos;s pages and Gemini to create
-              keyword→URL pairs. Review and save the ones you want. You can also
-              add pairs manually below.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* AI Loading — replaces all cards while generating */}
+      {isGenerating ? (
+        <Card>
+          <CardContent className="py-4">
+            <AiLoading steps={[...AI_STEPS.internalLinks]} />
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* How it works info */}
+          <Card className="bg-primary/5 border-primary/10">
+            <CardContent className="flex items-start gap-3 p-4">
+              <Sparkles className="h-5 w-5 text-primary mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium">Auto-generate scans your site</p>
+                <p className="text-muted-foreground mt-0.5">
+                  Click <strong>Auto-generate with AI</strong> — Perplexity discovers your
+                  website&apos;s pages, Gemini maps them to keyword→URL pairs. Review and
+                  save the ones you want. You can also add pairs manually below.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
 
-      {/* Add new link manually */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Add Manually
-          </CardTitle>
-          <CardDescription>
-            When the keyword appears in generated content, it will be linked to
-            the URL
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex gap-3">
-            <div className="flex-1">
-              <Input
-                placeholder="Keyword (e.g., invoicing software)"
-                value={newLink.keyword}
-                onChange={(e) =>
-                  setNewLink((p) => ({ ...p, keyword: e.target.value }))
-                }
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              />
-            </div>
-            <div className="flex-1">
-              <Input
-                placeholder="URL (e.g., https://example.com/features)"
-                value={newLink.url}
-                onChange={(e) =>
-                  setNewLink((p) => ({ ...p, url: e.target.value }))
-                }
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              />
-            </div>
-            <Button
-              onClick={handleAdd}
-              disabled={
-                isAdding || !newLink.keyword.trim() || !newLink.url.trim()
-              }
-            >
-              {isAdding ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Links list */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          {/* Manual add */}
+          <Card>
+            <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
-                Link Pairs
-                <Badge variant="secondary">{links.length}</Badge>
+                <Plus className="h-4 w-4" />
+                Add Manually
               </CardTitle>
-            </div>
-            {links.length > 5 && (
-              <Input
-                placeholder="Search keywords or URLs…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-56"
-              />
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <Link2 className="h-10 w-10 text-muted-foreground/40 mb-3" />
-              <p className="text-muted-foreground text-sm mb-4">
-                {links.length === 0
-                  ? "No link pairs yet"
-                  : "No matches found"}
-              </p>
-              {links.length === 0 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={handleAutoGenerate}
-                  disabled={isGenerating}
-                >
-                  {isGenerating ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Sparkles className="h-3.5 w-3.5" />
-                  )}
-                  Auto-generate with AI
+              <CardDescription>
+                When the keyword appears in generated content, it will be linked to the URL
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Keyword (e.g., invoicing software)"
+                    value={newLink.keyword}
+                    onChange={(e) => setNewLink((p) => ({ ...p, keyword: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                  />
+                </div>
+                <div className="flex-1">
+                  <Input
+                    placeholder="URL (e.g., https://example.com/features)"
+                    value={newLink.url}
+                    onChange={(e) => setNewLink((p) => ({ ...p, url: e.target.value }))}
+                    onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+                  />
+                </div>
+                <Button onClick={handleAdd} disabled={isAdding || !newLink.keyword.trim() || !newLink.url.trim()}>
+                  {isAdding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 </Button>
-              )}
-            </div>
-          ) : (
-            <div className="space-y-0">
-              {filtered.map((link, i) => (
-                <div key={link.id}>
-                  {i > 0 && <Separator />}
-                  <div className="flex items-center justify-between py-3">
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
-                      <Badge
-                        variant="outline"
-                        className="text-xs shrink-0 font-mono"
-                      >
-                        {link.keyword}
-                      </Badge>
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <Link2 className="h-3 w-3 text-muted-foreground shrink-0" />
-                        <a
-                          href={link.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-primary hover:underline truncate flex items-center gap-1"
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Links list */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  Link Pairs
+                  <Badge variant="secondary">{links.length}</Badge>
+                </CardTitle>
+                {links.length > 5 && (
+                  <Input
+                    placeholder="Search keywords or URLs…"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-56"
+                  />
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {filtered.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <Link2 className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                  <p className="text-muted-foreground text-sm mb-4">
+                    {links.length === 0 ? "No link pairs yet" : "No matches found"}
+                  </p>
+                  {links.length === 0 && (
+                    <Button variant="outline" size="sm" className="gap-2" onClick={handleAutoGenerate}>
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Auto-generate with AI
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-0">
+                  {filtered.map((link, i) => (
+                    <div key={link.id}>
+                      {i > 0 && <Separator />}
+                      <div className="flex items-center justify-between py-3">
+                        <div className="flex items-center gap-4 flex-1 min-w-0">
+                          <Badge variant="outline" className="text-xs shrink-0 font-mono">
+                            {link.keyword}
+                          </Badge>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <Link2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <a
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-primary hover:underline truncate flex items-center gap-1"
+                            >
+                              {link.url}
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                            </a>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive ml-2 shrink-0"
+                          onClick={() => handleDelete(link.id)}
+                          disabled={deletingId === link.id}
                         >
-                          {link.url}
-                          <ExternalLink className="h-3 w-3 shrink-0" />
-                        </a>
+                          {deletingId === link.id ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
                       </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7 text-muted-foreground hover:text-destructive ml-2 shrink-0"
-                      onClick={() => handleDelete(link.id)}
-                      disabled={deletingId === link.id}
-                    >
-                      {deletingId === link.id ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Trash2 className="h-3.5 w-3.5" />
-                      )}
-                    </Button>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
 
       {/* AI Suggestions Review Dialog */}
       <Dialog open={showSuggestionsDialog} onOpenChange={setShowSuggestionsDialog}>
@@ -408,43 +359,26 @@ export default function InternalLinksPage() {
               AI-Generated Internal Links
             </DialogTitle>
             <DialogDescription>
-              {suggestions.length} link pairs discovered from your website.
-              Deselect any you don&apos;t want, then click Save.
+              {suggestions.length} link pairs discovered. Deselect any you don&apos;t want, then save.
             </DialogDescription>
           </DialogHeader>
 
-          {/* Select all / none controls */}
           <div className="flex items-center gap-3 px-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 h-7 text-xs"
-              onClick={() =>
-                setSelectedSuggestions(
-                  new Set(suggestions.map((_, i) => i))
-                )
-              }
-            >
+            <Button variant="ghost" size="sm" className="gap-1.5 h-7 text-xs"
+              onClick={() => setSelectedSuggestions(new Set(suggestions.map((_, i) => i)))}>
               <CheckCheck className="h-3.5 w-3.5" />
               Select all
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="gap-1.5 h-7 text-xs"
-              onClick={() => setSelectedSuggestions(new Set())}
-            >
+            <Button variant="ghost" size="sm" className="gap-1.5 h-7 text-xs"
+              onClick={() => setSelectedSuggestions(new Set())}>
               <X className="h-3.5 w-3.5" />
               Deselect all
             </Button>
-            <span className="text-xs text-muted-foreground ml-auto">
-              {selectedSuggestions.size} selected
-            </span>
+            <span className="text-xs text-muted-foreground ml-auto">{selectedSuggestions.size} selected</span>
           </div>
 
           <Separator />
 
-          {/* Suggestions list */}
           <div className="overflow-y-auto flex-1 space-y-1 pr-1">
             {suggestions.map((s, i) => (
               <div
@@ -464,9 +398,7 @@ export default function InternalLinksPage() {
                 />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {s.keyword}
-                    </Badge>
+                    <Badge variant="outline" className="font-mono text-xs">{s.keyword}</Badge>
                     <span className="text-muted-foreground text-xs">→</span>
                     <a
                       href={s.url}
@@ -480,9 +412,7 @@ export default function InternalLinksPage() {
                     </a>
                   </div>
                   {s.reason && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {s.reason}
-                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">{s.reason}</p>
                   )}
                 </div>
               </div>
@@ -492,24 +422,14 @@ export default function InternalLinksPage() {
           <Separator />
 
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowSuggestionsDialog(false)}
-            >
-              Cancel
-            </Button>
+            <Button variant="outline" onClick={() => setShowSuggestionsDialog(false)}>Cancel</Button>
             <Button
               onClick={handleSaveSuggestions}
               disabled={isSavingSuggestions || selectedSuggestions.size === 0}
               className="gap-2"
             >
-              {isSavingSuggestions ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              Save {selectedSuggestions.size} link
-              {selectedSuggestions.size !== 1 ? "s" : ""}
+              {isSavingSuggestions ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Save {selectedSuggestions.size} link{selectedSuggestions.size !== 1 ? "s" : ""}
             </Button>
           </DialogFooter>
         </DialogContent>
