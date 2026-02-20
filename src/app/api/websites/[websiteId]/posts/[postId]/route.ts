@@ -153,22 +153,20 @@ export async function DELETE(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    await prisma.$transaction([
-      prisma.blogKeyword.updateMany({
-        where: { blogPostId: postId },
-        data: { blogPostId: null },
-      }),
-      prisma.blogAnalytics.deleteMany({
-        where: { blogPostId: postId, websiteId },
-      }),
-      prisma.generationJob.deleteMany({
-        where: { blogPostId: postId, websiteId },
-      }),
-      prisma.postVersion.deleteMany({
-        where: { blogPostId: postId },
-      }),
-      prisma.blogPost.delete({ where: { id: postId, websiteId } }),
+    // Unlink keyword first (non-blocking on failure)
+    await prisma.blogKeyword.updateMany({
+      where: { blogPostId: postId },
+      data: { blogPostId: null },
+    }).catch(() => {});
+
+    // Delete all child records before the post
+    await Promise.all([
+      prisma.blogAnalytics.deleteMany({ where: { blogPostId: postId } }).catch(() => {}),
+      prisma.generationJob.deleteMany({ where: { blogPostId: postId } }).catch(() => {}),
+      prisma.postVersion.deleteMany({ where: { blogPostId: postId } }).catch(() => {}),
     ]);
+
+    await prisma.blogPost.delete({ where: { id: postId, websiteId } });
 
     return NextResponse.json({ success: true });
   } catch (error) {

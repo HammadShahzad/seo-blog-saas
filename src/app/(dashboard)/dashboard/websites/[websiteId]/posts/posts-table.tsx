@@ -90,13 +90,13 @@ export function PostsTable({ posts: initialPosts, websiteId, liveBaseUrl }: Prop
   };
 
   const handleDelete = async (postId: string, title: string) => {
-    if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
     setLoadingId(postId);
     try {
       const res = await fetch(`/api/websites/${websiteId}/posts/${postId}`, { method: "DELETE" });
       if (res.ok) {
         setPosts(prev => prev.filter(p => p.id !== postId));
-        toast.success("Post deleted");
+        toast.success(`"${title}" deleted`);
+        router.refresh();
       } else {
         const err = await res.json();
         toast.error(err.error || "Delete failed");
@@ -203,8 +203,17 @@ export function PostsTable({ posts: initialPosts, websiteId, liveBaseUrl }: Prop
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      className="text-destructive"
-                      onClick={() => handleDelete(post.id, post.title)}
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => {
+                        toast(`Delete "${post.title.slice(0, 40)}..."?`, {
+                          action: {
+                            label: "Delete",
+                            onClick: () => handleDelete(post.id, post.title),
+                          },
+                          cancel: { label: "Cancel", onClick: () => {} },
+                          duration: 8000,
+                        });
+                      }}
                     >
                       <Trash2 className="mr-2 h-4 w-4" />
                       Delete
