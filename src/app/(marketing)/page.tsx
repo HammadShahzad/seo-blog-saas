@@ -76,6 +76,12 @@ export default function LandingPage() {
               >
                 FAQ
               </Link>
+              <Link
+                href="/blogs"
+                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+              >
+                Blog
+              </Link>
             </div>
             <div className="flex items-center gap-3">
               <Button asChild variant="ghost" className="hidden sm:inline-flex">
@@ -424,7 +430,7 @@ export default function LandingPage() {
 
           <div className="grid md:grid-cols-3 gap-8 relative">
             {/* Connector line (desktop only) */}
-            <div className="hidden md:block absolute top-[1.25rem] left-[16.5%] right-[16.5%] h-0.5 bg-gradient-to-r from-blue-300 via-purple-300 to-green-300 opacity-50" />
+            <div className="hidden md:block absolute top-[1.25rem] left-[16.66%] right-[16.66%] h-0.5 bg-gradient-to-r from-blue-300 via-purple-300 to-green-300 opacity-50" />
 
             {[
               {

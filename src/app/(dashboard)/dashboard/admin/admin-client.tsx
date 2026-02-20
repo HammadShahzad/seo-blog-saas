@@ -444,7 +444,7 @@ function BlogTab() {
             Manage blog posts for stackserp.com
             {websiteId && (
               <a
-                href={`${window.location.origin}/blog/stackserp`}
+                href={`${window.location.origin}/blogs`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="ml-2 text-primary hover:underline inline-flex items-center gap-1"
@@ -529,7 +529,7 @@ function BlogTab() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => window.open(`/blog/stackserp/${post.slug}`, "_blank")}
+                        onClick={() => window.open(`/blogs/${post.slug}`, "_blank")}
                         disabled={post.status !== "PUBLISHED"}
                       >
                         <Eye className="h-4 w-4" />
