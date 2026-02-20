@@ -56,6 +56,15 @@ export default function AdminClient() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
 
+  // Plan presets
+  const PLAN_LIMITS: Record<string, { maxWebsites: number; maxPosts: number; maxImages: number }> = {
+    FREE:       { maxWebsites: 1,   maxPosts: 5,    maxImages: 5 },
+    STARTER:    { maxWebsites: 3,   maxPosts: 25,   maxImages: 25 },
+    GROWTH:     { maxWebsites: 10,  maxPosts: 100,  maxImages: 100 },
+    AGENCY:     { maxWebsites: 50,  maxPosts: 500,  maxImages: 500 },
+    ENTERPRISE: { maxWebsites: 999, maxPosts: 9999, maxImages: 9999 },
+  };
+
   // Form states
   const [role, setRole] = useState("USER");
   const [plan, setPlan] = useState("FREE");
@@ -65,6 +74,16 @@ export default function AdminClient() {
   const [websitesUsed, setWebsitesUsed] = useState(0);
   const [postsUsed, setPostsUsed] = useState(0);
   const [imagesUsed, setImagesUsed] = useState(0);
+
+  const handlePlanChange = (newPlan: string) => {
+    setPlan(newPlan);
+    const limits = PLAN_LIMITS[newPlan];
+    if (limits) {
+      setMaxWebsites(limits.maxWebsites);
+      setMaxPosts(limits.maxPosts);
+      setMaxImages(limits.maxImages);
+    }
+  };
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -253,7 +272,7 @@ export default function AdminClient() {
                   <div className="grid grid-cols-2 gap-4 border-t pt-4">
                     <div className="space-y-2">
                       <Label>Subscription Plan</Label>
-                      <Select value={plan} onValueChange={setPlan}>
+                      <Select value={plan} onValueChange={handlePlanChange}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
