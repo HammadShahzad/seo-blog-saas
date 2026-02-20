@@ -715,16 +715,31 @@ function WebhookSettings({ websiteId }: { websiteId: string }) {
 // ─────────────────────────────────────────────────────
 function WordPressSettings({ websiteId }: { websiteId: string }) {
   const [mode, setMode] = useState<"app-password" | "plugin">("app-password");
+
+  // App-password fields
   const [siteUrl, setSiteUrl] = useState("");
   const [username, setUsername] = useState("");
   const [appPassword, setAppPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  // Plugin fields
+  const [pluginSiteUrl, setPluginSiteUrl] = useState("");
+  const [pluginApiKey, setPluginApiKey] = useState("");
+  const [showPluginKey, setShowPluginKey] = useState(false);
+
   const [isTesting, setIsTesting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; siteName?: string; userName?: string; error?: string } | null>(null);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    siteName?: string;
+    userName?: string;
+    version?: string;
+    error?: string;
+  } | null>(null);
   const [connected, setConnected] = useState(false);
   const [connectedUrl, setConnectedUrl] = useState("");
+  const [connectedMode, setConnectedMode] = useState<"app-password" | "plugin" | null>(null);
 
   useEffect(() => {
     fetch(`/api/websites/${websiteId}/wordpress`)
@@ -733,12 +748,19 @@ function WordPressSettings({ websiteId }: { websiteId: string }) {
         if (d.connected) {
           setConnected(true);
           setConnectedUrl(d.siteUrl || "");
-          setSiteUrl(d.siteUrl || "");
+          setConnectedMode(d.mode || "app-password");
+          if (d.mode === "plugin") {
+            setPluginSiteUrl(d.siteUrl || "");
+            setMode("plugin");
+          } else {
+            setSiteUrl(d.siteUrl || "");
+          }
         }
       })
       .catch(() => {});
   }, [websiteId]);
 
+  // ── App-password handlers ──
   const handleTest = async () => {
     if (!siteUrl || !username || !appPassword) {
       toast.error("Fill in all fields before testing");
@@ -750,7 +772,7 @@ function WordPressSettings({ websiteId }: { websiteId: string }) {
       const res = await fetch(`/api/websites/${websiteId}/wordpress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test", siteUrl, username, appPassword }),
+        body: JSON.stringify({ action: "test", mode: "app-password", siteUrl, username, appPassword }),
       });
       const data = await res.json();
       setTestResult(data);
@@ -765,7 +787,7 @@ function WordPressSettings({ websiteId }: { websiteId: string }) {
 
   const handleSave = async () => {
     if (!siteUrl || !username || !appPassword) {
-      toast.error("Fill in all fields");
+      toast.error("Fill in Site URL, username, and application password");
       return;
     }
     setIsSaving(true);
@@ -773,14 +795,69 @@ function WordPressSettings({ websiteId }: { websiteId: string }) {
       const res = await fetch(`/api/websites/${websiteId}/wordpress`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ siteUrl, username, appPassword }),
+        body: JSON.stringify({ mode: "app-password", siteUrl, username, appPassword }),
       });
       if (res.ok) {
         setConnected(true);
         setConnectedUrl(siteUrl);
+        setConnectedMode("app-password");
         toast.success("WordPress connected!");
       } else {
-        toast.error("Failed to save");
+        const d = await res.json();
+        toast.error(d.error || "Failed to save");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // ── Plugin handlers ──
+  const handlePluginTest = async () => {
+    if (!pluginSiteUrl || !pluginApiKey) {
+      toast.error("Enter your WordPress site URL and API key");
+      return;
+    }
+    setIsTesting(true);
+    setTestResult(null);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/wordpress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test", mode: "plugin", siteUrl: pluginSiteUrl, pluginApiKey }),
+      });
+      const data = await res.json();
+      setTestResult(data);
+      if (data.success) toast.success("Plugin connection successful!");
+      else toast.error(data.error || "Plugin connection failed — check the API key");
+    } catch {
+      toast.error("Test failed");
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
+  const handlePluginSave = async () => {
+    if (!pluginSiteUrl || !pluginApiKey) {
+      toast.error("Enter your WordPress site URL and API key");
+      return;
+    }
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/wordpress`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "plugin", siteUrl: pluginSiteUrl, pluginApiKey }),
+      });
+      if (res.ok) {
+        setConnected(true);
+        setConnectedUrl(pluginSiteUrl);
+        setConnectedMode("plugin");
+        toast.success("WordPress plugin connected!");
+      } else {
+        const d = await res.json();
+        toast.error(d.error || "Failed to save");
       }
     } catch {
       toast.error("Something went wrong");
@@ -795,9 +872,9 @@ function WordPressSettings({ websiteId }: { websiteId: string }) {
       await fetch(`/api/websites/${websiteId}/wordpress`, { method: "DELETE" });
       setConnected(false);
       setConnectedUrl("");
-      setSiteUrl("");
-      setUsername("");
-      setAppPassword("");
+      setConnectedMode(null);
+      setSiteUrl(""); setUsername(""); setAppPassword("");
+      setPluginSiteUrl(""); setPluginApiKey("");
       setTestResult(null);
       toast.success("WordPress disconnected");
     } catch {
@@ -817,16 +894,18 @@ function WordPressSettings({ websiteId }: { websiteId: string }) {
               <CheckCircle2 className="h-5 w-5 text-green-600" />
               <div>
                 <p className="font-medium text-green-900">WordPress Connected</p>
-                <p className="text-sm text-green-700">{connectedUrl}</p>
+                <p className="text-sm text-green-700">
+                  {connectedUrl}
+                  {connectedMode && (
+                    <span className="ml-2 text-xs bg-green-100 text-green-800 px-1.5 py-0.5 rounded-full">
+                      {connectedMode === "plugin" ? "Plugin method" : "App Password"}
+                    </span>
+                  )}
+                </p>
               </div>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="border-green-300 text-green-800"
-              onClick={handleDisconnect}
-              disabled={isDisconnecting}
-            >
+            <Button variant="outline" size="sm" className="border-green-300 text-green-800"
+              onClick={handleDisconnect} disabled={isDisconnecting}>
               {isDisconnecting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Disconnect"}
             </Button>
           </CardContent>
@@ -1035,24 +1114,51 @@ function WordPressSettings({ websiteId }: { websiteId: string }) {
                 <Label>WordPress Site URL</Label>
                 <Input
                   placeholder="https://yoursite.com"
-                  value={siteUrl}
-                  onChange={(e) => setSiteUrl(e.target.value)}
+                  value={pluginSiteUrl}
+                  onChange={(e) => setPluginSiteUrl(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
                 <Label>Plugin API Key</Label>
-                <Input
-                  type="password"
-                  placeholder="From Settings → BlogForge in your WP admin"
-                  value={appPassword}
-                  onChange={(e) => setAppPassword(e.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    type={showPluginKey ? "text" : "password"}
+                    placeholder="From Settings → BlogForge in your WP admin"
+                    value={pluginApiKey}
+                    onChange={(e) => setPluginApiKey(e.target.value)}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPluginKey((v) => !v)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                  >
+                    {showPluginKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
+              {testResult && (
+                <div className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+                  testResult.success ? "bg-green-50 border border-green-200" : "bg-red-50 border border-red-200"
+                }`}>
+                  {testResult.success
+                    ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                    : <XCircle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />}
+                  <div>
+                    {testResult.success
+                      ? <p className="font-medium text-green-800">Plugin connected! Version: {testResult.version ?? "1.0"}</p>
+                      : <p className="font-medium text-red-800">{testResult.error || "Connection failed — check your API key"}</p>}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-2">
-                <Button
-                  onClick={handleSave}
-                  disabled={isSaving || !siteUrl || !appPassword}
-                >
+                <Button variant="outline" onClick={handlePluginTest}
+                  disabled={isTesting || !pluginSiteUrl || !pluginApiKey}>
+                  {isTesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Test Connection
+                </Button>
+                <Button onClick={handlePluginSave}
+                  disabled={isSaving || !pluginSiteUrl || !pluginApiKey}>
                   {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Save Connection
                 </Button>

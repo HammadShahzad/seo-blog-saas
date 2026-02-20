@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { pushToWordPress } from "@/lib/cms/wordpress";
+import { decodeWordPressConfig, pushToWordPress, pushToWordPressPlugin } from "@/lib/cms/wordpress";
 
 export async function POST(
   req: Request,
@@ -38,13 +38,12 @@ export async function POST(
       );
     }
 
-    // Decode stored credentials
-    const decoded = Buffer.from(website.cmsApiKey, "base64").toString("utf-8");
-    const [username, appPassword] = decoded.split(":::");
+    // Decode stored credentials (handles both app-password and plugin mode)
+    const wpConfig = decodeWordPressConfig(website.cmsApiUrl, website.cmsApiKey);
 
-    if (!username || !appPassword) {
+    if (wpConfig.mode === "app-password" && (!wpConfig.username || !wpConfig.appPassword)) {
       return NextResponse.json(
-        { error: "Invalid WordPress credentials stored. Please reconnect." },
+        { error: "Invalid WordPress credentials. Please reconnect in Settings → WordPress." },
         { status: 400 }
       );
     }
@@ -58,28 +57,29 @@ export async function POST(
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    // Push to WordPress
-    const result = await pushToWordPress(
-      {
-        title: post.title,
-        content: post.content,
-        excerpt: post.excerpt || undefined,
-        slug: post.slug,
-        status: status as "draft" | "publish",
-        featuredImageUrl: post.featuredImage || undefined,
-        metaTitle: post.metaTitle || undefined,
-        metaDescription: post.metaDescription || undefined,
-        focusKeyword: post.focusKeyword || undefined,
-        tags: post.tags || [],
-        category: post.category || undefined,
-      },
-      {
-        siteUrl: website.cmsApiUrl,
-        username,
-        appPassword,
-        defaultStatus: status as "draft" | "publish",
-      }
-    );
+    const postPayload = {
+      title: post.title,
+      content: post.content,
+      excerpt: post.excerpt || undefined,
+      slug: post.slug,
+      status: status as "draft" | "publish",
+      featuredImageUrl: post.featuredImage || undefined,
+      metaTitle: post.metaTitle || undefined,
+      metaDescription: post.metaDescription || undefined,
+      focusKeyword: post.focusKeyword || undefined,
+      tags: post.tags || [],
+      category: post.category || undefined,
+    };
+
+    // Push via the correct method
+    const result = wpConfig.mode === "plugin"
+      ? await pushToWordPressPlugin(postPayload, wpConfig.siteUrl, wpConfig.pluginApiKey!)
+      : await pushToWordPress(postPayload, {
+          siteUrl: wpConfig.siteUrl,
+          username: wpConfig.username,
+          appPassword: wpConfig.appPassword,
+          defaultStatus: status as "draft" | "publish",
+        });
 
     if (!result.success) {
       return NextResponse.json({ error: result.error }, { status: 500 });

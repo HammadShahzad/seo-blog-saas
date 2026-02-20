@@ -1,14 +1,51 @@
 /**
  * WordPress REST API Integration
- * Pushes AI-generated blog posts to any WordPress site
- * Uses Application Passwords (WP 5.6+) — no plugin required
+ * Supports two modes:
+ *  1. Application Passwords (WP 5.6+) — no plugin required
+ *  2. BlogForge Plugin — uses X-BlogForge-Key header and custom endpoint
+ *
+ * Mode is detected by cmsApiKey prefix:
+ *  - "plugin:<key>" → Plugin mode
+ *  - base64(username:::appPassword) → App-password mode
  */
+
+/**
+ * Decode stored cmsApiKey into connection details.
+ * Returns { mode, siteUrl, username, appPassword, pluginApiKey }
+ */
+export function decodeWordPressConfig(cmsApiUrl: string, cmsApiKey: string): WordPressConfig & { mode: "app-password" | "plugin" } {
+  const base = (cmsApiUrl || "").replace(/\/$/, "");
+  if (cmsApiKey.startsWith("plugin:")) {
+    return {
+      mode: "plugin",
+      siteUrl: base,
+      username: "",
+      appPassword: "",
+      pluginApiKey: cmsApiKey.slice("plugin:".length),
+    };
+  }
+  // base64 encoded "username:::appPassword"
+  try {
+    const decoded = Buffer.from(cmsApiKey, "base64").toString("utf-8");
+    const sep = decoded.indexOf(":::");
+    if (sep !== -1) {
+      return {
+        mode: "app-password",
+        siteUrl: base,
+        username: decoded.slice(0, sep),
+        appPassword: decoded.slice(sep + 3),
+      };
+    }
+  } catch { /* fall through */ }
+  return { mode: "app-password", siteUrl: base, username: "", appPassword: "" };
+}
 
 export interface WordPressConfig {
   siteUrl: string;         // e.g. https://mysite.com
-  username: string;        // WordPress username
-  appPassword: string;     // Application Password (spaces allowed)
-  defaultStatus?: "draft" | "publish"; // Default post status
+  username: string;        // WordPress username (app-password mode)
+  appPassword: string;     // Application Password (app-password mode)
+  pluginApiKey?: string;   // BlogForge plugin API key (plugin mode)
+  defaultStatus?: "draft" | "publish";
   defaultCategoryId?: number;
 }
 
@@ -338,5 +375,57 @@ export async function pushToWordPress(
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return { success: false, error: msg };
+  }
+}
+
+/**
+ * Push a blog post via the BlogForge Connector plugin.
+ * Uses /wp-json/blogforge/v1/posts with X-BlogForge-Key header.
+ */
+export async function pushToWordPressPlugin(
+  post: WordPressPostPayload,
+  siteUrl: string,
+  pluginApiKey: string
+): Promise<WordPressPostResult> {
+  const base = normalizeUrl(siteUrl);
+  const htmlContent = markdownToHtml(post.content);
+
+  try {
+    const res = await fetch(`${base}/wp-json/blogforge/v1/posts`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-BlogForge-Key": pluginApiKey,
+      },
+      body: JSON.stringify({
+        title: post.title,
+        content: htmlContent,
+        excerpt: post.excerpt || "",
+        slug: post.slug || "",
+        status: post.status || "draft",
+        tags: post.tags || [],
+        category: post.category || "",
+        meta_title: post.metaTitle || "",
+        meta_description: post.metaDescription || "",
+        focus_keyword: post.focusKeyword || "",
+        featured_image_url: post.featuredImageUrl || "",
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({})) as Record<string, string>;
+      return { success: false, error: errBody.error || `WordPress plugin returned ${res.status}` };
+    }
+
+    const data = await res.json() as { post_id: number; post_url: string; edit_url: string };
+    return {
+      success: true,
+      wpPostId: data.post_id,
+      wpPostUrl: data.post_url,
+      wpEditUrl: data.edit_url,
+    };
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
   }
 }

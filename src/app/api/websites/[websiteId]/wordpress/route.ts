@@ -35,12 +35,13 @@ export async function GET(
       return NextResponse.json({ error: "Website not found" }, { status: 404 });
     }
 
+    const isPlugin = website.cmsApiKey?.startsWith("plugin:") ?? false;
     return NextResponse.json({
       connected: !!(website.cmsApiUrl && website.cmsApiKey),
       siteUrl: website.cmsApiUrl || "",
-      // Never return the actual password, just indicate it's set
       hasPassword: !!(website.cmsApiKey),
       cmsType: website.cmsType,
+      mode: isPlugin ? "plugin" : "app-password",
     });
   } catch (error) {
     console.error("WordPress GET error:", error);
@@ -59,47 +60,70 @@ export async function POST(
     }
 
     const { websiteId } = await params;
-    const { action, siteUrl, username, appPassword, defaultStatus } = await req.json();
+    const body = await req.json();
+    const { action, mode, siteUrl, username, appPassword, pluginApiKey, defaultStatus } = body;
 
-    // Test connection action
+    const cleanUrl = (siteUrl || "").replace(/\/$/, "");
+
+    // ── Plugin mode test ──────────────────────────────────────────────
+    if (action === "test" && mode === "plugin") {
+      if (!siteUrl || !pluginApiKey) {
+        return NextResponse.json({ error: "siteUrl and pluginApiKey are required" }, { status: 400 });
+      }
+      try {
+        const res = await fetch(`${cleanUrl}/wp-json/blogforge/v1/status`, {
+          headers: { "X-BlogForge-Key": pluginApiKey },
+          signal: AbortSignal.timeout(10000),
+        });
+        if (res.ok) {
+          const data = await res.json() as Record<string, string>;
+          return NextResponse.json({ success: true, version: data.version ?? "1.0" });
+        }
+        return NextResponse.json({ success: false, error: `WordPress returned ${res.status} — check your API key and that the plugin is active` });
+      } catch {
+        return NextResponse.json({ success: false, error: "Could not reach your WordPress site — check the URL and that the plugin is installed" });
+      }
+    }
+
+    // ── App-password test ─────────────────────────────────────────────
     if (action === "test") {
       if (!siteUrl || !username || !appPassword) {
-        return NextResponse.json(
-          { error: "siteUrl, username, and appPassword are required" },
-          { status: 400 }
-        );
+        return NextResponse.json({ error: "siteUrl, username, and appPassword are required" }, { status: 400 });
       }
-
-      const result = await testWordPressConnection({
-        siteUrl,
-        username,
-        appPassword,
-        defaultStatus: defaultStatus || "draft",
-      });
-
+      const result = await testWordPressConnection({ siteUrl, username, appPassword, defaultStatus: defaultStatus || "draft" });
       return NextResponse.json(result);
     }
 
-    // Save credentials action
-    if (!siteUrl || !username || !appPassword) {
-      return NextResponse.json(
-        { error: "siteUrl, username, and appPassword are required" },
-        { status: 400 }
-      );
+    // ── Plugin mode save ──────────────────────────────────────────────
+    if (mode === "plugin") {
+      if (!siteUrl || !pluginApiKey) {
+        return NextResponse.json({ error: "siteUrl and pluginApiKey are required" }, { status: 400 });
+      }
+      await prisma.website.update({
+        where: { id: websiteId },
+        data: {
+          cmsType: "WORDPRESS",
+          cmsApiUrl: cleanUrl,
+          // prefix distinguishes plugin key from app-password (base64)
+          cmsApiKey: `plugin:${pluginApiKey}`,
+        },
+      });
+      return NextResponse.json({ success: true });
     }
 
-    // Encode username + password together for storage
+    // ── App-password save ─────────────────────────────────────────────
+    if (!siteUrl || !username || !appPassword) {
+      return NextResponse.json({ error: "siteUrl, username, and appPassword are required" }, { status: 400 });
+    }
     const encoded = Buffer.from(`${username}:::${appPassword}`).toString("base64");
-
     await prisma.website.update({
       where: { id: websiteId },
       data: {
         cmsType: "WORDPRESS",
-        cmsApiUrl: siteUrl.replace(/\/$/, ""),
+        cmsApiUrl: cleanUrl,
         cmsApiKey: encoded,
       },
     });
-
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("WordPress POST error:", error);
