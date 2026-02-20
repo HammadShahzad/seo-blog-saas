@@ -37,15 +37,18 @@ jobs:
         run: npm run build
         env:
           # Build-time env vars (only what Next.js needs at build time)
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
-          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
-          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
-          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
-          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY }}
-          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY }}
-          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL }}
-          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY }}
+          # DATABASE_URL uses a dummy value at build time — all DB pages are force-dynamic
+          # and only run at request time on the server where the real value is set.
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://build:build@localhost/build' }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'build-time-secret' }}
+          # NEXTAUTH_URL must be a valid non-empty URL — next-auth/react calls new URL() at module level.
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL || 'https://stackserp.com' }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID || '' }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET || '' }}
+          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY || '' }}
+          PERPLEXITY_API_KEY: ${{ secrets.PERPLEXITY_API_KEY || '' }}
+          NEXT_PUBLIC_APP_URL: ${{ secrets.NEXT_PUBLIC_APP_URL || 'https://stackserp.com' }}
+          STRIPE_PUBLISHABLE_KEY: ${{ secrets.STRIPE_PUBLISHABLE_KEY || '' }}
 
       # Copy static assets into standalone output (required by Next.js standalone)
       - name: Prepare standalone bundle

@@ -25,12 +25,28 @@ export const metadata: Metadata = {
 export const revalidate = 3600;
 
 export default async function BlogsPage() {
-  const website = await prisma.website.findUnique({
-    where: { subdomain: STACKSERP_SUBDOMAIN },
-  });
+  let posts: {
+    id: string;
+    title: string;
+    slug: string;
+    excerpt: string | null;
+    featuredImage: string | null;
+    featuredImageAlt: string | null;
+    publishedAt: Date | null;
+    readingTime: number | null;
+    category: string | null;
+    tags: string[];
+    wordCount: number | null;
+    content: string | null;
+  }[] = [];
 
-  const posts = website
-    ? await prisma.blogPost.findMany({
+  try {
+    const website = await prisma.website.findUnique({
+      where: { subdomain: STACKSERP_SUBDOMAIN },
+    });
+
+    if (website) {
+      posts = await prisma.blogPost.findMany({
         where: { websiteId: website.id, status: "PUBLISHED" },
         orderBy: { publishedAt: "desc" },
         take: 50,
@@ -48,8 +64,11 @@ export default async function BlogsPage() {
           wordCount: true,
           content: true,
         },
-      })
-    : [];
+      });
+    }
+  } catch {
+    // DB not available at build time — ISR will populate on first request
+  }
 
   const baseUrl = process.env.NEXTAUTH_URL || "https://stackserp.com";
 
