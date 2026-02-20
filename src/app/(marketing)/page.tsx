@@ -116,19 +116,19 @@ export default function LandingPage() {
                 icon: Search,
                 title: "AI Research",
                 description:
-                  "Perplexity AI analyzes competitors, finds content gaps, and researches SERP data.",
+                  "Perplexity Sonar Pro analyzes competitors, finds content gaps, and researches SERP data.",
               },
               {
                 icon: Bot,
                 title: "AI Writing",
                 description:
-                  "Gemini AI generates 1,500-4,000 word SEO-optimized articles with your brand voice.",
+                  "Gemini 3.1 Pro generates 1,500-4,000 word SEO-optimized articles with your brand voice.",
               },
               {
                 icon: Image,
                 title: "AI Images",
                 description:
-                  "Imagen 3 creates unique featured images. No stock photos needed.",
+                  "Imagen 4.0 creates unique featured images. No stock photos needed.",
               },
               {
                 icon: Link2,

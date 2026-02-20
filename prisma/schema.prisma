@@ -310,7 +310,7 @@ model BlogKeyword {
   websiteId  String
   website    Website   @relation(fields: [websiteId], references: [id], onDelete: Cascade)
   blogPostId String?   @unique
-  blogPost   BlogPost? @relation(fields: [blogPostId], references: [id])
+  blogPost   BlogPost? @relation(fields: [blogPostId], references: [id], onDelete: SetNull)
 
   @@index([websiteId, status])
   @@index([priority])

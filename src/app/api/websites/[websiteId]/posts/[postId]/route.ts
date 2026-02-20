@@ -105,9 +105,25 @@ export async function DELETE(
     if (!await verifyAccess(websiteId, session.user.id)) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
-    await prisma.blogPost.delete({ where: { id: postId, websiteId } });
+
+    await prisma.$transaction([
+      prisma.blogKeyword.updateMany({
+        where: { blogPostId: postId },
+        data: { blogPostId: null },
+      }),
+      prisma.blogAnalytics.deleteMany({
+        where: { blogPostId: postId, websiteId },
+      }),
+      prisma.generationJob.deleteMany({
+        where: { blogPostId: postId, websiteId },
+      }),
+      prisma.blogPost.delete({ where: { id: postId, websiteId } }),
+    ]);
+
     return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error("[delete-post]", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
