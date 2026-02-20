@@ -53,6 +53,7 @@ interface SuggestedLink {
 interface StepStatus {
   perplexity: "ok" | "skipped" | "failed";
   gemini: "ok" | "failed";
+  error?: string;
   pagesFound: number;
 }
 
@@ -166,9 +167,14 @@ function ResultStatusBanner({ steps }: { steps: StepStatus }) {
       <div>
         <p className="font-medium text-red-800">AI generation failed</p>
         <p className="text-red-700 text-xs mt-0.5">
-          {steps.gemini === "failed"
-            ? "Gemini 3.1 Pro returned an error — this is usually temporary. Try again in a moment. If it keeps failing, verify GOOGLE_AI_API_KEY is valid."
-            : "Both Perplexity and Gemini failed — check your API keys"}
+          {steps.gemini === "failed" ? (
+            <>
+              Gemini 3.1 Pro returned an error — this is usually temporary. Try again in a moment. If it keeps failing, verify GOOGLE_AI_API_KEY is valid.
+              {steps.error && <span className="block mt-1 bg-red-100 p-1.5 rounded text-red-800 font-mono text-[10px] break-all">{steps.error}</span>}
+            </>
+          ) : (
+            "Both Perplexity and Gemini failed — check your API keys"
+          )}
         </p>
       </div>
     </div>

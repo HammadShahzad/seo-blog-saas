@@ -7,6 +7,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateBlogImage } from "@/lib/storage/image-generator";
+
+export const maxDuration = 60; // 60s max duration for image generation
 import { generateText } from "@/lib/ai/gemini";
 
 type Params = { params: Promise<{ websiteId: string; postId: string }> };

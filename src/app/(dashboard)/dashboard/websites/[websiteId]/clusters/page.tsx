@@ -60,6 +60,7 @@ interface SuggestedCluster {
 interface StepStatus {
   perplexity: "ok" | "skipped" | "failed";
   gemini: "ok" | "failed";
+  error?: string;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -175,6 +176,7 @@ function ResultStatusBanner({ steps }: { steps: StepStatus }) {
         <p className="text-red-700 text-xs mt-0.5">
           Gemini 3.1 Pro returned an error — this is usually temporary. Try again in a moment.
           If it keeps failing, check that GOOGLE_AI_API_KEY is valid in your environment.
+          {steps.error && <span className="block mt-1 bg-red-100 p-1.5 rounded text-red-800 font-mono text-[10px] break-all">{steps.error}</span>}
         </p>
       </div>
     </div>

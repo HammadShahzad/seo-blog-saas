@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateJSON } from "@/lib/ai/gemini";
 
+export const maxDuration = 60; // 60s max duration to allow Gemini and Perplexity to finish
+
 interface ClusterData {
   pillarKeyword: string;
   name: string;
@@ -76,7 +78,7 @@ async function generateClustersWithGemini(
   },
   existingKeywords: string[],
   perplexityResearch: string
-): Promise<{ clusters: ClusterData[]; status: "ok" | "failed" }> {
+): Promise<{ clusters: ClusterData[]; status: "ok" | "failed"; error?: string }> {
   if (!process.env.GOOGLE_AI_API_KEY) return { clusters: [], status: "failed" };
 
   const existingSection =
@@ -129,8 +131,9 @@ Return valid JSON only:
     const clusters = parsed.clusters ?? [];
     return { clusters, status: clusters.length > 0 ? "ok" : "failed" };
   } catch (err) {
-    console.error("[Clusters Gemini error]", err);
-    return { clusters: [], status: "failed" };
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[Clusters Gemini error]", msg);
+    return { clusters: [], status: "failed", error: msg };
   }
 }
 
@@ -231,6 +234,7 @@ export async function POST(
         steps: {
           perplexity: research.status,
           gemini: geminiResult.status,
+          error: geminiResult.error,
         },
       });
     }

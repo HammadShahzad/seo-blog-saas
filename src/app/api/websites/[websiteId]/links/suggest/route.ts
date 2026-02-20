@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateJSON } from "@/lib/ai/gemini";
 
+export const maxDuration = 60; // 60s max duration to allow Gemini and Perplexity to finish
+
 export interface SuggestedLink {
   keyword: string;
   url: string;
@@ -15,6 +17,7 @@ export interface SuggestResponse {
   steps: {
     perplexity: "ok" | "skipped" | "failed";
     gemini: "ok" | "failed";
+    error?: string;
     pagesFound: number;
   };
   error?: string;
@@ -69,7 +72,7 @@ async function generateLinkPairsWithGemini(
   niche: string,
   pagesContext: string,
   existingKeywords: string[]
-): Promise<{ links: SuggestedLink[]; status: "ok" | "failed" }> {
+): Promise<{ links: SuggestedLink[]; status: "ok" | "failed"; error?: string }> {
   if (!process.env.GOOGLE_AI_API_KEY) return { links: [], status: "failed" };
 
   const existingList =
@@ -104,8 +107,9 @@ Generate 15-25 high-value internal link pairs. Return a JSON array:
     );
     return { links: Array.isArray(links) ? links : [], status: Array.isArray(links) && links.length > 0 ? "ok" : "failed" };
   } catch (err) {
-    console.error("[Links Gemini error]", err);
-    return { links: [], status: "failed" };
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[Links Gemini error]", msg);
+    return { links: [], status: "failed", error: msg };
   }
 }
 
@@ -183,6 +187,7 @@ export async function POST(
       steps: {
         perplexity: perplexityResult.status,
         gemini: geminiResult.status,
+        error: geminiResult.error,
         pagesFound,
       },
     };
