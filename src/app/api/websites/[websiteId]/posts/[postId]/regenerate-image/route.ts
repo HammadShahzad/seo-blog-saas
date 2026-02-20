@@ -3,24 +3,20 @@
  * Generates a new featured image for the post via Imagen + uploads to B2
  */
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateBlogImage } from "@/lib/storage/image-generator";
-
-export const maxDuration = 60; // 60s max duration for image generation
 import { generateText } from "@/lib/ai/gemini";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
+
+export const maxDuration = 60;
 
 type Params = { params: Promise<{ websiteId: string; postId: string }> };
 
 export async function POST(req: Request, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId, postId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     // Allow optional custom prompt override from body
     const body = await req.json().catch(() => ({})) as { prompt?: string };

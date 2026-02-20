@@ -3,22 +3,18 @@
  * Push a specific blog post to the connected WordPress site
  */
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { decodeWordPressConfig, pushToWordPress, pushToWordPressPlugin } from "@/lib/cms/wordpress";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
     const { postId, status = "draft" } = await req.json();
 
     if (!postId) {

@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       where: { userId: session.user.id },
     });
 
-    if (!subscription || subscription.stripeCustomerId.startsWith("temp_")) {
+    if (!subscription || subscription.stripeCustomerId.startsWith("temp_") || subscription.stripeCustomerId.startsWith("pending_")) {
       return NextResponse.json(
         { error: "No active Stripe subscription found" },
         { status: 404 },

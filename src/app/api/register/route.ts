@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
+import { checkIpRateLimit, validateEmail } from "@/lib/api-helpers";
 
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rl = checkIpRateLimit(`register:${ip}`);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const { name, email, password } = await req.json();
 
     if (!email || !password) {
@@ -13,15 +23,24 @@ export async function POST(req: Request) {
       );
     }
 
-    if (password.length < 8) {
+    if (!validateEmail(email)) {
+      return NextResponse.json(
+        { error: "Please provide a valid email address" },
+        { status: 400 }
+      );
+    }
+
+    if (typeof password !== "string" || password.length < 8) {
       return NextResponse.json(
         { error: "Password must be at least 8 characters" },
         { status: 400 }
       );
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     });
 
     if (existingUser) {
@@ -35,16 +54,15 @@ export async function POST(req: Request) {
 
     const user = await prisma.user.create({
       data: {
-        name,
-        email,
+        name: typeof name === "string" ? name.trim() : undefined,
+        email: normalizedEmail,
         password: hashedPassword,
       },
     });
 
-    // Create organization for the user
     const org = await prisma.organization.create({
       data: {
-        name: `${name || email.split("@")[0]}'s Organization`,
+        name: `${name || normalizedEmail.split("@")[0]}'s Organization`,
         slug: `org-${user.id.slice(0, 8)}`,
         members: {
           create: {
@@ -55,10 +73,9 @@ export async function POST(req: Request) {
       },
     });
 
-    // Create free subscription
     await prisma.subscription.create({
       data: {
-        stripeCustomerId: `temp_${user.id}`,
+        stripeCustomerId: `pending_${user.id}`,
         plan: "FREE",
         status: "ACTIVE",
         organizationId: org.id,

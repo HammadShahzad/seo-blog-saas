@@ -6,13 +6,11 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendWeeklyDigestEmail } from "@/lib/email";
+import { requireCronAuth } from "@/lib/api-helpers";
 
 export async function POST(req: Request) {
-  const authHeader = req.headers.get("authorization");
-  const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const sent: string[] = [];

@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     let stripeCustomerId = subscription.stripeCustomerId;
 
-    if (stripeCustomerId.startsWith("temp_")) {
+    if (stripeCustomerId.startsWith("temp_") || stripeCustomerId.startsWith("pending_")) {
       const customer = await stripe.customers.create({
         email: session.user.email!,
         name: session.user.name ?? undefined,
