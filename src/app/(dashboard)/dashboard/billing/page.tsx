@@ -1,5 +1,7 @@
 import { getCurrentOrganization } from "@/lib/get-session";
 import { PLANS } from "@/lib/stripe";
+
+export const dynamic = "force-dynamic";
 import {
   Card,
   CardContent,
