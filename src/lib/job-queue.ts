@@ -133,7 +133,7 @@ export async function processJob(jobId: string): Promise<void> {
         status,
         publishedAt: input.autoPublish ? new Date() : null,
         generatedBy: "ai",
-        aiModel: "gemini-3.1-pro",
+        aiModel: "gemini-3.1-pro-preview",
         researchData: generated.researchData as object,
         generationSteps: { completed: true },
         websiteId: input.websiteId,
