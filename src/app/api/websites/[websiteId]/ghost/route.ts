@@ -1,71 +1,84 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { testGhostConnection } from "@/lib/cms/ghost";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ websiteId: string }> }
-) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+type Params = { params: Promise<{ websiteId: string }> };
 
-  const { websiteId } = await params;
-  const website = await prisma.website.findUnique({
-    where: { id: websiteId },
-    select: { ghostConfig: true },
-  });
-
-  if (!website?.ghostConfig) return NextResponse.json({ connected: false });
-
+export async function GET(_req: Request, { params }: Params) {
   try {
-    const config = JSON.parse(website.ghostConfig as string);
-    return NextResponse.json({ connected: true, siteUrl: config.siteUrl });
-  } catch {
-    return NextResponse.json({ connected: false });
+    const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
+    const website = await prisma.website.findUnique({
+      where: { id: websiteId },
+      select: { ghostConfig: true },
+    });
+
+    if (!website?.ghostConfig) return NextResponse.json({ connected: false });
+
+    try {
+      const config = JSON.parse(website.ghostConfig as string);
+      return NextResponse.json({ connected: true, siteUrl: config.siteUrl });
+    } catch {
+      return NextResponse.json({ connected: false });
+    }
+  } catch (error) {
+    console.error("[Ghost GET]", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ websiteId: string }> }
-) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function POST(req: Request, { params }: Params) {
+  try {
+    const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
-  const { websiteId } = await params;
-  const body = await req.json();
-  const { action, siteUrl, adminApiKey } = body;
+    const body = await req.json();
+    const { action, siteUrl, adminApiKey } = body;
 
-  if (action === "test") {
-    const result = await testGhostConnection({ siteUrl, adminApiKey });
-    return NextResponse.json(result);
+    if (!siteUrl || typeof siteUrl !== "string") {
+      return NextResponse.json({ error: "siteUrl is required" }, { status: 400 });
+    }
+    if (!adminApiKey || typeof adminApiKey !== "string") {
+      return NextResponse.json({ error: "adminApiKey is required" }, { status: 400 });
+    }
+
+    if (action === "test") {
+      const result = await testGhostConnection({ siteUrl, adminApiKey });
+      return NextResponse.json(result);
+    }
+
+    await prisma.website.update({
+      where: { id: websiteId },
+      data: {
+        ghostConfig: JSON.stringify({ siteUrl, adminApiKey }),
+      },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[Ghost POST]", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  // Save credentials
-  await prisma.website.update({
-    where: { id: websiteId },
-    data: {
-      ghostConfig: JSON.stringify({ siteUrl, adminApiKey }),
-    },
-  });
-
-  return NextResponse.json({ success: true });
 }
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ websiteId: string }> }
-) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+export async function DELETE(_req: Request, { params }: Params) {
+  try {
+    const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
-  const { websiteId } = await params;
-  await prisma.website.update({
-    where: { id: websiteId },
-    data: { ghostConfig: null },
-  });
+    await prisma.website.update({
+      where: { id: websiteId },
+      data: { ghostConfig: null },
+    });
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("[Ghost DELETE]", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
 }

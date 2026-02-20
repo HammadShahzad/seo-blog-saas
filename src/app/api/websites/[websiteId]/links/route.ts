@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     const links = await prisma.internalLinkPair.findMany({
       where: { websiteId },
@@ -32,19 +28,17 @@ export async function POST(
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
     const { keyword, url } = await req.json();
 
-    if (!keyword || !url) {
-      return NextResponse.json(
-        { error: "keyword and url are required" },
-        { status: 400 }
-      );
+    if (!keyword || typeof keyword !== "string") {
+      return NextResponse.json({ error: "keyword is required" }, { status: 400 });
+    }
+    if (!url || typeof url !== "string") {
+      return NextResponse.json({ error: "url is required" }, { status: 400 });
     }
 
     const link = await prisma.internalLinkPair.create({
@@ -67,12 +61,10 @@ export async function DELETE(
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
     const { searchParams } = new URL(req.url);
     const linkId = searchParams.get("id");
 

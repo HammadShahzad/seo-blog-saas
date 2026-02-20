@@ -60,8 +60,9 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     ? `${process.env.NEXTAUTH_URL}/blog/${website.subdomain}`
     : `https://${website.domain}`;
   const postUrl = `${baseUrl}/${post.slug}`;
-  const ownerEmail = website.organization.members[0]?.user?.email;
-  const ownerName = website.organization.members[0]?.user?.name || "there";
+  const ownerMember = website.organization.members?.[0];
+  const ownerEmail = ownerMember?.user?.email;
+  const ownerName = ownerMember?.user?.name || "there";
 
   // Run all integrations in parallel — failures are silent (best-effort)
   const tasks: Promise<void>[] = [];

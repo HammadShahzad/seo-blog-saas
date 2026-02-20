@@ -2,7 +2,18 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { PlanTier } from "@prisma/client";
+import { z } from "zod";
+
+const patchSchema = z.object({
+  role: z.enum(["USER", "ADMIN"]).optional(),
+  plan: z.enum(["FREE", "STARTER", "GROWTH", "AGENCY", "ENTERPRISE"]).optional(),
+  maxWebsites: z.number().int().min(0).max(1000).optional(),
+  maxPostsPerMonth: z.number().int().min(0).max(10000).optional(),
+  maxImagesPerMonth: z.number().int().min(0).max(10000).optional(),
+  websitesUsed: z.number().int().min(0).optional(),
+  postsGeneratedThisMonth: z.number().int().min(0).optional(),
+  imagesGeneratedThisMonth: z.number().int().min(0).optional(),
+});
 
 export async function PATCH(
   req: Request,
@@ -12,12 +23,24 @@ export async function PATCH(
     const session = await getServerSession(authOptions);
 
     if (!session?.user || session.user.systemRole !== "ADMIN") {
-      return new NextResponse("Unauthorized", { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const resolvedParams = await params;
     const { userId } = resolvedParams;
+
+    if (!userId || typeof userId !== "string") {
+      return NextResponse.json({ error: "Invalid user ID" }, { status: 400 });
+    }
+
     const body = await req.json();
+    const parsed = patchSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "Invalid input", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      );
+    }
 
     const {
       role,
@@ -28,9 +51,8 @@ export async function PATCH(
       websitesUsed,
       postsGeneratedThisMonth,
       imagesGeneratedThisMonth,
-    } = body;
+    } = parsed.data;
 
-    // Update user role if provided
     if (role) {
       await prisma.user.update({
         where: { id: userId },
@@ -38,9 +60,8 @@ export async function PATCH(
       });
     }
 
-    // Update subscription details if provided
     if (
-      plan ||
+      plan !== undefined ||
       maxWebsites !== undefined ||
       maxPostsPerMonth !== undefined ||
       maxImagesPerMonth !== undefined ||
@@ -53,23 +74,26 @@ export async function PATCH(
         include: { subscription: true },
       });
 
-      if (user?.subscription) {
+      if (!user) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      if (user.subscription) {
         await prisma.subscription.update({
           where: { id: user.subscription.id },
           data: {
-            plan: plan as PlanTier,
-            maxWebsites: maxWebsites !== undefined ? Number(maxWebsites) : undefined,
-            maxPostsPerMonth: maxPostsPerMonth !== undefined ? Number(maxPostsPerMonth) : undefined,
-            maxImagesPerMonth: maxImagesPerMonth !== undefined ? Number(maxImagesPerMonth) : undefined,
-            websitesUsed: websitesUsed !== undefined ? Number(websitesUsed) : undefined,
-            postsGeneratedThisMonth: postsGeneratedThisMonth !== undefined ? Number(postsGeneratedThisMonth) : undefined,
-            imagesGeneratedThisMonth: imagesGeneratedThisMonth !== undefined ? Number(imagesGeneratedThisMonth) : undefined,
+            ...(plan !== undefined && { plan }),
+            ...(maxWebsites !== undefined && { maxWebsites }),
+            ...(maxPostsPerMonth !== undefined && { maxPostsPerMonth }),
+            ...(maxImagesPerMonth !== undefined && { maxImagesPerMonth }),
+            ...(websitesUsed !== undefined && { websitesUsed }),
+            ...(postsGeneratedThisMonth !== undefined && { postsGeneratedThisMonth }),
+            ...(imagesGeneratedThisMonth !== undefined && { imagesGeneratedThisMonth }),
           },
         });
       }
     }
 
-    // Fetch the updated user
     const updatedUser = await prisma.user.findUnique({
       where: { id: userId },
       include: { subscription: true },
@@ -78,6 +102,6 @@ export async function PATCH(
     return NextResponse.json(updatedUser);
   } catch (error) {
     console.error("[ADMIN_USER_PATCH]", error);
-    return new NextResponse("Internal Error", { status: 500 });
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

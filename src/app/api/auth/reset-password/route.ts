@@ -1,9 +1,19 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import { checkIpRateLimit, validateEmail } from "@/lib/api-helpers";
 
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rl = checkIpRateLimit(`reset-pw:${ip}`);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const { email, token, password } = await req.json();
 
     if (!email || !token || !password) {
@@ -13,14 +23,20 @@ export async function POST(req: Request) {
       );
     }
 
-    if (password.length < 6) {
+    if (!validateEmail(email)) {
       return NextResponse.json(
-        { error: "Password must be at least 6 characters" },
+        { error: "Invalid email format" },
         { status: 400 }
       );
     }
 
-    // Verify token exists and is valid for this email
+    if (typeof password !== "string" || password.length < 8) {
+      return NextResponse.json(
+        { error: "Password must be at least 8 characters" },
+        { status: 400 }
+      );
+    }
+
     const resetToken = await prisma.passwordResetToken.findUnique({
       where: {
         email_token: {
@@ -32,39 +48,35 @@ export async function POST(req: Request) {
 
     if (!resetToken) {
       return NextResponse.json(
-        { error: "Invalid token" },
+        { error: "Invalid or expired reset link" },
         { status: 400 }
       );
     }
 
-    // Check if token has expired
     if (resetToken.expires < new Date()) {
       await prisma.passwordResetToken.delete({
         where: { id: resetToken.id },
       });
       return NextResponse.json(
-        { error: "Token has expired" },
+        { error: "Reset link has expired. Please request a new one." },
         { status: 400 }
       );
     }
 
-    // Hash the new password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Update user password
     const updatedUser = await prisma.user.update({
       where: { email },
       data: { password: hashedPassword },
     });
 
     if (!updatedUser) {
-        return NextResponse.json(
-          { error: "User not found" },
-          { status: 404 }
-        );
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
     }
 
-    // Delete the token so it can't be used again
     await prisma.passwordResetToken.delete({
       where: { id: resetToken.id },
     });
@@ -73,7 +85,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("[RESET_PASSWORD_ERROR]", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

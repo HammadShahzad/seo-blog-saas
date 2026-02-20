@@ -4,19 +4,18 @@
  * DELETE /api/websites/[websiteId]/shopify — disconnect
  */
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { testShopifyConnection, listShopifyBlogs } from "@/lib/cms/shopify";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 type Params = { params: Promise<{ websiteId: string }> };
 
 export async function GET(_req: Request, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
     const website = await prisma.website.findUnique({
       where: { id: websiteId },
       select: { shopifyConfig: true },
@@ -44,10 +43,10 @@ export async function GET(_req: Request, { params }: Params) {
 
 export async function POST(req: Request, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
     const body = await req.json() as {
       action?: string;
       storeUrl?: string;
@@ -61,19 +60,16 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ error: "storeUrl and accessToken are required" }, { status: 400 });
     }
 
-    // ── Test connection ───────────────────────────────────────────────
     if (action === "test") {
       const result = await testShopifyConnection({ storeUrl, accessToken });
       return NextResponse.json(result);
     }
 
-    // ── Fetch available blogs ─────────────────────────────────────────
     if (action === "list-blogs") {
       const blogs = await listShopifyBlogs({ storeUrl, accessToken });
       return NextResponse.json({ blogs });
     }
 
-    // ── Save credentials ──────────────────────────────────────────────
     const config = {
       storeUrl: storeUrl.replace(/^https?:\/\//i, "").replace(/\/$/, ""),
       accessToken,
@@ -95,10 +91,10 @@ export async function POST(req: Request, { params }: Params) {
 
 export async function DELETE(_req: Request, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
     await prisma.website.update({
       where: { id: websiteId },
       data: { shopifyConfig: null },

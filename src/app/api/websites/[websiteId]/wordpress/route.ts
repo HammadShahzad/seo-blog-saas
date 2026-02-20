@@ -4,22 +4,17 @@
  * DELETE /api/websites/[websiteId]/wordpress — remove WP config
  */
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { testWordPressConnection } from "@/lib/cms/wordpress";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
-export async function GET(
-  _req: Request,
-  { params }: { params: Promise<{ websiteId: string }> }
-) {
+type Params = { params: Promise<{ websiteId: string }> };
+
+export async function GET(_req: Request, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     const website = await prisma.website.findUnique({
       where: { id: websiteId },
@@ -39,7 +34,7 @@ export async function GET(
     return NextResponse.json({
       connected: !!(website.cmsApiUrl && website.cmsApiKey),
       siteUrl: website.cmsApiUrl || "",
-      hasPassword: !!(website.cmsApiKey),
+      hasPassword: !!website.cmsApiKey,
       cmsType: website.cmsType,
       mode: isPlugin ? "plugin" : "app-password",
     });
@@ -49,23 +44,17 @@ export async function GET(
   }
 }
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ websiteId: string }> }
-) {
+export async function POST(req: Request, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
     const body = await req.json();
     const { action, mode, siteUrl, username, appPassword, pluginApiKey, defaultStatus } = body;
 
     const cleanUrl = (siteUrl || "").replace(/\/$/, "");
 
-    // ── Plugin mode test ──────────────────────────────────────────────
     if (action === "test" && mode === "plugin") {
       if (!siteUrl || !pluginApiKey) {
         return NextResponse.json({ error: "siteUrl and pluginApiKey are required" }, { status: 400 });
@@ -85,7 +74,6 @@ export async function POST(
       }
     }
 
-    // ── App-password test ─────────────────────────────────────────────
     if (action === "test") {
       if (!siteUrl || !username || !appPassword) {
         return NextResponse.json({ error: "siteUrl, username, and appPassword are required" }, { status: 400 });
@@ -94,7 +82,6 @@ export async function POST(
       return NextResponse.json(result);
     }
 
-    // ── Plugin mode save ──────────────────────────────────────────────
     if (mode === "plugin") {
       if (!siteUrl || !pluginApiKey) {
         return NextResponse.json({ error: "siteUrl and pluginApiKey are required" }, { status: 400 });
@@ -104,14 +91,12 @@ export async function POST(
         data: {
           cmsType: "WORDPRESS",
           cmsApiUrl: cleanUrl,
-          // prefix distinguishes plugin key from app-password (base64)
           cmsApiKey: `plugin:${pluginApiKey}`,
         },
       });
       return NextResponse.json({ success: true });
     }
 
-    // ── App-password save ─────────────────────────────────────────────
     if (!siteUrl || !username || !appPassword) {
       return NextResponse.json({ error: "siteUrl, username, and appPassword are required" }, { status: 400 });
     }
@@ -131,17 +116,11 @@ export async function POST(
   }
 }
 
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ websiteId: string }> }
-) {
+export async function DELETE(_req: Request, { params }: Params) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     await prisma.website.update({
       where: { id: websiteId },

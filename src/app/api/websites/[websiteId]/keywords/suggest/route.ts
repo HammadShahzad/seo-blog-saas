@@ -1,22 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateJSON } from "@/lib/ai/gemini";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
-export const maxDuration = 60; // 60s max duration for Gemini generation
+export const maxDuration = 60;
 
 export async function POST(
   _req: Request,
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     const website = await prisma.website.findUnique({
       where: { id: websiteId },

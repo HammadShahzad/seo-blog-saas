@@ -38,7 +38,7 @@ module.exports = {
     {
       name: "stackserp",
       script: "server.js",
-      cwd: "/var/www/stackserp",
+      cwd: "/var/www/stackserp/.next/standalone",
       instances: 1,
       autorestart: true,
       watch: false,

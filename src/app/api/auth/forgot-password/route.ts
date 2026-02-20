@@ -2,14 +2,24 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import crypto from "crypto";
 import { sendPasswordResetEmail } from "@/lib/email";
+import { checkIpRateLimit, validateEmail } from "@/lib/api-helpers";
 
 export async function POST(req: Request) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const rl = checkIpRateLimit(`forgot-pw:${ip}`);
+    if (!rl.allowed) {
+      return NextResponse.json(
+        { error: "Too many requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const { email } = await req.json();
 
-    if (!email || typeof email !== "string") {
+    if (!validateEmail(email)) {
       return NextResponse.json(
-        { error: "Invalid email address" },
+        { error: "Please provide a valid email address" },
         { status: 400 }
       );
     }
@@ -19,11 +29,9 @@ export async function POST(req: Request) {
     });
 
     if (!user) {
-      // Don't leak whether user exists
       return NextResponse.json({ success: true });
     }
 
-    // Check if a token already exists and delete it
     const existingToken = await prisma.passwordResetToken.findFirst({
       where: { email: user.email },
     });
@@ -34,9 +42,8 @@ export async function POST(req: Request) {
       });
     }
 
-    // Generate new token
     const token = crypto.randomBytes(32).toString("hex");
-    const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+    const expires = new Date(Date.now() + 1000 * 60 * 60);
 
     await prisma.passwordResetToken.create({
       data: {
@@ -46,7 +53,13 @@ export async function POST(req: Request) {
       },
     });
 
-    const resetUrl = `${process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'http://localhost:3000'}/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`;
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
+    if (!appUrl) {
+      console.error("[FORGOT_PASSWORD] NEXT_PUBLIC_APP_URL and NEXTAUTH_URL are not set");
+      return NextResponse.json({ success: true });
+    }
+
+    const resetUrl = `${appUrl}/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`;
 
     await sendPasswordResetEmail(user.email, resetUrl);
 
@@ -54,7 +67,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("[FORGOT_PASSWORD_ERROR]", error);
     return NextResponse.json(
-      { error: "Internal Server Error" },
+      { error: "Internal server error" },
       { status: 500 }
     );
   }

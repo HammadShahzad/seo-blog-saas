@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,18 @@ import {
   Bot,
   Sparkles,
 } from "lucide-react";
+
+export const metadata: Metadata = {
+  title: "StackSerp — AI-Powered SEO Blog Content Marketing",
+  description:
+    "Automate your content marketing. AI researches, writes, optimizes, and publishes SEO blog posts for your websites. Start free.",
+  openGraph: {
+    title: "StackSerp — AI-Powered SEO Blog Content Marketing",
+    description:
+      "Automate your content marketing. AI researches, writes, optimizes, and publishes SEO blog posts for your websites.",
+    type: "website",
+  },
+};
 
 export default function LandingPage() {
   return (

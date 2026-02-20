@@ -100,7 +100,7 @@ export async function processJob(jobId: string): Promise<void> {
         await prisma.blogKeyword.update({
           where: { id: input.keywordId },
           data: { status: "GENERATING" },
-        });
+        }).catch(() => {});
       }
     };
 
@@ -178,7 +178,7 @@ export async function processJob(jobId: string): Promise<void> {
         status: "COMPLETED",
         blogPostId: blogPost.id,
       },
-    });
+    }).catch(() => {});
 
     // Mark job complete
     await prisma.generationJob.update({
@@ -224,7 +224,7 @@ export async function processJob(jobId: string): Promise<void> {
         errorMessage,
         retryCount: { increment: 1 },
       },
-    });
+    }).catch(() => {});
   }
 }
 

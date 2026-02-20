@@ -1,26 +1,19 @@
 /**
  * POST /api/worker/process
  * Worker endpoint that processes QUEUED generation jobs.
- * Runs on the Droplet (no timeout) — called by:
- *   1. Vercel's generate route (fire-and-forget trigger)
- *   2. The Droplet's own polling interval
- *
- * Protected by CRON_SECRET.
+ * Protected by CRON_SECRET (required).
  */
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { processJob, recoverStuckJobs } from "@/lib/job-queue";
+import { requireCronAuth } from "@/lib/api-helpers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
-  const authHeader = req.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
-
-  if (secret && authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const authError = requireCronAuth(req);
+  if (authError) return authError;
 
   try {
     await recoverStuckJobs();
@@ -30,7 +23,7 @@ export async function POST(req: Request) {
 
     let job;
 
-    if (jobId) {
+    if (jobId && typeof jobId === "string") {
       job = await prisma.generationJob.findFirst({
         where: { id: jobId, status: "QUEUED" },
       });
@@ -53,7 +46,7 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("[WORKER] Error:", error);
     return NextResponse.json(
-      { error: "Worker processing failed", details: String(error) },
+      { error: "Worker processing failed" },
       { status: 500 }
     );
   }

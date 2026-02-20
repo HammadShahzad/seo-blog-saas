@@ -3,13 +3,17 @@ import { withAuth } from "next-auth/middleware";
 export default withAuth({
   callbacks: {
     authorized({ req, token }) {
-      // Allow public routes
-      const publicPaths = ["/", "/login", "/register", "/pricing", "/features", "/api/register"];
-      const isPublic = publicPaths.some((path) => req.nextUrl.pathname === path);
-      const isApiAuth = req.nextUrl.pathname.startsWith("/api/auth");
-      const isPublicApi = req.nextUrl.pathname.startsWith("/api/v1");
+      const { pathname } = req.nextUrl;
 
-      if (isPublic || isApiAuth || isPublicApi) {
+      const publicPaths = ["/", "/login", "/register", "/pricing", "/features", "/forgot-password", "/reset-password"];
+      const isPublic = publicPaths.some((path) => pathname === path);
+      const isApiAuth = pathname.startsWith("/api/auth");
+      const isPublicApi = pathname.startsWith("/api/v1");
+      const isBlog = pathname.startsWith("/blog/");
+      const isStripeWebhook = pathname === "/api/stripe/webhook";
+      const isCronOrWorker = pathname.startsWith("/api/cron") || pathname.startsWith("/api/worker");
+
+      if (isPublic || isApiAuth || isPublicApi || isBlog || isStripeWebhook || isCronOrWorker) {
         return true;
       }
 
@@ -22,6 +26,11 @@ export const config = {
   matcher: [
     "/dashboard/:path*",
     "/api/websites/:path*",
-    "/api/register",
+    "/api/admin/:path*",
+    "/api/team/:path*",
+    "/api/user/:path*",
+    "/api/api-keys/:path*",
+    "/api/stripe/checkout",
+    "/api/stripe/portal",
   ],
 };

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateJSON } from "@/lib/ai/gemini";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 export const maxDuration = 60; // 60s max duration to allow Gemini and Perplexity to finish
 
@@ -142,12 +143,9 @@ export async function GET(
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     const clusters = await prisma.topicCluster.findMany({
       where: { websiteId },
@@ -169,12 +167,10 @@ export async function POST(
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
     const body = await req.json();
 
     // --- AI generation: returns suggestions for review, does NOT save yet ---
@@ -283,12 +279,10 @@ export async function DELETE(
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
     const { searchParams } = new URL(req.url);
     const clusterId = searchParams.get("id");
 

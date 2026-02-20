@@ -1,7 +1,19 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+
+export const metadata: Metadata = {
+  title: "Features — StackSerp",
+  description:
+    "AI content generation, multi-website management, SEO optimization, CMS integrations, social publishing, analytics and more. Everything you need for content marketing.",
+  openGraph: {
+    title: "Features — StackSerp",
+    description:
+      "AI content generation, multi-website management, SEO optimization, and more.",
+  },
+};
 import {
   Zap,
   ArrowRight,

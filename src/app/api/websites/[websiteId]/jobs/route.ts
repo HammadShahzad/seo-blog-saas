@@ -1,19 +1,15 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 export async function GET(
   _req: Request,
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
     const jobs = await prisma.generationJob.findMany({
@@ -21,7 +17,6 @@ export async function GET(
         websiteId,
         OR: [
           { status: { in: ["QUEUED", "PROCESSING"] } },
-          // Also show recently failed jobs so user can retry
           { status: "FAILED", completedAt: { gte: new Date(Date.now() - 60 * 60 * 1000) } },
         ],
       },
@@ -41,7 +36,6 @@ export async function GET(
       },
     });
 
-    // Auto-mark stuck PROCESSING jobs as FAILED
     for (const job of jobs) {
       if (job.status === "PROCESSING" && job.startedAt && new Date(job.startedAt) < tenMinutesAgo) {
         await prisma.generationJob.update({
