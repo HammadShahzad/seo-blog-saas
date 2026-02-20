@@ -118,7 +118,8 @@ export async function POST(
       select: {
         id: true,
         name: true,
-        url: true,
+        domain: true,
+        brandUrl: true,
         niche: true,
         organizationId: true,
         internalLinks: { select: { keyword: true } },
@@ -130,14 +131,17 @@ export async function POST(
     }
 
     const org = await prisma.organization.findFirst({
-      where: { id: website.organizationId, users: { some: { id: session.user.id } } },
+      where: {
+        id: website.organizationId,
+        members: { some: { userId: session.user.id } },
+      },
     });
     if (!org) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const domain = website.url.replace(/\/$/, "");
-    const existingKeywords = website.internalLinks.map((l) => l.keyword);
+    const domain = (website.brandUrl || `https://${website.domain}`).replace(/\/$/, "");
+    const existingKeywords = website.internalLinks.map((l: { keyword: string }) => l.keyword);
 
     // Step 1: Discover pages with Perplexity (real-time web search)
     const pagesContext = await discoverPagesWithPerplexity(domain);

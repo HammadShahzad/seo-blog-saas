@@ -184,13 +184,13 @@ export async function POST(
           name: true,
           brandName: true,
           brandUrl: true,
-          url: true,
+          domain: true,
           niche: true,
           description: true,
           targetAudience: true,
           tone: true,
           organizationId: true,
-          keywords: { select: { keyword: true }, take: 80 },
+          blogKeywords: { select: { keyword: true }, take: 80 },
         },
       });
 
@@ -201,8 +201,8 @@ export async function POST(
         );
       }
 
-      const existingKeywords = website.keywords.map((k) => k.keyword);
-      const siteUrl = website.brandUrl || website.url || "";
+      const existingKeywords = website.blogKeywords.map((k: { keyword: string }) => k.keyword);
+      const siteUrl = website.brandUrl || (website.domain ? `https://${website.domain}` : "");
 
       // Step 1: Research the actual website with Perplexity
       const research = await researchWebsiteWithPerplexity(
