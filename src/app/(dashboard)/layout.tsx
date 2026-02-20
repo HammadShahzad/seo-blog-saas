@@ -17,13 +17,11 @@ export default async function DashboardLayout({
     status: w.status,
   }));
 
-  const defaultWebsiteId = websites[0]?.id;
-
   return (
     <SidebarProvider>
       <AppSidebar
         websites={websites}
-        currentWebsiteId={defaultWebsiteId}
+        currentWebsiteId={websites[0]?.id}
         user={{
           name: session.user.name,
           email: session.user.email,

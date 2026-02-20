@@ -62,8 +62,15 @@ interface AppSidebarProps {
   };
 }
 
-export function AppSidebar({ websites, currentWebsiteId, user }: AppSidebarProps) {
+export function AppSidebar({ websites, currentWebsiteId: defaultWebsiteId, user }: AppSidebarProps) {
   const pathname = usePathname();
+
+  // Extract website ID from URL so sidebar always reflects the page you're actually on
+  const urlWebsiteIdMatch = pathname.match(/\/dashboard\/websites\/([^/]+)/);
+  const urlWebsiteId = urlWebsiteIdMatch?.[1];
+  const currentWebsiteId = (urlWebsiteId && urlWebsiteId !== "new" && websites.some(w => w.id === urlWebsiteId))
+    ? urlWebsiteId
+    : defaultWebsiteId;
 
   const mainNavItems = [
     {
