@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 
 export const metadata: Metadata = {
   title: "Features — StackSerp",
@@ -210,17 +211,7 @@ export default function FeaturesPage() {
                 Pricing
               </Link>
             </div>
-            <div className="flex items-center gap-3">
-              <Button asChild variant="ghost">
-                <Link href="/login">Sign In</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/register">
-                  Get Started Free
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
+            <NavAuthButtons ctaLabel="Get Started Free" />
           </div>
         </div>
       </nav>

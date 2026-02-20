@@ -8,6 +8,7 @@ import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { Logo } from "@/components/ui/logo";
+import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 
 const STACKSERP_SUBDOMAIN = "stackserp";
 
@@ -299,12 +300,7 @@ export default async function StackSerpBlogPostPage({ params }: Props) {
             >
               Pricing
             </Link>
-            <Link
-              href="/register"
-              className="text-sm font-medium bg-primary text-primary-foreground px-4 py-1.5 rounded-lg hover:bg-primary/90 transition-colors"
-            >
-              Get Started
-            </Link>
+            <NavAuthButtons ctaLabel="Get Started" />
           </div>
         </div>
       </nav>

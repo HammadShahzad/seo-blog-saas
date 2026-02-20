@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Logo } from "@/components/ui/logo";
+import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 import {
   Zap,
   Search,
@@ -83,17 +84,7 @@ export default function LandingPage() {
                 Blog
               </Link>
             </div>
-            <div className="flex items-center gap-3">
-              <Button asChild variant="ghost" className="hidden sm:inline-flex">
-                <Link href="/login">Sign In</Link>
-              </Button>
-              <Button asChild className="shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-all">
-                <Link href="/register">
-                  Start Ranking Free
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
+            <NavAuthButtons ctaLabel="Start Ranking Free" />
           </div>
         </div>
       </nav>

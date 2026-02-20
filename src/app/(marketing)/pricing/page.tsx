@@ -6,6 +6,7 @@ import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 import {
   Zap,
   ArrowRight,
@@ -185,17 +186,7 @@ export default function PricingPage() {
                 Pricing
               </Link>
             </div>
-            <div className="flex items-center gap-3">
-              <Button asChild variant="ghost">
-                <Link href="/login">Sign In</Link>
-              </Button>
-              <Button asChild>
-                <Link href="/register">
-                  Get Started Free
-                  <ArrowRight className="ml-2 h-4 w-4" />
-                </Link>
-              </Button>
-            </div>
+            <NavAuthButtons ctaLabel="Get Started Free" />
           </div>
         </div>
       </nav>
