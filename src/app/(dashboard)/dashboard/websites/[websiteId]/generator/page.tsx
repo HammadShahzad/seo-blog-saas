@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Card,
@@ -14,6 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -21,6 +24,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Bot,
   Play,
@@ -38,9 +48,16 @@ import {
   Target,
   RefreshCw,
   ExternalLink,
+  Network,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
+
+/* ──────────────────────────── Types ──────────────────────────── */
 
 interface PipelineStep {
   id: string;
@@ -76,11 +93,39 @@ interface JobStatus {
   blogPost?: { id: string; title: string; slug: string; websiteId: string } | null;
 }
 
+interface ClusterKeyword {
+  keyword: string;
+  role: "pillar" | "supporting";
+  searchIntent: "informational" | "transactional" | "commercial";
+  suggestedWordCount: number;
+  description: string;
+}
+
+interface ClusterPreviewData {
+  pillarTitle: string;
+  description: string;
+  keywords: ClusterKeyword[];
+}
+
+interface ClusterData {
+  id: string;
+  name: string;
+  pillarKeyword: string;
+  status: string;
+  totalPosts: number;
+  publishedPosts: number;
+  keywords: { id: string; keyword: string; status: string; blogPostId: string | null }[];
+  stats: { pending: number; generating: number; done: number; failed: number; total: number };
+}
+
+/* ──────────────────────────── Page ──────────────────────────── */
+
 export default function GeneratorPage() {
   const params = useParams();
   const router = useRouter();
   const websiteId = params.websiteId as string;
 
+  // Keyword queue
   const [keywords, setKeywords] = useState<Keyword[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isStarting, setIsStarting] = useState(false);
@@ -92,7 +137,19 @@ export default function GeneratorPage() {
   const [autoPublish, setAutoPublish] = useState(false);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchKeywords = async () => {
+  // Cluster feature
+  const [clusters, setClusters] = useState<ClusterData[]>([]);
+  const [showClusterDialog, setShowClusterDialog] = useState(false);
+  const [seedTopic, setSeedTopic] = useState("");
+  const [isResearching, setIsResearching] = useState(false);
+  const [clusterPreview, setClusterPreview] = useState<ClusterPreviewData | null>(null);
+  const [selectedKeywords, setSelectedKeywords] = useState<Set<number>>(new Set());
+  const [isSavingCluster, setIsSavingCluster] = useState(false);
+  const [expandedCluster, setExpandedCluster] = useState<string | null>(null);
+
+  /* ── Fetchers ────────────────────────────────────────────── */
+
+  const fetchKeywords = useCallback(async () => {
     try {
       const res = await fetch(`/api/websites/${websiteId}/keywords`);
       if (res.ok) {
@@ -104,9 +161,9 @@ export default function GeneratorPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [websiteId]);
 
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     try {
       const res = await fetch(`/api/websites/${websiteId}/jobs`);
       if (!res.ok) return;
@@ -115,13 +172,26 @@ export default function GeneratorPage() {
     } catch {
       // silent
     }
-  };
+  }, [websiteId]);
+
+  const fetchClusters = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/clusters`);
+      if (res.ok) {
+        const data = await res.json();
+        setClusters(data);
+      }
+    } catch {
+      // silent
+    }
+  }, [websiteId]);
 
   useEffect(() => {
     fetchKeywords();
     fetchJobs();
+    fetchClusters();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [websiteId]);
+  }, [websiteId, fetchKeywords, fetchJobs, fetchClusters]);
 
   // Poll while there are active jobs
   useEffect(() => {
@@ -130,6 +200,7 @@ export default function GeneratorPage() {
     if (hasActive && !pollRef.current) {
       pollRef.current = setInterval(async () => {
         await fetchJobs();
+        await fetchClusters();
       }, 3000);
     }
 
@@ -144,7 +215,7 @@ export default function GeneratorPage() {
         pollRef.current = null;
       }
     };
-  }, [activeJobs]);
+  }, [activeJobs, fetchJobs, fetchClusters]);
 
   // Notify on newly completed/failed jobs
   const prevJobsRef = useRef<Map<string, string>>(new Map());
@@ -155,6 +226,7 @@ export default function GeneratorPage() {
         if (job.status === "COMPLETED") {
           toast.success("Blog post generated successfully!");
           fetchKeywords();
+          fetchClusters();
         } else if (job.status === "FAILED") {
           toast.error(`Generation failed: ${job.error}`);
         }
@@ -165,7 +237,9 @@ export default function GeneratorPage() {
       newMap.set(job.id, job.status);
     }
     prevJobsRef.current = newMap;
-  }, [activeJobs]);
+  }, [activeJobs, fetchKeywords, fetchClusters]);
+
+  /* ── Job Actions ─────────────────────────────────────────── */
 
   const handleRetry = async (jobId: string) => {
     try {
@@ -227,14 +301,107 @@ export default function GeneratorPage() {
     }
   };
 
+  /* ── Cluster Actions ─────────────────────────────────────── */
+
+  const handleClusterResearch = async () => {
+    if (!seedTopic.trim()) return;
+    setIsResearching(true);
+    setClusterPreview(null);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/clusters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ preview: true, seedTopic: seedTopic.trim() }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error || "Research failed");
+        return;
+      }
+      const data: ClusterPreviewData & { preview: boolean } = await res.json();
+      setClusterPreview(data);
+      // Select all by default
+      setSelectedKeywords(new Set(data.keywords.map((_, i) => i)));
+    } catch {
+      toast.error("Failed to research cluster");
+    } finally {
+      setIsResearching(false);
+    }
+  };
+
+  const toggleKeyword = (idx: number) => {
+    setSelectedKeywords(prev => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const selectAll = () => {
+    if (!clusterPreview) return;
+    setSelectedKeywords(new Set(clusterPreview.keywords.map((_, i) => i)));
+  };
+
+  const selectNone = () => {
+    setSelectedKeywords(new Set());
+  };
+
+  const handleSaveCluster = async () => {
+    if (!clusterPreview || selectedKeywords.size === 0) return;
+    setIsSavingCluster(true);
+    try {
+      const kws = clusterPreview.keywords.filter((_, i) => selectedKeywords.has(i));
+      const res = await fetch(`/api/websites/${websiteId}/clusters`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          seedTopic: seedTopic.trim(),
+          pillarTitle: clusterPreview.pillarTitle,
+          selectedKeywords: kws,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        toast.error(err.error || "Failed to save");
+        return;
+      }
+      const data = await res.json();
+      toast.success(`Cluster "${data.pillarTitle}" created with ${data.keywordCount} keywords queued!`);
+      setShowClusterDialog(false);
+      setSeedTopic("");
+      setClusterPreview(null);
+      setSelectedKeywords(new Set());
+      await fetchKeywords();
+      await fetchClusters();
+    } catch {
+      toast.error("Failed to save cluster");
+    } finally {
+      setIsSavingCluster(false);
+    }
+  };
+
+  const handleDeleteCluster = async (clusterId: string) => {
+    try {
+      await fetch(`/api/websites/${websiteId}/clusters?id=${clusterId}`, { method: "DELETE" });
+      setClusters(prev => prev.filter(c => c.id !== clusterId));
+      toast.success("Cluster deleted");
+    } catch {
+      toast.error("Failed to delete cluster");
+    }
+  };
+
+  /* ── Derived State ───────────────────────────────────────── */
+
   const runningJobs = activeJobs.filter(j => j.status === "QUEUED" || j.status === "PROCESSING");
   const completedJobs = activeJobs.filter(j => j.status === "COMPLETED");
   const failedJobs = activeJobs.filter(j => j.status === "FAILED");
-  const hasRunning = runningJobs.length > 0;
 
   const nextKeyword = selectedKeywordId
     ? keywords.find((k) => k.id === selectedKeywordId)
     : keywords[0];
+
+  /* ── Render ──────────────────────────────────────────────── */
 
   return (
     <div className="space-y-6">
@@ -248,10 +415,37 @@ export default function GeneratorPage() {
             Generate SEO-optimized blog posts powered by Gemini + Perplexity
           </p>
         </div>
-        <Badge variant="outline" className="text-sm">
-          {keywords.length} keyword{keywords.length !== 1 ? "s" : ""} in queue
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className="text-sm">
+            {keywords.length} keyword{keywords.length !== 1 ? "s" : ""} in queue
+          </Badge>
+          <Button onClick={() => setShowClusterDialog(true)} size="sm" className="gap-1.5">
+            <Network className="h-4 w-4" />
+            New Cluster
+          </Button>
+        </div>
       </div>
+
+      {/* ─── Topic Clusters ──────────────────────────────────── */}
+      {clusters.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+            <Network className="h-4 w-4" />
+            Topic Clusters
+          </h3>
+          <div className="grid gap-3 md:grid-cols-2">
+            {clusters.map(cluster => (
+              <ClusterCard
+                key={cluster.id}
+                cluster={cluster}
+                expanded={expandedCluster === cluster.id}
+                onToggle={() => setExpandedCluster(expandedCluster === cluster.id ? null : cluster.id)}
+                onDelete={handleDeleteCluster}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column */}
@@ -314,14 +508,20 @@ export default function GeneratorPage() {
                   <Target className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                   <p className="font-medium mb-1">No keywords in queue</p>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Add keywords to start generating content
+                    Add keywords manually or create a topic cluster to get started
                   </p>
-                  <Button variant="outline" asChild>
-                    <Link href={`/dashboard/websites/${websiteId}/keywords`}>
-                      Add Keywords
-                      <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
+                  <div className="flex gap-2 justify-center">
+                    <Button variant="outline" asChild>
+                      <Link href={`/dashboard/websites/${websiteId}/keywords`}>
+                        Add Keywords
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                    <Button onClick={() => setShowClusterDialog(true)} className="gap-1.5">
+                      <Network className="h-4 w-4" />
+                      New Cluster
+                    </Button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -458,9 +658,181 @@ export default function GeneratorPage() {
           </Button>
         </div>
       </div>
+
+      {/* ─── Cluster Dialog ───────────────────────────────────── */}
+      <Dialog open={showClusterDialog} onOpenChange={(open) => {
+        setShowClusterDialog(open);
+        if (!open) {
+          setClusterPreview(null);
+          setSeedTopic("");
+          setSelectedKeywords(new Set());
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Network className="h-5 w-5 text-primary" />
+              {clusterPreview ? "Review & Select Keywords" : "Create Topic Cluster"}
+            </DialogTitle>
+            <DialogDescription>
+              {clusterPreview
+                ? `Select the keywords you want to add to your generation queue from the "${clusterPreview.pillarTitle}" cluster.`
+                : "Enter a seed topic and AI will research and generate a full content cluster with pillar + supporting keywords."
+              }
+            </DialogDescription>
+          </DialogHeader>
+
+          {!clusterPreview ? (
+            /* ── Step 1: Seed Input ─────────────────────────────── */
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label>Seed Topic</Label>
+                <Input
+                  placeholder='e.g. "Invoice Management for Small Businesses"'
+                  value={seedTopic}
+                  onChange={(e) => setSeedTopic(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleClusterResearch()}
+                  disabled={isResearching}
+                />
+                <p className="text-xs text-muted-foreground">
+                  AI will research this topic using Perplexity + direct website crawl, then generate a cluster of 12-16 optimized keywords.
+                </p>
+              </div>
+
+              {isResearching && (
+                <div className="flex flex-col items-center py-8 gap-3">
+                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  <div className="text-center">
+                    <p className="font-medium text-sm">Researching &quot;{seedTopic}&quot;</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Crawling your website, analyzing competitors, generating keywords...
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <Button
+                className="w-full"
+                size="lg"
+                onClick={handleClusterResearch}
+                disabled={isResearching || !seedTopic.trim()}
+              >
+                {isResearching ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Researching...
+                  </>
+                ) : (
+                  <>
+                    <Search className="mr-2 h-4 w-4" />
+                    Research & Generate Cluster
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : (
+            /* ── Step 2: Preview & Select ───────────────────────── */
+            <div className="flex flex-col min-h-0 flex-1 gap-3">
+              {/* Cluster summary */}
+              <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
+                <p className="font-semibold text-sm">{clusterPreview.pillarTitle}</p>
+                <p className="text-xs text-muted-foreground mt-1">{clusterPreview.description}</p>
+                <div className="flex items-center gap-3 mt-2">
+                  <Badge variant="outline" className="text-xs">
+                    {clusterPreview.keywords.length} keywords
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {clusterPreview.keywords.filter(k => k.role === "pillar").length} pillar
+                  </Badge>
+                  <Badge variant="outline" className="text-xs">
+                    {clusterPreview.keywords.filter(k => k.role === "supporting").length} supporting
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Select/deselect bar */}
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">{selectedKeywords.size} of {clusterPreview.keywords.length} selected</p>
+                <div className="flex gap-2">
+                  <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7">Select All</Button>
+                  <Button variant="ghost" size="sm" onClick={selectNone} className="text-xs h-7">Deselect All</Button>
+                </div>
+              </div>
+
+              {/* Keyword list */}
+              <ScrollArea className="flex-1 -mx-1 min-h-0" style={{ maxHeight: "40vh" }}>
+                <div className="space-y-1.5 px-1">
+                  {clusterPreview.keywords.map((kw, idx) => {
+                    const checked = selectedKeywords.has(idx);
+                    return (
+                      <div
+                        key={idx}
+                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                          checked ? "bg-primary/5 border-primary/20" : "hover:bg-muted/50"
+                        }`}
+                        onClick={() => toggleKeyword(idx)}
+                      >
+                        <Checkbox
+                          checked={checked}
+                          onCheckedChange={() => toggleKeyword(idx)}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-sm">{kw.keyword}</span>
+                            {kw.role === "pillar" && (
+                              <Badge className="text-[10px] h-4 bg-primary/10 text-primary border-primary/20">Pillar</Badge>
+                            )}
+                            <Badge variant="outline" className="text-[10px] h-4 capitalize">{kw.searchIntent}</Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">{kw.description}</p>
+                          <p className="text-[11px] text-muted-foreground/70 mt-0.5">{kw.suggestedWordCount.toLocaleString()} words target</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </ScrollArea>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2 border-t">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => {
+                    setClusterPreview(null);
+                    setSelectedKeywords(new Set());
+                  }}
+                >
+                  Back
+                </Button>
+                <Button
+                  className="flex-1"
+                  onClick={handleSaveCluster}
+                  disabled={isSavingCluster || selectedKeywords.size === 0}
+                >
+                  {isSavingCluster ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add {selectedKeywords.size} Keywords to Queue
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
+/* ─────────────────────── Job Card ────────────────────────── */
 
 function JobCard({
   job,
@@ -485,7 +857,6 @@ function JobCard({
       "border-primary/20 bg-primary/5"
     }>
       <CardContent className="pt-4 pb-4 space-y-3">
-        {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
             {isRunning && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
@@ -495,7 +866,6 @@ function JobCard({
           </div>
           <div className="flex items-center gap-2 shrink-0 ml-2">
             <span className="text-sm font-medium tabular-nums">{job.progress}%</span>
-            {/* Dismiss × for completed or failed */}
             {!isRunning && (
               <button
                 onClick={() => onDismiss?.(job.id)}
@@ -510,7 +880,6 @@ function JobCard({
 
         <Progress value={job.progress} className="h-1.5" />
 
-        {/* Pipeline steps */}
         <div className="grid grid-cols-4 gap-1 sm:grid-cols-7">
           {PIPELINE_STEPS.map((step) => {
             const stepIdx = PIPELINE_STEPS.findIndex(s => s.id === step.id);
@@ -539,7 +908,6 @@ function JobCard({
           })}
         </div>
 
-        {/* Failed: error + action buttons */}
         {isFailed && (
           <div className="space-y-2">
             <p className="text-xs text-red-700 bg-red-100 px-2 py-1.5 rounded">
@@ -566,7 +934,6 @@ function JobCard({
           </div>
         )}
 
-        {/* Completed: post title + edit button */}
         {isCompleted && job.blogPost && (
           <div className="flex items-center justify-between gap-2 p-2 bg-green-100 rounded">
             <p className="text-xs font-medium text-green-900 truncate">
@@ -577,6 +944,109 @@ function JobCard({
                 Edit <ExternalLink className="ml-1 h-3 w-3" />
               </Link>
             </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ─────────────────────── Cluster Card ───────────────────── */
+
+function ClusterCard({
+  cluster,
+  expanded,
+  onToggle,
+  onDelete,
+}: {
+  cluster: ClusterData;
+  expanded: boolean;
+  onToggle: () => void;
+  onDelete: (id: string) => void;
+}) {
+  const { stats } = cluster;
+  const progress = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+  const isActive = stats.generating > 0;
+
+  return (
+    <Card className={isActive ? "border-primary/30" : ""}>
+      <CardContent className="pt-4 pb-4 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <Network className="h-4 w-4 text-primary shrink-0" />
+              <p className="font-semibold text-sm truncate">{cluster.name}</p>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">{cluster.pillarKeyword}</p>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Badge variant={progress === 100 ? "default" : "outline"} className="text-xs">
+              {progress}%
+            </Badge>
+            <button
+              onClick={() => onDelete(cluster.id)}
+              className="text-muted-foreground/40 hover:text-red-500 transition-colors p-1"
+              aria-label="Delete cluster"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        <Progress value={progress} className="h-1.5" />
+
+        <div className="flex items-center gap-3 text-xs text-muted-foreground">
+          {stats.done > 0 && (
+            <span className="flex items-center gap-1 text-green-600">
+              <CheckCircle2 className="h-3 w-3" />
+              {stats.done} done
+            </span>
+          )}
+          {stats.generating > 0 && (
+            <span className="flex items-center gap-1 text-primary">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              {stats.generating} active
+            </span>
+          )}
+          {stats.pending > 0 && (
+            <span>{stats.pending} pending</span>
+          )}
+          {stats.failed > 0 && (
+            <span className="flex items-center gap-1 text-red-500">
+              <XCircle className="h-3 w-3" />
+              {stats.failed} failed
+            </span>
+          )}
+          <span className="ml-auto">{stats.total} total</span>
+        </div>
+
+        {/* Expandable keyword list */}
+        <button
+          onClick={onToggle}
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
+        >
+          {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+          {expanded ? "Hide" : "Show"} keywords
+        </button>
+
+        {expanded && (
+          <div className="space-y-1 pt-1 border-t">
+            {cluster.keywords.map(kw => (
+              <div key={kw.id} className="flex items-center justify-between text-xs py-1">
+                <span className="truncate mr-2">{kw.keyword}</span>
+                <Badge
+                  variant="outline"
+                  className={`text-[10px] shrink-0 ${
+                    kw.status === "COMPLETED" ? "border-green-300 text-green-700" :
+                    kw.status === "FAILED" ? "border-red-300 text-red-700" :
+                    ["RESEARCHING", "GENERATING"].includes(kw.status) ? "border-primary/30 text-primary" :
+                    ""
+                  }`}
+                >
+                  {kw.status === "COMPLETED" && kw.blogPostId ? "Published" : kw.status.toLowerCase()}
+                </Badge>
+              </div>
+            ))}
           </div>
         )}
       </CardContent>
