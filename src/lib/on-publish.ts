@@ -8,6 +8,7 @@ import { postTweet, buildTweetText } from "./social/twitter";
 import { shareToLinkedIn } from "./social/linkedin";
 import { sendWebhook } from "./cms/webhook";
 import { pushToGhost } from "./cms/ghost";
+import { pushToShopify, ShopifyConfig } from "./cms/shopify";
 import { sendPostGeneratedEmail } from "./email";
 import { markdownToHtml } from "./cms/wordpress";
 
@@ -38,6 +39,7 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
         linkedinAccessToken: true,
         webhookUrl: true, webhookSecret: true,
         ghostConfig: true,
+        shopifyConfig: true,
         organization: {
           select: {
             members: {
@@ -124,7 +126,27 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     );
   }
 
-  // 5. Ghost auto-push (if configured and it's auto-triggered)
+  // 5. Shopify auto-push (if configured and it's auto-triggered)
+  if (website.shopifyConfig && triggeredBy === "auto") {
+    tasks.push((async () => {
+      const config = JSON.parse(website.shopifyConfig as string) as ShopifyConfig;
+      const result = await pushToShopify({
+        title: post.title,
+        contentHtml: markdownToHtml(post.content),
+        excerpt: post.excerpt || undefined,
+        slug: post.slug,
+        tags: post.tags,
+        featuredImageUrl: post.featuredImage || undefined,
+        status: "published",
+        metaTitle: post.metaTitle || undefined,
+        metaDescription: post.metaDescription || undefined,
+      }, config);
+      if (result.success) console.log(`[Shopify] Pushed article: ${result.articleUrl}`);
+      else console.error("[Shopify] failed:", result.error);
+    })().catch(e => console.error("[Shopify] error:", e)));
+  }
+
+  // 7. Ghost auto-push (if configured and it's auto-triggered)
   if (website.ghostConfig && triggeredBy === "auto") {
     tasks.push((async () => {
       const config = JSON.parse(website.ghostConfig as string);
@@ -144,7 +166,7 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     })().catch(e => console.error("[Ghost] error:", e)));
   }
 
-  // 6. Email notification to owner
+  // 8. Email notification to owner
   if (ownerEmail) {
     tasks.push(
       sendPostGeneratedEmail({

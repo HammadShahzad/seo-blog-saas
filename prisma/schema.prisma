@@ -157,6 +157,7 @@ model Website {
   cmsApiUrl     String?
   cmsApiKey     String?
   ghostConfig   String? @db.Text // JSON: { siteUrl, adminApiKey }
+  shopifyConfig String? @db.Text // JSON: { storeUrl, accessToken, blogId, blogTitle }
 
   // Status
   status   WebsiteStatus @default(ACTIVE)
