@@ -195,6 +195,31 @@ function countWords(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+/**
+ * Detect and strip repeated/looped content.
+ * If a large block of text appears more than once, keep only the first occurrence.
+ */
+function deduplicateContent(text: string): string {
+  const lines = text.split("\n");
+  if (lines.length < 10) return text;
+
+  // Find repeated blocks: check if the second half mirrors the first half
+  const fullText = text.trim();
+  const halfLen = Math.floor(fullText.length / 2);
+
+  // Try to find the largest repeating prefix
+  for (let chunkSize = Math.floor(fullText.length * 0.3); chunkSize >= 200; chunkSize -= 50) {
+    const firstChunk = fullText.slice(0, chunkSize).trim();
+    const secondOccurrence = fullText.indexOf(firstChunk, chunkSize - 50);
+    if (secondOccurrence > 0 && secondOccurrence < fullText.length * 0.7) {
+      console.log(`[content-gen] Detected duplicate content at position ${secondOccurrence}, trimming`);
+      return fullText.slice(0, secondOccurrence).trim();
+    }
+  }
+
+  return text;
+}
+
 export async function generateBlogPost(
   keyword: string,
   website: WebsiteWithSettings,
@@ -245,13 +270,23 @@ export async function generateBlogPost(
   };
   const targetWords = wordTargets[contentLength] || wordTargets.MEDIUM;
 
+  // Token limits: enough for the content but not so high the model loops/repeats
+  // ~1 token ≈ 0.75 words, so 8192 tokens ≈ 6000 words (plenty for SHORT/MEDIUM)
   const maxTokensForLength: Record<string, number> = {
-    SHORT: 16384,
-    MEDIUM: 32768,
-    LONG: 65536,
-    PILLAR: 65536,
+    SHORT: 4096,
+    MEDIUM: 8192,
+    LONG: 12288,
+    PILLAR: 16384,
   };
   const outputTokens = maxTokensForLength[contentLength] || maxTokensForLength.MEDIUM;
+
+  const minWordsForLength: Record<string, number> = {
+    SHORT: 600,
+    MEDIUM: 1200,
+    LONG: 2000,
+    PILLAR: 3000,
+  };
+  const minExpectedWords = minWordsForLength[contentLength] || minWordsForLength.MEDIUM;
 
   const progress = async (step: typeof STEPS[number], message: string) => {
     const stepIndex = STEPS.indexOf(step);
@@ -380,10 +415,50 @@ ${includeFAQ ? "- FAQ section (4-5 questions with detailed answers)" : ""}
 - NEVER use em-dash (—). Use commas or periods instead.
 - Write in Markdown format
 
-Output ONLY the blog post content in Markdown. Do not include the title as an H1 — start with the hook paragraph.`,
+Output ONLY the blog post content in Markdown. Do not include the title as an H1 — start with the hook paragraph.
+CRITICAL: Write the COMPLETE article with ALL sections from the outline. Do NOT stop after the Table of Contents.`,
     systemPrompt,
     { temperature: 0.8, maxTokens: outputTokens }
   );
+
+  // Dedup + word count check — retry if draft is too short
+  let cleanDraft = deduplicateContent(draft);
+  let draftWords = countWords(cleanDraft);
+  console.log(`[content-gen] Draft attempt 1: ${draftWords} words (min: ${minExpectedWords})`);
+
+  if (draftWords < minExpectedWords) {
+    console.warn(`[content-gen] Draft too short (${draftWords} words). Retrying with explicit section requirements...`);
+    await progress("draft", "Draft was too short, retrying with stronger instructions...");
+
+    const retryDraft = await generateText(
+      `IMPORTANT: Your previous attempt only produced ${draftWords} words. I need a COMPLETE ${targetWords}-word article.
+
+Write a full blog post about "${keyword}" for ${ctx.brandName}. You MUST write ALL of these sections:
+
+${outline.sections.map((s, i) => `${i + 1}. ## ${s.heading}\n   Write 200-400 words covering: ${s.points.join(", ")}`).join("\n\n")}
+
+${includeFAQ ? `${outline.sections.length + 1}. ## Frequently Asked Questions\n   Write 4-5 Q&A pairs` : ""}
+
+Start with a compelling opening paragraph (no H1 heading). Include Key Takeaways bullets after the intro.
+${includeTableOfContents ? "Include a Table of Contents after Key Takeaways." : ""}
+${isComparisonArticle ? "Include a markdown comparison table in one of the early sections." : ""}
+End with a conclusion and CTA for ${ctx.brandName}.
+
+Write ${targetWords} words total. Use Markdown formatting. Write from expert perspective.
+Do NOT stop after the Table of Contents. Write EVERY section listed above.`,
+      systemPrompt,
+      { temperature: 0.85, maxTokens: outputTokens }
+    );
+
+    const retryClean = deduplicateContent(retryDraft);
+    const retryWords = countWords(retryClean);
+    console.log(`[content-gen] Draft attempt 2: ${retryWords} words`);
+
+    if (retryWords > draftWords) {
+      cleanDraft = retryClean;
+      draftWords = retryWords;
+    }
+  }
 
   // ─── STEP 4: CRITIQUE + TONE POLISH ─────────────────────────────
   await progress("tone", "Polishing voice — removing generic patterns...");
@@ -419,14 +494,18 @@ Audience: ${ctx.targetAudience}
 - Keep Markdown formatting, tables, code blocks, bullet lists
 - Do NOT add new H2 sections
 
-## Draft to edit:
-${draft}
+## Draft to edit (${draftWords} words — preserve this length):
+${cleanDraft}
 
 Output ONLY the polished blog post in Markdown. Start directly with the content.
-CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early or truncate.`,
+CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early or truncate. Your output must be at LEAST ${draftWords} words.`,
     systemPrompt,
     { temperature: 0.65, maxTokens: outputTokens }
   );
+
+  const cleanTone = deduplicateContent(toneRewritten);
+  console.log(`[content-gen] Tone polish: ${countWords(cleanTone)} words (draft was ${draftWords})`);
+  const toneToUse = countWords(cleanTone) >= draftWords * 0.7 ? cleanTone : cleanDraft;
 
   // ─── STEP 5: SEO OPTIMIZATION ────────────────────────────────────
   await progress("seo", "Optimizing for SEO — keywords, links, structure...");
@@ -484,27 +563,29 @@ ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common quest
 11. If there's a table of contents, ensure it matches the actual headings
 12. Keep the article length at ${targetWords} words
 
-## Blog Post:
-${toneRewritten}
+## Blog Post (${countWords(toneToUse)} words — preserve this length):
+${toneToUse}
 
 Output ONLY the optimized blog post in Markdown format.
-CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early or truncate. The output MUST be at least ${targetWords} words.`,
+CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early or truncate. The output MUST be at least ${countWords(toneToUse)} words.`,
     systemPrompt,
     { temperature: 0.4, maxTokens: outputTokens }
   );
 
-  // Safety check: if the SEO step truncated the article, fall back to the tone-polished version
-  const seoWordCount = countWords(seoOptimized);
-  const toneWordCount = countWords(toneRewritten);
-  const draftWordCount = countWords(draft);
+  const cleanSeo = deduplicateContent(seoOptimized);
+  console.log(`[content-gen] SEO optimize: ${countWords(cleanSeo)} words`);
 
-  let bestVersion = seoOptimized;
-  if (seoWordCount < toneWordCount * 0.6) {
-    console.warn(`[content-gen] SEO step truncated article: ${seoWordCount} words vs ${toneWordCount} in tone step. Falling back to tone version.`);
-    bestVersion = toneRewritten;
-  } else if (seoWordCount < draftWordCount * 0.5) {
-    console.warn(`[content-gen] SEO step severely truncated: ${seoWordCount} words vs ${draftWordCount} draft. Falling back to draft.`);
-    bestVersion = draft;
+  // Safety check: pick the best version (longest non-duplicate content wins)
+  const seoWords = countWords(cleanSeo);
+  const toneWords = countWords(toneToUse);
+
+  let bestVersion = cleanSeo;
+  if (seoWords < toneWords * 0.6) {
+    console.warn(`[content-gen] SEO step lost content: ${seoWords} vs ${toneWords} words. Using tone version.`);
+    bestVersion = toneToUse;
+  } else if (seoWords < draftWords * 0.5) {
+    console.warn(`[content-gen] All rewrites lost content. Using draft: ${draftWords} words.`);
+    bestVersion = cleanDraft;
   }
 
   // Post-process: replace leftover [INTERNAL_LINK: ...] placeholders
