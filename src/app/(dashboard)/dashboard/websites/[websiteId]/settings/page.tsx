@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -940,38 +941,37 @@ export default function WebsiteSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* ── INTEGRATIONS (tabs for optional stuff) ──────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Plug className="h-4 w-4 text-primary" />
-            Integrations
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue={defaultTab === "wordpress" || defaultTab === "ghost" || defaultTab === "shopify" || defaultTab === "publishing" ? defaultTab : "wordpress"}>
-            <TabsList className="flex-wrap h-auto mb-4">
-              <TabsTrigger value="wordpress"><Plug className="mr-1.5 h-3.5 w-3.5" /> WordPress</TabsTrigger>
-              <TabsTrigger value="ghost"><Zap className="mr-1.5 h-3.5 w-3.5" /> Ghost / Webhook</TabsTrigger>
-              <TabsTrigger value="shopify"><ShoppingBag className="mr-1.5 h-3.5 w-3.5" /> Shopify</TabsTrigger>
-              <TabsTrigger value="publishing"><Share2 className="mr-1.5 h-3.5 w-3.5" /> Social</TabsTrigger>
-            </TabsList>
+      {/* ── INTEGRATIONS ────────────────────────────────── */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+          <Plug className="h-4 w-4 text-primary" />
+          Integrations
+        </h3>
+        <Tabs defaultValue={["wordpress","ghost","shopify","publishing","advanced"].includes(defaultTab) ? defaultTab : "wordpress"}>
+          <TabsList className="flex-wrap h-auto mb-4">
+            <TabsTrigger value="wordpress"><Plug className="mr-1.5 h-3.5 w-3.5" /> WordPress</TabsTrigger>
+            <TabsTrigger value="ghost"><Zap className="mr-1.5 h-3.5 w-3.5" /> Ghost / Webhook</TabsTrigger>
+            <TabsTrigger value="shopify"><ShoppingBag className="mr-1.5 h-3.5 w-3.5" /> Shopify</TabsTrigger>
+            <TabsTrigger value="publishing"><Share2 className="mr-1.5 h-3.5 w-3.5" /> Social</TabsTrigger>
+            <TabsTrigger value="advanced"><Code className="mr-1.5 h-3.5 w-3.5" /> Analytics</TabsTrigger>
+          </TabsList>
 
-            <TabsContent value="wordpress">
-              <WordPressSettings websiteId={websiteId} />
-            </TabsContent>
+          <TabsContent value="wordpress" className="mt-0">
+            <WordPressSettings websiteId={websiteId} />
+          </TabsContent>
 
-            <TabsContent value="ghost" className="space-y-4">
-              <GhostSettings websiteId={websiteId} />
-              <WebhookSettings websiteId={websiteId} />
-            </TabsContent>
+          <TabsContent value="ghost" className="space-y-4 mt-0">
+            <GhostSettings websiteId={websiteId} />
+            <WebhookSettings websiteId={websiteId} />
+          </TabsContent>
 
-            <TabsContent value="shopify">
-              <ShopifySettings websiteId={websiteId} />
-            </TabsContent>
+          <TabsContent value="shopify" className="mt-0">
+            <ShopifySettings websiteId={websiteId} />
+          </TabsContent>
 
-            <TabsContent value="publishing" className="space-y-4">
-              <div className="space-y-4">
+          <TabsContent value="publishing" className="mt-0">
+            <Card>
+              <CardContent className="space-y-4 pt-6">
                 <div>
                   <p className="text-sm font-medium flex items-center gap-2 mb-3"><Twitter className="h-4 w-4" /> Twitter / X</p>
                   <div className="grid gap-3 md:grid-cols-2">
@@ -994,37 +994,32 @@ export default function WebsiteSettingsPage() {
                     <a href="https://www.linkedin.com/developers/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">LinkedIn Developers →</a>
                   </p>
                 </div>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-      {/* ── ADVANCED ────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Code className="h-4 w-4 text-primary" />
-            Analytics &amp; SEO
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Google Analytics ID</Label>
-              <Input placeholder="G-XXXXXXXXXX" value={website.googleAnalyticsId || ""} onChange={(e) => updateField("googleAnalyticsId", e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Search Console URL</Label>
-              <Input placeholder="https://yourdomain.com" value={website.gscPropertyUrl || ""} onChange={(e) => updateField("gscPropertyUrl", e.target.value)} />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2"><Zap className="h-3.5 w-3.5 text-primary" /> IndexNow API Key</Label>
-            <Input placeholder="Auto-submit to Google & Bing on publish" value={website.indexNowKey || ""} onChange={(e) => updateField("indexNowKey", e.target.value)} />
-          </div>
-        </CardContent>
-      </Card>
+          <TabsContent value="advanced" className="mt-0">
+            <Card>
+              <CardContent className="space-y-4 pt-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Google Analytics ID</Label>
+                    <Input placeholder="G-XXXXXXXXXX" value={website.googleAnalyticsId || ""} onChange={(e) => updateField("googleAnalyticsId", e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Search Console URL</Label>
+                    <Input placeholder="https://yourdomain.com" value={website.gscPropertyUrl || ""} onChange={(e) => updateField("gscPropertyUrl", e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2"><Zap className="h-3.5 w-3.5 text-primary" /> IndexNow API Key</Label>
+                  <Input placeholder="Auto-submit to Google & Bing on publish" value={website.indexNowKey || ""} onChange={(e) => updateField("indexNowKey", e.target.value)} />
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {/* ── DANGER ZONE ─────────────────────────────────── */}
       <Card className="border-destructive/50">
@@ -1073,9 +1068,9 @@ export default function WebsiteSettingsPage() {
               <Sparkles className="h-5 w-5 text-violet-600" />
               AI Research Results
             </DialogTitle>
-            <p className="text-sm text-muted-foreground">
+            <DialogDescription>
               We researched <span className="font-medium text-foreground">{website.domain}</span>. Toggle which fields to apply, edit any value, then hit Apply.
-            </p>
+            </DialogDescription>
           </DialogHeader>
 
           {aiPreview && (

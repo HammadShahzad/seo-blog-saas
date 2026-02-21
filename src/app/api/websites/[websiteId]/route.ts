@@ -87,8 +87,8 @@ export async function PATCH(
       }
     }
 
-    // Restrict status transitions
-    if (updateData.status) {
+    // Restrict status transitions (only when actually changing)
+    if (updateData.status && updateData.status !== website.status) {
       const validTransitions: Record<string, string[]> = {
         ACTIVE: ["PAUSED", "DELETED"],
         PAUSED: ["ACTIVE", "DELETED"],
@@ -97,6 +97,8 @@ export async function PATCH(
       if (!allowed.includes(updateData.status as string)) {
         return NextResponse.json({ error: `Cannot transition from ${website.status} to ${updateData.status}` }, { status: 400 });
       }
+    } else if (updateData.status === website.status) {
+      delete updateData.status;
     }
 
     const updated = await prisma.website.update({
