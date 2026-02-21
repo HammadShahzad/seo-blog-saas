@@ -72,7 +72,12 @@ export async function POST(req: Request, { params }: Params) {
   });
   if (!website) return NextResponse.json({ error: "Website not found" }, { status: 404 });
 
-  const research = await researchKeyword(keyword, website);
+  const research = await researchKeyword(keyword, {
+    ...website,
+    uniqueValueProp: website.uniqueValueProp ?? undefined,
+    targetLocation: website.targetLocation ?? undefined,
+    tone: website.tone ?? undefined,
+  });
 
   interface BriefData {
     title: string;
