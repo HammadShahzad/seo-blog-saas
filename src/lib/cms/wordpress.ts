@@ -287,6 +287,20 @@ async function ensureTags(
  * Also strips the inline TOC section (## Table of Contents … first H2) that
  * StackSerp injects for its own reader view — WordPress generates its own TOC.
  */
+/**
+ * Convert a heading text to a URL-safe anchor slug — matches the same
+ * algorithm the AI uses when generating TOC links so anchors resolve.
+ */
+function headingSlug(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[`*_[\]()]/g, "")   // strip markdown inline markers
+    .replace(/[^\w\s-]/g, "")     // remove non-word chars (punctuation, colons, etc.)
+    .trim()
+    .replace(/\s+/g, "-")         // spaces → hyphens
+    .replace(/-+/g, "-");         // collapse double-hyphens
+}
+
 export function markdownToHtml(markdown: string): string {
   // Strip any wrapping code fence (```markdown, ```plaintext, ```, etc.)
   const stripped = markdown
@@ -294,16 +308,31 @@ export function markdownToHtml(markdown: string): string {
     .replace(/\n?```\s*$/, "")
     .trim();
 
-  // Remove the StackSerp TOC block (## Table of Contents … next H2/H1)
-  // so WordPress doesn't render a raw anchor-link list at the top.
-  const withoutToc = stripped.replace(
-    /^##\s+Table of Contents\s*\n([\s\S]*?)(?=\n##?\s|$)/im,
-    ""
-  ).trim();
+  // Keep the TOC in the content — headings now have id attributes so the
+  // anchor links will work. Just ensure the TOC heading itself won't conflict.
+  const withoutToc = stripped;
+
+  // Custom renderer: add id to headings, wrap tables for responsive scroll
+  const renderer = new marked.Renderer();
+
+  renderer.heading = ({ text, depth }: { text: string; depth: number }) => {
+    const id = headingSlug(text);
+    // Strip any inline markdown from heading text (bold, links, etc.)
+    const cleanText = text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[*_`]/g, "");
+    return `<h${depth} id="${id}">${cleanText}</h${depth}>\n`;
+  };
+
+  renderer.table = (token: Parameters<marked.Renderer["table"]>[0]) => {
+    // Let marked render the table normally, then wrap in a scrollable div
+    const defaultRenderer = new marked.Renderer();
+    const tableHtml = defaultRenderer.table(token);
+    return `<div style="overflow-x:auto;margin:1.5em 0">${tableHtml}</div>\n`;
+  };
 
   const html = marked.parse(withoutToc, {
     gfm: true,
     breaks: false,
+    renderer,
   }) as string;
 
   return html;
