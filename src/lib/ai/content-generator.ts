@@ -260,6 +260,9 @@ export async function generateBlogPost(
 
   const systemPrompt = buildSystemPrompt(ctx);
 
+  // Detect comparison/listicle article type to force mandatory table
+  const isComparisonArticle = /\b(best|vs\.?|compare|comparison|top \d+|alternatives?|review|which|ranking|ranked|versus)\b/i.test(keyword);
+
   // ─── STEP 1: RESEARCH ───────────────────────────────────────────
   await progress("research", `Researching "${keyword}"...`);
   const research = await researchKeyword(keyword, {
@@ -306,6 +309,7 @@ ${research.rawResearch.substring(0, 2500)}
 - Each section: 3-4 bullet points showing exactly what will be covered
 - Vary section types: how-to, comparison table, case study, data breakdown, common mistakes
 - Include a "Key Takeaways" box near the top
+${isComparisonArticle ? `- ⚠️ MANDATORY COMPARISON TABLE: This is a comparison/listicle article ("${keyword}"). You MUST include a dedicated section in the outline (2nd or 3rd position) titled something like "Quick Comparison: [Options] at a Glance" or "Side-by-Side Comparison". This section's points must specify: a markdown table comparing all main options by key criteria (price, ease of use, best for, key features). THIS IS NON-NEGOTIABLE — do not skip the comparison table section.` : ""}
 ${includeFAQ ? "- Include a FAQ section answering the questions competitors' articles ignore" : ""}
 ${ctx.requiredSections?.length ? `- MUST include these sections: ${ctx.requiredSections.join(", ")}` : ""}
 - Conclusion: CTA for ${ctx.brandName}${ctx.uniqueValueProp ? ` built around: "${ctx.uniqueValueProp}"` : ""}
@@ -351,6 +355,7 @@ GOOD opening: Put the reader IN a moment. Make them think "that's me."
 - Key Takeaways / Quick Summary box (bulleted, 4-5 points)
 ${includeTableOfContents ? "- Table of Contents (linking to H2 sections — MUST match the actual H2 headings EXACTLY, character for character)" : "- Do NOT include a Table of Contents"}
 - Main sections following the outline
+${isComparisonArticle ? `- ⚠️ MANDATORY COMPARISON TABLE: You MUST include a markdown comparison table early in the article (before or right after the 2nd H2 section). Compare all the main options covered in this article. Example format:\n| Option | Best For | Price | Ease of Use | Key Feature |\n|--------|----------|-------|-------------|-------------|\n| ... | ... | ... | ... | ... |\nDo NOT skip the table. If you finish writing and there's no table, you have failed the assignment.` : ""}
 ${includeFAQ ? "- FAQ section (4-5 questions with detailed answers)" : ""}
 - Conclusion with CTA for ${ctx.brandName}
 
@@ -452,12 +457,13 @@ Output ONLY the polished blog post in Markdown. Start directly with the content.
 2. Naturally weave the primary keyword throughout (aim for 1-2% density — not stuffed, but present)
 3. Add related/LSI keywords naturally (synonyms, related terms people search for)
 4. Ensure proper heading hierarchy (H2, H3) — no heading level skips
-5. Add internal links using REAL markdown links where naturally relevant:${internalLinkBlock}
-   CRITICAL RULES FOR INTERNAL LINKS:
-   - Each URL may appear AT MOST ONCE in the entire article. NEVER link to the same URL twice.
-   - Use 10-15 unique internal links spread throughout the article, not clustered in one section.
-   - Use descriptive anchor text (not "click here").
-   - Do NOT use placeholder formats like [INTERNAL_LINK: text]. Use real markdown links only.
+5. Add internal links — this is MANDATORY. You MUST insert ALL the links listed below into the article using real markdown syntax [anchor text](url). Do not skip this step.${internalLinkBlock}
+   RULES FOR INTERNAL LINKS:
+   - YOU MUST ADD THESE LINKS. Insert every link that fits naturally — aim for 3-7 total.
+   - Each URL may appear AT MOST ONCE. NEVER link to the same URL twice.
+   - Place links inline in the body text where the topic is being discussed — not all in one paragraph.
+   - Use descriptive anchor text that matches the context (not "click here" or "read more").
+   - Use REAL markdown links only: [anchor text](url). NEVER use placeholder formats.
 6. Make sure the intro paragraph contains the keyword
 ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common questions (format as proper ## FAQ heading with ### for each question — this helps with Google's FAQ rich snippets)` : "7. Skip FAQ if not present"}
 8. CRITICAL: Every paragraph MUST be under 80 words (3-4 sentences max). Split any longer paragraph into two. This is a hard requirement for readability scoring.
