@@ -75,15 +75,6 @@ export default function StartupsUseCasePage() {
         </div>
       </section>
 
-      <footer className="border-t py-12 px-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2">
-            <Logo className="h-4 w-4" />
-            <span className="font-semibold">StackSerp</span>
-          </Link>
-          <p className="text-sm text-muted-foreground">&copy; {new Date().getFullYear()} StackSerp</p>
-        </div>
-      </footer>
     </>
   );
 }
