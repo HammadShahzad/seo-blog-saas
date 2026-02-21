@@ -8,6 +8,7 @@
  *  - "plugin:<key>" → Plugin mode
  *  - base64(username:::appPassword) → App-password mode
  */
+import { marked } from "marked";
 
 /**
  * Decode stored cmsApiKey into connection details.
@@ -167,28 +168,35 @@ async function uploadFeaturedImage(
   const auth = getAuthHeader(config.username, config.appPassword);
 
   try {
-    // Fetch the image from its URL
-    const imgRes = await fetch(imageUrl, {
-      signal: AbortSignal.timeout(15000),
-    });
+    // Download image from its URL (runs server-side so no CORS issues)
+    const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
+    if (!imgRes.ok) {
+      console.error(`[WP image] Failed to download from ${imageUrl}: HTTP ${imgRes.status}`);
+      return null;
+    }
 
-    if (!imgRes.ok) return null;
+    // Determine content type — fall back based on URL extension if missing
+    let contentType = imgRes.headers.get("content-type") || "";
+    if (!contentType || contentType === "application/octet-stream") {
+      const lower = imageUrl.toLowerCase();
+      if (lower.includes(".png")) contentType = "image/png";
+      else if (lower.includes(".webp")) contentType = "image/webp";
+      else if (lower.includes(".gif")) contentType = "image/gif";
+      else contentType = "image/jpeg";
+    }
+    // Strip quality params like ";q=0.9"
+    contentType = contentType.split(";")[0].trim();
 
-    const contentType = imgRes.headers.get("content-type") || "image/jpeg";
+    const ext = contentType === "image/png" ? "png"
+      : contentType === "image/webp" ? "webp"
+      : contentType === "image/gif" ? "gif"
+      : "jpg";
+
+    const slug = postTitle.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60);
+    const filename = `${slug}.${ext}`;
     const buffer = await imgRes.arrayBuffer();
 
-    // Derive file extension
-    const ext = contentType.includes("png")
-      ? "png"
-      : contentType.includes("webp")
-        ? "webp"
-        : "jpg";
-
-    const filename = `${postTitle
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .slice(0, 60)}.${ext}`;
-
+    // Upload to WordPress media library
     const uploadRes = await fetch(`${base}/wp-json/wp/v2/media`, {
       method: "POST",
       headers: {
@@ -197,14 +205,30 @@ async function uploadFeaturedImage(
         "Content-Type": contentType,
       },
       body: buffer,
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(45000),
     });
 
-    if (!uploadRes.ok) return null;
+    if (!uploadRes.ok) {
+      const errBody = await uploadRes.text().catch(() => "");
+      console.error(`[WP image] Media upload failed: HTTP ${uploadRes.status} — ${errBody.slice(0, 300)}`);
+      return null;
+    }
 
     const media = await uploadRes.json();
-    return media.id || null;
-  } catch {
+
+    // Set alt text on the uploaded image
+    if (media.id) {
+      fetch(`${base}/wp-json/wp/v2/media/${media.id}`, {
+        method: "POST",
+        headers: { Authorization: auth, "Content-Type": "application/json" },
+        body: JSON.stringify({ alt_text: postTitle }),
+        signal: AbortSignal.timeout(10000),
+      }).catch(() => {});
+    }
+
+    return media.id ?? null;
+  } catch (err) {
+    console.error("[WP image] uploadFeaturedImage threw:", err);
     return null;
   }
 }
@@ -259,27 +283,24 @@ async function ensureTags(
 }
 
 /**
- * Convert markdown to basic HTML for WordPress
+ * Convert markdown to clean HTML for WordPress using the `marked` library.
+ * Also strips the inline TOC section (## Table of Contents … first H2) that
+ * StackSerp injects for its own reader view — WordPress generates its own TOC.
  */
 export function markdownToHtml(markdown: string): string {
-  return markdown
-    .replace(/^# (.+)$/gm, "<h1>$1</h1>")
-    .replace(/^## (.+)$/gm, "<h2>$1</h2>")
-    .replace(/^### (.+)$/gm, "<h3>$1</h3>")
-    .replace(/^#### (.+)$/gm, "<h4>$1</h4>")
-    .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/\*(.+?)\*/g, "<em>$1</em>")
-    .replace(/`{3}[\s\S]*?`{3}/gm, (m) => `<pre><code>${m.replace(/`{3}\w*\n?/g, "")}</code></pre>`)
-    .replace(/`(.+?)`/g, "<code>$1</code>")
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
-    .replace(/^> (.+)$/gm, "<blockquote>$1</blockquote>")
-    .replace(/^- (.+)$/gm, "<li>$1</li>")
-    .replace(/^(\d+)\. (.+)$/gm, "<li>$2</li>")
-    .replace(/(<li>.*<\/li>\n?)+/g, (m) => `<ul>${m}</ul>`)
-    .replace(/\n\n+/g, "</p><p>")
-    .replace(/^(?!<[hup]|<li|<block)/gm, "<p>")
-    .replace(/(?<!\>)\n$/gm, "</p>");
+  // Remove the StackSerp TOC block (## Table of Contents … next H2/H1)
+  // so WordPress doesn't render a raw anchor-link list at the top.
+  const withoutToc = markdown.replace(
+    /^##\s+Table of Contents\s*\n([\s\S]*?)(?=\n##?\s|$)/im,
+    ""
+  ).trim();
+
+  const html = marked.parse(withoutToc, {
+    gfm: true,
+    breaks: false,
+  }) as string;
+
+  return html;
 }
 
 /**
@@ -428,6 +449,33 @@ export async function pushToWordPressPlugin(
       };
     }
 
+    // Download the featured image on our side so we can pass it as base64
+    // — this is more reliable than asking the WordPress server to sideload it
+    let featuredImageData: string | undefined;
+    let featuredImageMime: string | undefined;
+    if (post.featuredImageUrl) {
+      try {
+        const imgRes = await fetch(post.featuredImageUrl, { signal: AbortSignal.timeout(20000) });
+        if (imgRes.ok) {
+          let mime = (imgRes.headers.get("content-type") || "").split(";")[0].trim();
+          if (!mime || mime === "application/octet-stream") {
+            const lower = post.featuredImageUrl.toLowerCase();
+            mime = lower.includes(".png") ? "image/png"
+              : lower.includes(".webp") ? "image/webp"
+              : lower.includes(".gif") ? "image/gif"
+              : "image/jpeg";
+          }
+          const buf = await imgRes.arrayBuffer();
+          featuredImageData = Buffer.from(buf).toString("base64");
+          featuredImageMime = mime;
+        } else {
+          console.error(`[WP plugin image] Could not download ${post.featuredImageUrl}: HTTP ${imgRes.status}`);
+        }
+      } catch (imgErr) {
+        console.error("[WP plugin image] Download error:", imgErr);
+      }
+    }
+
     const res = await fetch(`${base}/wp-json/${detected.namespace}/v1/posts`, {
       method: "POST",
       headers: {
@@ -447,8 +495,13 @@ export async function pushToWordPressPlugin(
         meta_description: post.metaDescription || "",
         focus_keyword: post.focusKeyword || "",
         featured_image_url: post.featuredImageUrl || "",
+        // Base64 fallback — used by plugin v1.2+ if sideload of the URL fails
+        ...(featuredImageData && {
+          featured_image_data: featuredImageData,
+          featured_image_mime: featuredImageMime,
+        }),
       }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(45000),
     });
 
     if (!res.ok) {
