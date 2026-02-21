@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/ui/logo";
 
 export const metadata: Metadata = {
   title: "Privacy Policy | StackSerp",
@@ -12,18 +11,7 @@ export const metadata: Metadata = {
 
 export default function PrivacyPage() {
   return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center h-16">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Logo className="h-5 w-5" />
-            </div>
-            <span className="text-xl font-bold">StackSerp</span>
-          </Link>
-        </div>
-      </nav>
-
+    <>
       <main className="max-w-3xl mx-auto py-20 px-4 prose prose-neutral dark:prose-invert">
         <h1>Privacy Policy</h1>
         <p>Last updated: {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</p>
@@ -56,6 +44,6 @@ export default function PrivacyPage() {
           Contact: privacy@stackserp.com
         </p>
       </main>
-    </div>
+    </>
   );
 }

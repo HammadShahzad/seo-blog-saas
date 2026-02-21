@@ -2,8 +2,6 @@ import prisma from "@/lib/prisma";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Calendar, Clock, ArrowRight } from "lucide-react";
-import { Logo } from "@/components/ui/logo";
-import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 
 const STACKSERP_SUBDOMAIN = "stackserp";
 
@@ -94,7 +92,7 @@ export default async function BlogsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(collectionJsonLd) }}
@@ -105,38 +103,6 @@ export default async function BlogsPage() {
       />
 
       {/* Nav */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-              <Logo className="h-4 w-4" />
-            </div>
-            <span className="font-bold">StackSerp</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/blogs"
-              className="text-sm font-medium text-foreground"
-            >
-              Blog
-            </Link>
-            <Link
-              href="/features"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Features
-            </Link>
-            <Link
-              href="/pricing"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Pricing
-            </Link>
-            <NavAuthButtons ctaLabel="Get Started" />
-          </div>
-        </div>
-      </nav>
-
       {/* Hero */}
       <div className="bg-gradient-to-b from-slate-50 to-white border-b">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-16 pb-12 text-center">
@@ -241,29 +207,6 @@ export default async function BlogsPage() {
           </Link>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="border-t py-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-sm text-muted-foreground">
-          <p>
-            &copy; {new Date().getFullYear()}{" "}
-            <Link href="/" className="hover:text-foreground">
-              StackSerp
-            </Link>
-          </p>
-          <div className="flex gap-4">
-            <Link href="/blogs" className="hover:text-foreground">
-              Blog
-            </Link>
-            <Link href="/features" className="hover:text-foreground">
-              Features
-            </Link>
-            <Link href="/pricing" className="hover:text-foreground">
-              Pricing
-            </Link>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </>
   );
 }

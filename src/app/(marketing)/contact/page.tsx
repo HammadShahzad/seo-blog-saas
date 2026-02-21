@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/ui/logo";
-import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -26,33 +24,8 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <>
       {/* Navigation */}
-      <nav className="border-b bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Logo className="h-5 w-5" />
-              </div>
-              <span className="text-xl font-bold">StackSerp</span>
-            </Link>
-            <div className="hidden md:flex items-center gap-6">
-              <Link href="/features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Features
-              </Link>
-              <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Pricing
-              </Link>
-              <Link href="/about" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                About Us
-              </Link>
-            </div>
-            <NavAuthButtons ctaLabel="Get Started Free" />
-          </div>
-        </div>
-      </nav>
-
       <section className="py-20 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-2 gap-16">
@@ -117,15 +90,6 @@ export default function ContactPage() {
           </div>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="border-t py-12 px-4">
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} StackSerp. All rights reserved.
-          </p>
-        </div>
-      </footer>
-    </div>
+    </>
   );
 }

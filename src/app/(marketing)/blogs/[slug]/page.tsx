@@ -7,8 +7,6 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
-import { Logo } from "@/components/ui/logo";
-import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 
 const STACKSERP_SUBDOMAIN = "stackserp";
 
@@ -257,7 +255,7 @@ export default async function StackSerpBlogPostPage({ params }: Props) {
   } : null;
 
   return (
-    <div className="min-h-screen bg-white">
+    <>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
@@ -278,33 +276,6 @@ export default async function StackSerpBlogPostPage({ params }: Props) {
       )}
 
       {/* Nav */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <Link
-            href="/blogs"
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            StackSerp Blog
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link
-              href="/features"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Features
-            </Link>
-            <Link
-              href="/pricing"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              Pricing
-            </Link>
-            <NavAuthButtons ctaLabel="Get Started" />
-          </div>
-        </div>
-      </nav>
-
       {/* Breadcrumbs */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -542,29 +513,6 @@ export default async function StackSerpBlogPostPage({ params }: Props) {
           </div>
         </section>
       )}
-
-      {/* Footer */}
-      <footer className="border-t bg-slate-50 py-8">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-sm text-muted-foreground">
-          <p>
-            &copy; {new Date().getFullYear()}{" "}
-            <Link href="/" className="hover:text-foreground">
-              StackSerp
-            </Link>
-          </p>
-          <div className="flex gap-4">
-            <Link href="/blogs" className="hover:text-foreground">
-              Blog
-            </Link>
-            <Link href="/features" className="hover:text-foreground">
-              Features
-            </Link>
-            <Link href="/pricing" className="hover:text-foreground">
-              Pricing
-            </Link>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </>
   );
 }

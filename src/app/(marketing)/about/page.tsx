@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Logo } from "@/components/ui/logo";
-import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 import { ArrowRight, Globe, Target, Zap, Users } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -24,33 +22,8 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <>
       {/* Navigation */}
-      <nav className="border-b bg-background/95 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Logo className="h-5 w-5" />
-              </div>
-              <span className="text-xl font-bold">StackSerp</span>
-            </Link>
-            <div className="hidden md:flex items-center gap-6">
-              <Link href="/features" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Features
-              </Link>
-              <Link href="/pricing" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                Pricing
-              </Link>
-              <Link href="/about" className="text-sm font-medium text-foreground">
-                About Us
-              </Link>
-            </div>
-            <NavAuthButtons ctaLabel="Get Started Free" />
-          </div>
-        </div>
-      </nav>
-
       {/* Hero Section */}
       <section className="py-20 md:py-32 px-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-primary/5 -z-10"></div>
@@ -121,21 +94,6 @@ export default function AboutPage() {
           </Button>
         </div>
       </section>
-
-      {/* Footer */}
-      <footer className="border-t py-12 px-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-6 w-6 items-center justify-center rounded bg-primary text-primary-foreground">
-              <Logo className="h-4 w-4" />
-            </div>
-            <span className="font-semibold">StackSerp</span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} StackSerp. All rights reserved.
-          </p>
-        </div>
-      </footer>
-    </div>
+    </>
   );
 }
