@@ -104,6 +104,8 @@ export default async function PostsPage({
                 title: p.title,
                 slug: p.slug,
                 status: p.status,
+                scheduledAt: p.scheduledAt,
+                publishedAt: p.publishedAt,
                 focusKeyword: p.focusKeyword,
                 views: p.views,
                 contentScore: p.contentScore,

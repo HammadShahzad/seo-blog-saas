@@ -27,6 +27,7 @@ import {
   Archive,
   MoreVertical,
   Loader2,
+  CalendarClock,
 } from "lucide-react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
@@ -37,6 +38,8 @@ interface Post {
   title: string;
   slug: string;
   status: string;
+  scheduledAt: Date | null;
+  publishedAt: Date | null;
   focusKeyword: string | null;
   views: number;
   contentScore: number | null;
@@ -129,9 +132,34 @@ export function PostsTable({ posts: initialPosts, websiteId }: Props) {
               </div>
             </TableCell>
             <TableCell>
-              <Badge variant={STATUS_BADGE_VARIANT[post.status] || "secondary"}>
-                {post.status.toLowerCase()}
-              </Badge>
+              <div className="space-y-0.5">
+                <Badge
+                  variant={STATUS_BADGE_VARIANT[post.status] || "secondary"}
+                  className={post.status === "SCHEDULED" ? "border-blue-400 text-blue-700 bg-blue-50" : ""}
+                >
+                  {post.status === "SCHEDULED" ? (
+                    <span className="flex items-center gap-1">
+                      <CalendarClock className="h-3 w-3" />
+                      scheduled
+                    </span>
+                  ) : (
+                    post.status.toLowerCase()
+                  )}
+                </Badge>
+                {post.status === "SCHEDULED" && post.scheduledAt && (
+                  <p className="text-xs text-blue-600 font-medium whitespace-nowrap">
+                    {new Date(post.scheduledAt).toLocaleString(undefined, {
+                      month: "short", day: "numeric",
+                      hour: "2-digit", minute: "2-digit",
+                    })}
+                  </p>
+                )}
+                {post.status === "PUBLISHED" && post.publishedAt && (
+                  <p className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatDistanceToNow(new Date(post.publishedAt), { addSuffix: true })}
+                  </p>
+                )}
+              </div>
             </TableCell>
             <TableCell>
               <span className="text-sm text-muted-foreground">{post.focusKeyword || "-"}</span>
@@ -173,7 +201,15 @@ export function PostsTable({ posts: initialPosts, websiteId }: Props) {
                         Edit
                       </Link>
                     </DropdownMenuItem>
-                    {post.status !== "REVIEW" && post.status !== "PUBLISHED" && (
+                    {post.status === "SCHEDULED" && (
+                      <DropdownMenuItem
+                        onClick={() => patchPost(post.id, { status: "DRAFT", scheduledAt: null }, { status: "DRAFT" })}
+                      >
+                        <CalendarClock className="mr-2 h-4 w-4" />
+                        Unschedule (→ Draft)
+                      </DropdownMenuItem>
+                    )}
+                    {post.status !== "REVIEW" && post.status !== "PUBLISHED" && post.status !== "SCHEDULED" && (
                       <DropdownMenuItem
                         onClick={() => patchPost(post.id, { status: "REVIEW" }, { status: "REVIEW" })}
                       >

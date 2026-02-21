@@ -42,6 +42,8 @@ import {
   ChevronDown,
   ChevronUp,
   ClipboardPaste,
+  CalendarClock,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -63,6 +65,7 @@ interface Post {
   tags: string[];
   category: string | null;
   status: string;
+  scheduledAt: string | null;
   wordCount: number | null;
   readingTime: number | null;
   socialCaptions: { twitter?: string; linkedin?: string } | null;
@@ -98,6 +101,9 @@ export default function PostEditorPage() {
   const [shopifyResult, setShopifyResult] = useState<{ articleUrl?: string; adminUrl?: string } | null>(null);
   const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
   const [isFixingSEO, setIsFixingSEO] = useState(false);
+  const [showScheduler, setShowScheduler] = useState(false);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [isScheduling, setIsScheduling] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(false);
   const [aiText, setAiText] = useState("");
   const [aiAction, setAiAction] = useState<"rewrite" | "expand" | "shorten" | "improve" | "custom">("improve");
@@ -239,6 +245,65 @@ export default function PostEditorPage() {
       toast.error("Failed to save post");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSchedule = async () => {
+    if (!scheduleDate) {
+      toast.error("Please pick a date and time");
+      return;
+    }
+    const scheduledAt = new Date(scheduleDate);
+    if (scheduledAt <= new Date()) {
+      toast.error("Scheduled time must be in the future");
+      return;
+    }
+    setIsScheduling(true);
+    try {
+      // First save current content, then set SCHEDULED status + scheduledAt
+      const saveRes = await fetch(`/api/websites/${websiteId}/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: post.title,
+          slug: post.slug,
+          content: post.content,
+          excerpt: post.excerpt,
+          metaTitle: post.metaTitle,
+          metaDescription: post.metaDescription,
+          focusKeyword: post.focusKeyword,
+          secondaryKeywords: post.secondaryKeywords,
+          tags: post.tags,
+          category: post.category,
+          status: "SCHEDULED",
+          scheduledAt: scheduledAt.toISOString(),
+        }),
+      });
+      if (!saveRes.ok) throw new Error("Failed to schedule");
+      const saved = await saveRes.json();
+      setPost((p) => ({ ...p, status: saved.status, scheduledAt: saved.scheduledAt }));
+      setShowScheduler(false);
+      toast.success(`Scheduled for ${scheduledAt.toLocaleString()}`);
+    } catch {
+      toast.error("Failed to schedule post");
+    } finally {
+      setIsScheduling(false);
+    }
+  };
+
+  const handleUnschedule = async () => {
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/posts/${postId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "DRAFT", scheduledAt: null }),
+      });
+      if (res.ok) {
+        setPost((p) => ({ ...p, status: "DRAFT", scheduledAt: null }));
+        toast.success("Schedule removed — post moved to Draft");
+      }
+    } catch {
+      toast.error("Failed to unschedule");
     }
   };
 
@@ -462,10 +527,21 @@ export default function PostEditorPage() {
             <div className="flex items-center gap-2 mt-0.5">
               <Badge variant={
                 post.status === "PUBLISHED" ? "default" :
+                post.status === "SCHEDULED" ? "outline" :
                 post.status === "REVIEW" ? "outline" : "secondary"
-              }>
-                {post.status?.toLowerCase()}
+              } className={post.status === "SCHEDULED" ? "border-blue-400 text-blue-700 bg-blue-50" : ""}>
+                {post.status === "SCHEDULED" ? (
+                  <span className="flex items-center gap-1">
+                    <CalendarClock className="h-3 w-3" />
+                    scheduled
+                  </span>
+                ) : post.status?.toLowerCase()}
               </Badge>
+              {post.status === "SCHEDULED" && post.scheduledAt && (
+                <span className="text-xs text-blue-600 font-medium">
+                  {new Date(post.scheduledAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
               <span className="text-xs text-muted-foreground">
                 {wordCount} words · {readingTime} min read
               </span>
@@ -499,21 +575,65 @@ export default function PostEditorPage() {
             </a>
           )}
 
-          {/* Publish on StackSerp */}
-          {post.status !== "PUBLISHED" ? (
-            <Button
-              size="sm"
-              onClick={handlePublish}
-              disabled={isPublishing || isSaving}
-              className="bg-green-600 hover:bg-green-700 text-white"
-            >
-              {isPublishing ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+          {/* Schedule / Publish / Unschedule */}
+          {post.status === "SCHEDULED" ? (
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                onClick={handlePublish}
+                disabled={isPublishing || isSaving}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
+                Publish Now
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleUnschedule}
+                className="border-blue-400 text-blue-700 hover:bg-blue-50"
+              >
+                <X className="mr-1 h-3.5 w-3.5" />
+                Unschedule
+              </Button>
+            </div>
+          ) : post.status !== "PUBLISHED" ? (
+            <div className="flex items-center gap-1">
+              {!isNew && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    // Pre-fill with tomorrow 9am in local time
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    tomorrow.setHours(9, 0, 0, 0);
+                    const pad = (n: number) => String(n).padStart(2, "0");
+                    setScheduleDate(
+                      `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`
+                    );
+                    setShowScheduler((v) => !v);
+                  }}
+                  className="border-blue-400 text-blue-700 hover:bg-blue-50"
+                >
+                  <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
+                  Schedule
+                </Button>
               )}
-              Publish
-            </Button>
+              <Button
+                size="sm"
+                onClick={handlePublish}
+                disabled={isPublishing || isSaving}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                {isPublishing ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Publish
+              </Button>
+            </div>
           ) : (
             <Button
               size="sm"
@@ -606,6 +726,63 @@ export default function PostEditorPage() {
           )}
         </div>
       </div>
+
+      {/* Scheduler panel */}
+      {showScheduler && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm">
+          <CalendarClock className="h-4 w-4 text-blue-600 shrink-0" />
+          <span className="font-medium text-blue-800 shrink-0">Schedule publish:</span>
+          <input
+            type="datetime-local"
+            value={scheduleDate}
+            min={new Date().toISOString().slice(0, 16)}
+            onChange={(e) => setScheduleDate(e.target.value)}
+            className="border rounded-md px-2 py-1 text-sm bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <Button
+            size="sm"
+            onClick={handleSchedule}
+            disabled={isScheduling || !scheduleDate}
+            className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
+          >
+            {isScheduling ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CalendarClock className="mr-1.5 h-3.5 w-3.5" />}
+            Confirm Schedule
+          </Button>
+          <button type="button" onClick={() => setShowScheduler(false)} className="ml-auto text-blue-400 hover:text-blue-700">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Scheduled banner — shown when post is scheduled */}
+      {post.status === "SCHEDULED" && post.scheduledAt && !showScheduler && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm">
+          <CalendarClock className="h-4 w-4 text-blue-600 shrink-0" />
+          <span className="text-blue-800">
+            Scheduled to publish on{" "}
+            <strong>
+              {new Date(post.scheduledAt).toLocaleString(undefined, {
+                weekday: "long", year: "numeric", month: "long",
+                day: "numeric", hour: "2-digit", minute: "2-digit",
+              })}
+            </strong>
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              const d = new Date(post.scheduledAt!);
+              const pad = (n: number) => String(n).padStart(2, "0");
+              setScheduleDate(
+                `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+              );
+              setShowScheduler(true);
+            }}
+            className="ml-auto text-xs text-blue-600 hover:underline font-medium"
+          >
+            Change date
+          </button>
+        </div>
+      )}
 
       {/* WordPress push success banner */}
       {wpResult && (
