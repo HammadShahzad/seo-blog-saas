@@ -29,7 +29,7 @@ import {
   Loader2, Save, Globe, Palette, Bot, Share2, Code, AlertTriangle,
   CheckCircle2, XCircle, Download, Eye, EyeOff, ExternalLink, Plug,
   Webhook, Zap, Twitter, Linkedin, ShoppingBag, ChevronDown, Clock, CalendarDays,
-  Brain, X, Plus, Target, Megaphone,
+  Brain, X, Plus, Target, Megaphone, Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -199,6 +199,78 @@ export default function WebsiteSettingsPage() {
   const [competitorInput, setCompetitorInput] = useState("");
   const [keyProductInput, setKeyProductInput] = useState("");
   const [avoidTopicInput, setAvoidTopicInput] = useState("");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiData, setAiData] = useState<Record<string, unknown> | null>(null);
+
+  const handleAIAutoFill = async (sections: ("general" | "brand" | "content")[]) => {
+    if (!website) return;
+    setIsAnalyzing(true);
+    try {
+      // Use cached AI data if available, otherwise fetch
+      let data = aiData;
+      if (!data) {
+        const res = await fetch("/api/websites/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: website.name || website.brandName, domain: website.domain }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          toast.error(err.error || "AI analysis failed");
+          return;
+        }
+        data = await res.json();
+        setAiData(data);
+      }
+      if (!data) return;
+
+      let applied = 0;
+      if (sections.includes("general")) {
+        if (data.niche) { updateField("niche", data.niche as string); applied++; }
+        if (data.description) { updateField("description", data.description as string); applied++; }
+        if (data.targetAudience) { updateField("targetAudience", data.targetAudience as string); applied++; }
+      }
+      if (sections.includes("brand")) {
+        if (data.brandName) { updateField("brandName", data.brandName as string); applied++; }
+        if (data.brandUrl) { updateField("brandUrl", data.brandUrl as string); applied++; }
+        if (data.tone) { updateField("tone", data.tone as string); applied++; }
+        if (data.primaryColor) { updateField("primaryColor", data.primaryColor as string); applied++; }
+        if (data.uniqueValueProp) { updateField("uniqueValueProp", data.uniqueValueProp as string); applied++; }
+        if (data.targetLocation) { updateField("targetLocation", data.targetLocation as string); applied++; }
+        if (Array.isArray(data.competitors) && data.competitors.length) {
+          updateField("competitors", data.competitors as string[]);
+          applied++;
+        }
+        if (Array.isArray(data.keyProducts) && data.keyProducts.length) {
+          updateField("keyProducts", data.keyProducts as string[]);
+          applied++;
+        }
+      }
+      if (sections.includes("content")) {
+        if (data.suggestedCtaText) {
+          setBlogSettings((p) => ({ ...p, ctaText: data.suggestedCtaText as string }));
+          applied++;
+        }
+        if (data.suggestedCtaUrl) {
+          setBlogSettings((p) => ({ ...p, ctaUrl: data.suggestedCtaUrl as string }));
+          applied++;
+        }
+        if (data.suggestedWritingStyle) {
+          const style = data.suggestedWritingStyle as string;
+          if (["informative", "conversational", "technical", "storytelling", "persuasive", "humorous"].includes(style)) {
+            setBlogSettings((p) => ({ ...p, writingStyle: style }));
+            applied++;
+          }
+        }
+      }
+
+      toast.success(`AI filled ${applied} field${applied !== 1 ? "s" : ""} — review and save`);
+    } catch {
+      toast.error("AI analysis failed");
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   const nextPublish = useMemo(() => {
     if (!website?.autoPublish) return null;
@@ -401,7 +473,19 @@ export default function WebsiteSettingsPage() {
         <TabsContent value="general" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>General Settings</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>General Settings</CardTitle>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAIAutoFill(["general"])}
+                  disabled={isAnalyzing}
+                  className="border-violet-300 text-violet-700 hover:bg-violet-50"
+                >
+                  {isAnalyzing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+                  AI Auto-Fill
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -450,10 +534,24 @@ export default function WebsiteSettingsPage() {
         <TabsContent value="brand" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle>Brand Identity</CardTitle>
-              <CardDescription>
-                Used by AI to match your brand voice
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Brand Identity</CardTitle>
+                  <CardDescription>
+                    Used by AI to match your brand voice
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAIAutoFill(["brand"])}
+                  disabled={isAnalyzing}
+                  className="border-violet-300 text-violet-700 hover:bg-violet-50 shrink-0"
+                >
+                  {isAnalyzing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+                  AI Auto-Fill
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
@@ -687,13 +785,27 @@ export default function WebsiteSettingsPage() {
           {/* Content AI Settings */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Megaphone className="h-4 w-4 text-primary" />
-                Content AI Preferences
-              </CardTitle>
-              <CardDescription>
-                Control what the AI emphasizes, promotes, and avoids in every article
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Megaphone className="h-4 w-4 text-primary" />
+                    Content AI Preferences
+                  </CardTitle>
+                  <CardDescription>
+                    Control what the AI emphasizes, promotes, and avoids in every article
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleAIAutoFill(["content"])}
+                  disabled={isAnalyzing}
+                  className="border-violet-300 text-violet-700 hover:bg-violet-50 shrink-0"
+                >
+                  {isAnalyzing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+                  AI Auto-Fill
+                </Button>
+              </div>
             </CardHeader>
             <CardContent className="space-y-5">
               <div className="grid gap-4 md:grid-cols-2">

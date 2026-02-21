@@ -16,6 +16,9 @@ interface WebsiteAnalysis {
   competitors: string[];
   keyProducts: string[];
   targetLocation: string;
+  suggestedCtaText: string;
+  suggestedCtaUrl: string;
+  suggestedWritingStyle: string;
 }
 
 export async function POST(req: Request) {
@@ -118,7 +121,10 @@ Generate a complete website profile for content generation. Return JSON with exa
   "uniqueValueProp": "1-2 sentences on what makes this business genuinely different from competitors — their key differentiator or USP",
   "competitors": ["competitor1", "competitor2", "competitor3"],
   "keyProducts": ["product/feature 1", "product/feature 2", "product/feature 3"],
-  "targetLocation": "primary geographic market (e.g. 'United States', 'Global', 'UK and Europe')"
+  "targetLocation": "primary geographic market (e.g. 'United States', 'Global', 'UK and Europe')",
+  "suggestedCtaText": "a compelling call-to-action for blog readers (e.g. 'Start your free trial', 'Get a free quote', 'Try it free')",
+  "suggestedCtaUrl": "the most logical landing page URL for the CTA (e.g. 'https://domain.com/signup', 'https://domain.com/pricing')",
+  "suggestedWritingStyle": "one of: informative, conversational, technical, storytelling, persuasive, humorous — pick the best fit for this brand's audience"
 }`;
 
     const analysis = await generateJSON<WebsiteAnalysis>(prompt);
