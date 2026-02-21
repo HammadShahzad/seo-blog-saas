@@ -62,6 +62,7 @@ interface Post {
   wordCount: number | null;
   readingTime: number | null;
   socialCaptions: { twitter?: string; linkedin?: string } | null;
+  externalUrl: string | null;
 }
 
 export default function PostEditorPage() {
@@ -104,7 +105,10 @@ export default function PostEditorPage() {
     ghost: boolean;
     webhook: boolean;
     hostingMode: string;
-  }>({ wp: false, shopify: false, ghost: false, webhook: false, hostingMode: "HOSTED" });
+    brandUrl: string;
+    customDomain: string | null;
+    subdomain: string | null;
+  }>({ wp: false, shopify: false, ghost: false, webhook: false, hostingMode: "HOSTED", brandUrl: "", customDomain: null, subdomain: null });
 
   useEffect(() => {
     if (!isNew) {
@@ -129,6 +133,9 @@ export default function PostEditorPage() {
           ghost: Boolean(data.ghostConfig),
           webhook: Boolean(data.webhookUrl),
           hostingMode: data.hostingMode || "HOSTED",
+          brandUrl: data.brandUrl || "",
+          customDomain: data.customDomain || null,
+          subdomain: data.subdomain || null,
         });
       })
       .catch(() => {});
@@ -150,6 +157,16 @@ export default function PostEditorPage() {
 
   const wordCount = post.content ? post.content.split(/\s+/).filter(Boolean).length : 0;
   const readingTime = Math.ceil(wordCount / 200);
+
+  // Compute the live URL for the "View Live" button
+  const liveUrl = (() => {
+    if (post.externalUrl) return post.externalUrl;
+    if (!post.slug || post.status !== "PUBLISHED") return null;
+    if (integrations.customDomain) return `https://${integrations.customDomain}/${post.slug}`;
+    if (integrations.subdomain) return `https://${integrations.subdomain}.stackserp.com/${post.slug}`;
+    if (integrations.brandUrl) return `${integrations.brandUrl.replace(/\/$/, "")}/blog/${post.slug}`;
+    return null;
+  })();
 
   const handleSave = async (statusOverride?: string) => {
     if (!post.title || !post.content) {
@@ -183,6 +200,26 @@ export default function PostEditorPage() {
           );
         } else {
           setPost((p) => ({ ...p, status: saved.status }));
+          // Auto-run SEO fix in background (non-blocking)
+          const contentAtSave = post.content;
+          setIsFixingSEO(true);
+          fetch(`/api/websites/${websiteId}/posts/${saved.id}/seo-fix`, { method: "POST" })
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.content && data.content !== contentAtSave) {
+                updateField("content", data.content);
+                const fixed = data.issuesFixed ?? {};
+                const msgs: string[] = [];
+                if (fixed.longParagraphs > 0) msgs.push(`${fixed.longParagraphs} paragraph(s) split`);
+                if (fixed.addedH3s) msgs.push("H3s added");
+                if (fixed.expandedWords) msgs.push("content expanded");
+                if (fixed.addedLinks) msgs.push("links added");
+                if (fixed.tocRegenerated) msgs.push("TOC updated");
+                if (msgs.length > 0) toast.success(`Auto-optimized: ${msgs.join(", ")}`);
+              }
+            })
+            .catch(() => {})
+            .finally(() => setIsFixingSEO(false));
         }
       } else {
         const err = await res.json();
@@ -248,6 +285,7 @@ export default function PostEditorPage() {
       const data = await res.json();
       if (res.ok) {
         setShopifyResult({ articleUrl: data.articleUrl, adminUrl: data.adminUrl });
+        if (data.articleUrl) setPost((p) => ({ ...p, externalUrl: data.articleUrl }));
         toast.success(`Pushed to Shopify as ${status}!`);
       } else {
         toast.error(data.error || "Failed to push to Shopify");
@@ -275,6 +313,7 @@ export default function PostEditorPage() {
       const data = await res.json();
       if (res.ok) {
         setWpResult({ url: data.wpPostUrl, editUrl: data.wpEditUrl });
+        if (data.wpPostUrl) setPost((p) => ({ ...p, externalUrl: data.wpPostUrl }));
         toast.success(`Pushed to WordPress as ${status}!`);
       } else {
         toast.error(data.error || "Failed to push to WordPress");
@@ -409,11 +448,23 @@ export default function PostEditorPage() {
           >
             {isSaving ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : isFixingSEO ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin text-green-600" />
             ) : (
               <Save className="mr-2 h-4 w-4" />
             )}
-            Save
+            {isFixingSEO ? "Optimizing…" : "Save"}
           </Button>
+
+          {/* View Live button — shown whenever we have a live URL */}
+          {liveUrl && (
+            <a href={liveUrl} target="_blank" rel="noopener noreferrer">
+              <Button variant="outline" size="sm" className="border-emerald-500 text-emerald-700 hover:bg-emerald-50">
+                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                View Live
+              </Button>
+            </a>
+          )}
 
           {/* Publish on StackSerp */}
           {post.status !== "PUBLISHED" ? (

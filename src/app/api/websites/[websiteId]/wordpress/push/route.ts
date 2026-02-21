@@ -81,6 +81,14 @@ export async function POST(
       return NextResponse.json({ error: result.error }, { status: 500 });
     }
 
+    // Persist the live URL so the editor can show it later
+    if (result.wpPostUrl) {
+      await prisma.blogPost.update({
+        where: { id: postId },
+        data: { externalUrl: result.wpPostUrl },
+      });
+    }
+
     return NextResponse.json({
       success: true,
       wpPostId: result.wpPostId,

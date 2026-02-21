@@ -272,6 +272,7 @@ model BlogPost {
   views           Int      @default(0)
   socialPublished Boolean  @default(false)
   indexedAt        DateTime?
+  externalUrl      String?   // Live URL after pushing to WordPress / Shopify / Ghost etc.
 
   // Categories & Tags
   category String?
