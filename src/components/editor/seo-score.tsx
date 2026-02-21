@@ -49,7 +49,7 @@ export function SEOScore({
   onAutoFix,
   isFixing,
 }: SEOScoreProps) {
-  const { score, breakdown } = useMemo(() => {
+  const { score, breakdown, fixableIssues } = useMemo(() => {
     const kw = focusKeyword.toLowerCase();
     const contentLower = content.toLowerCase();
     const words = content.split(/\s+/).filter(Boolean);
