@@ -90,24 +90,45 @@ function injectTOC(content: string): string {
   return newTOC + "\n\n" + content;
 }
 
-/** Split overly long paragraphs without AI */
+/** Split a single block into ≤80-word chunks at sentence boundaries */
+function splitBlock(block: string): string[] {
+  const trimmed = block.trim();
+  if (/^(#{1,6}\s|[-*]\s|\d+\.\s|!\[|```|<|\|)/.test(trimmed)) return [block];
+  const words = trimmed.split(/\s+/);
+  if (words.length <= 80) return [block];
+  const sentences = trimmed.match(/[^.!?]+[.!?]+["'"]?\s*/g);
+  if (!sentences || sentences.length < 2) return [block];
+
+  // Greedily pack sentences into ≤80-word chunks
+  const chunks: string[] = [];
+  let current: string[] = [];
+  let count = 0;
+  for (const s of sentences) {
+    const sWords = s.trim().split(/\s+/).length;
+    if (count > 0 && count + sWords > 80) {
+      chunks.push(current.join("").trim());
+      current = [];
+      count = 0;
+    }
+    current.push(s);
+    count += sWords;
+  }
+  if (current.length) chunks.push(current.join("").trim());
+  return chunks.filter(Boolean);
+}
+
+/** Split overly long paragraphs without AI — loops until none remain */
 function fixLongParagraphs(content: string): string {
-  return content
-    .split("\n\n")
-    .flatMap((block) => {
-      const trimmed = block.trim();
-      if (/^(#{1,6}\s|[-*]\s|\d+\.\s|!\[|```|<|\|)/.test(trimmed)) return [block];
-      const words = trimmed.split(/\s+/);
-      if (words.length <= 80) return [block];
-      const sentences = trimmed.match(/[^.!?]+[.!?]+/g);
-      if (!sentences || sentences.length < 2) return [block];
-      const mid = Math.ceil(sentences.length / 2);
-      return [
-        sentences.slice(0, mid).join("").trim(),
-        sentences.slice(mid).join("").trim(),
-      ];
-    })
-    .join("\n\n");
+  let result = content;
+  for (let pass = 0; pass < 5; pass++) {
+    const next = result
+      .split("\n\n")
+      .flatMap((block) => splitBlock(block))
+      .join("\n\n");
+    if (next === result) break;
+    result = next;
+  }
+  return result;
 }
 
 export async function POST(_req: Request, { params }: Params) {
@@ -248,12 +269,13 @@ Output ONLY the complete modified blog post in Markdown. Start directly with the
   });
 
   const finalIssues = detectIssues(fixed, newWordCount);
+  const paragraphsFixed = issues.longParaCount - finalIssues.longParaCount;
 
   return NextResponse.json({
     content: fixed,
     wordCount: newWordCount,
     issuesFixed: {
-      longParagraphs: issues.longParaCount,
+      longParagraphs: paragraphsFixed > 0 ? paragraphsFixed : issues.longParaCount,
       addedH3s: issues.needsH3,
       expandedWords: issues.needsWords,
       addedLinks: issues.needsLinks,
