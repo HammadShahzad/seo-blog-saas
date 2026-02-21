@@ -60,8 +60,27 @@ export async function getCurrentOrganization() {
 }
 
 export async function getWebsite(websiteId: string) {
-  const { session, organization } = await getCurrentOrganization();
+  const session = await getRequiredSession();
+  const isAdmin = (session.user as { systemRole?: string }).systemRole === "ADMIN";
 
+  if (isAdmin) {
+    const website = await prisma.website.findFirst({
+      where: { id: websiteId, status: { not: "DELETED" } },
+    });
+    if (!website) {
+      redirect("/dashboard/websites");
+    }
+    const organization = await prisma.organization.findUnique({
+      where: { id: website.organizationId },
+      include: { subscription: true },
+    });
+    if (!organization) {
+      redirect("/dashboard/websites");
+    }
+    return { session, organization, website };
+  }
+
+  const { session: _s, organization } = await getCurrentOrganization();
   const website = await prisma.website.findFirst({
     where: {
       id: websiteId,
@@ -74,5 +93,5 @@ export async function getWebsite(websiteId: string) {
     redirect("/dashboard/websites");
   }
 
-  return { session, organization, website };
+  return { session: _s, organization, website };
 }
