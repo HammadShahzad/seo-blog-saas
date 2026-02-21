@@ -143,6 +143,12 @@ model Website {
   faviconUrl     String?
   primaryColor   String? @default("#4F46E5")
 
+  // Brand Intelligence (improves AI content quality)
+  uniqueValueProp String?  // What makes this business unique/different from competitors
+  competitors     String[] // Top 3-5 competitor names (e.g., ["Ahrefs", "SEMrush", "Moz"])
+  keyProducts     String[] // Key product/service names to naturally reference in content
+  targetLocation  String?  // Geographic focus (e.g., "United States", "Global", "UK and Europe")
+
   // SEO Settings
   defaultMetaTitle  String?
   sitemapEnabled    Boolean @default(true)

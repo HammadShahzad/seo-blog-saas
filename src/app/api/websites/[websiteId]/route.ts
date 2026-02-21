@@ -76,6 +76,8 @@ export async function PATCH(
       "googleAnalyticsId", "gscPropertyUrl", "twitterApiKey",
       "twitterApiSecret", "twitterAccessToken", "twitterAccessSecret",
       "linkedinAccessToken", "sitemapEnabled", "robotsTxt", "indexNowKey",
+      // Brand Intelligence
+      "uniqueValueProp", "competitors", "keyProducts", "targetLocation",
     ];
 
     const updateData: Record<string, unknown> = {};

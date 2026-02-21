@@ -25,6 +25,11 @@ export interface WebsiteContext {
   ctaText?: string;
   ctaUrl?: string;
   avoidTopics?: string[];
+  // Brand Intelligence
+  uniqueValueProp?: string;
+  competitors?: string[];
+  keyProducts?: string[];
+  targetLocation?: string;
 }
 
 export interface GeneratedPost {
@@ -103,10 +108,15 @@ ${ctx.brandName} is a ${ctx.description}.
 Your target audience is: ${ctx.targetAudience}
 Writing tone: ${ctx.tone}
 Niche: ${ctx.niche}
+${ctx.targetLocation ? `Geographic focus: ${ctx.targetLocation} — use locally relevant data, examples, pricing, and market references.` : ""}
+${ctx.uniqueValueProp ? `${ctx.brandName}'s unique value: ${ctx.uniqueValueProp}` : ""}
+${ctx.keyProducts?.length ? `Key products/features to reference naturally when relevant: ${ctx.keyProducts.join(", ")}` : ""}
+${ctx.competitors?.length ? `Main competitors: ${ctx.competitors.join(", ")} — write content that positions ${ctx.brandName} as the better choice without directly attacking them.` : ""}
 
 RULES:
 - Write in a ${ctx.tone} style
 - Naturally mention ${ctx.brandName} where relevant (not forced)
+${ctx.uniqueValueProp ? `- When recommending tools or solutions, position ${ctx.brandName} using its unique value: "${ctx.uniqueValueProp}"` : ""}
 ${ctx.ctaText && ctx.ctaUrl ? `- Include a call-to-action: "${ctx.ctaText}" linking to ${ctx.ctaUrl}` : ""}
 ${ctx.avoidTopics?.length ? `- Never mention: ${ctx.avoidTopics.join(", ")}` : ""}
 - Format: Markdown with proper H2/H3 hierarchy
@@ -191,6 +201,10 @@ export async function generateBlogPost(
     ctaText: website.blogSettings?.ctaText ?? undefined,
     ctaUrl: website.blogSettings?.ctaUrl ?? undefined,
     avoidTopics: website.blogSettings?.avoidTopics ?? undefined,
+    uniqueValueProp: website.uniqueValueProp ?? undefined,
+    competitors: website.competitors?.length ? website.competitors : undefined,
+    keyProducts: website.keyProducts?.length ? website.keyProducts : undefined,
+    targetLocation: website.targetLocation ?? undefined,
   };
 
   const wordTargets = {
@@ -234,6 +248,10 @@ Context:
 - Brand: ${ctx.brandName} (${ctx.niche})
 - Target audience: ${ctx.targetAudience}
 - Target word count: ${targetWords} words
+${ctx.targetLocation ? `- Geographic focus: ${ctx.targetLocation}` : ""}
+${ctx.competitors?.length ? `- Competitors to outrank: ${ctx.competitors.join(", ")}` : ""}
+${ctx.uniqueValueProp ? `- ${ctx.brandName}'s USP: ${ctx.uniqueValueProp}` : ""}
+${ctx.keyProducts?.length ? `- Products/features to reference: ${ctx.keyProducts.join(", ")}` : ""}
 
 Research findings:
 ${research.rawResearch.substring(0, 3000)}
@@ -255,7 +273,7 @@ Create an outline with:
 - Cover everything top competitors cover PLUS the content gaps identified above
 ${includeFAQ ? "- A FAQ section with 4-5 of the most commonly searched questions" : ""}
 - A "Key Takeaways" section near the top
-- A strong conclusion with CTA for ${ctx.brandName}
+- A strong conclusion with CTA for ${ctx.brandName}${ctx.uniqueValueProp ? ` highlighting: "${ctx.uniqueValueProp}"` : ""}
 - In the "uniqueAngle" field: write the specific contrarian/fresh angle this article should take vs. the typical treatment of this topic
 
 Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."] }], "uniqueAngle": "..." }`,
@@ -269,6 +287,10 @@ Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."
 
 Title: ${outline.title}
 Unique angle: ${outline.uniqueAngle}
+${ctx.targetLocation ? `Geographic context: Write for a ${ctx.targetLocation} audience — use relevant pricing, tools, and examples.` : ""}
+${ctx.uniqueValueProp ? `Brand USP to highlight: "${ctx.uniqueValueProp}" — weave this into the conclusion and any tool/solution recommendations.` : ""}
+${ctx.keyProducts?.length ? `Products/features to mention naturally where relevant: ${ctx.keyProducts.join(", ")}` : ""}
+${ctx.competitors?.length ? `Context: ${ctx.brandName} competes with ${ctx.competitors.join(", ")} — don't mention competitors by name, but make ${ctx.brandName}'s approach clearly superior through specific examples.` : ""}
 
 Outline to follow:
 ${outline.sections.map((s) => `## ${s.heading}\n${s.points.map((p) => `- ${p}`).join("\n")}`).join("\n\n")}

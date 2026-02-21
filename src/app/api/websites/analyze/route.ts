@@ -11,6 +11,10 @@ interface WebsiteAnalysis {
   description: string;
   targetAudience: string;
   tone: string;
+  uniqueValueProp: string;
+  competitors: string[];
+  keyProducts: string[];
+  targetLocation: string;
 }
 
 export async function POST(req: Request) {
@@ -59,7 +63,11 @@ export async function POST(req: Request) {
 2. Their target audience (who they serve)
 3. The industry/niche they operate in
 4. Their brand tone/voice if apparent
-Keep it under 200 words.`,
+5. What makes them unique vs competitors (unique value proposition)
+6. Who their main competitors are (top 3-5 names)
+7. Their key products or features (top 3-5)
+8. Their primary geographic market
+Keep it under 300 words.`,
                 },
               ],
               max_tokens: 400,
@@ -95,7 +103,11 @@ Generate a complete website profile for content generation. Return JSON with exa
   "niche": "specific niche/industry description (e.g. 'invoicing software for freelancers and small businesses')",
   "description": "2-3 sentence business description explaining what they do, who they help, and what makes them unique",
   "targetAudience": "specific target audience description (e.g. 'freelancers, solopreneurs, and small business owners who need simple invoicing tools')",
-  "tone": "writing tone for blog content (e.g. 'professional yet approachable', 'technical and authoritative', 'friendly and educational')"
+  "tone": "writing tone for blog content (e.g. 'professional yet approachable', 'technical and authoritative', 'friendly and educational')",
+  "uniqueValueProp": "1-2 sentences on what makes this business genuinely different from competitors — their key differentiator or USP",
+  "competitors": ["competitor1", "competitor2", "competitor3"],
+  "keyProducts": ["product/feature 1", "product/feature 2", "product/feature 3"],
+  "targetLocation": "primary geographic market (e.g. 'United States', 'Global', 'UK and Europe')"
 }`;
 
     const analysis = await generateJSON<WebsiteAnalysis>(prompt);

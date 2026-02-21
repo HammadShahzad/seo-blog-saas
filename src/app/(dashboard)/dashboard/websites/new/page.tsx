@@ -56,6 +56,10 @@ export default function NewWebsitePage() {
     description: "",
     targetAudience: "",
     tone: "professional yet conversational",
+    uniqueValueProp: "",
+    competitors: [] as string[],
+    keyProducts: [] as string[],
+    targetLocation: "",
   });
 
   const updateField = (field: string, value: string) => {
@@ -87,6 +91,10 @@ export default function NewWebsitePage() {
           description: data.description || "",
           targetAudience: data.targetAudience || "",
           tone: data.tone || prev.tone,
+          uniqueValueProp: data.uniqueValueProp || "",
+          competitors: data.competitors || [],
+          keyProducts: data.keyProducts || [],
+          targetLocation: data.targetLocation || "",
         }));
         setAiAnalyzed(true);
         toast.success("AI analyzed your website — review and confirm below");
@@ -130,6 +138,10 @@ export default function NewWebsitePage() {
           description: data.description || "",
           targetAudience: data.targetAudience || "",
           tone: data.tone || prev.tone,
+          uniqueValueProp: data.uniqueValueProp || "",
+          competitors: data.competitors || [],
+          keyProducts: data.keyProducts || [],
+          targetLocation: data.targetLocation || "",
         }));
         setAiAnalyzed(true);
         toast.success("Re-analyzed successfully");

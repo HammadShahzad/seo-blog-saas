@@ -29,6 +29,7 @@ import {
   Loader2, Save, Globe, Palette, Bot, Share2, Code, AlertTriangle,
   CheckCircle2, XCircle, Download, Eye, EyeOff, ExternalLink, Plug,
   Webhook, Zap, Twitter, Linkedin, ShoppingBag, ChevronDown, Clock, CalendarDays,
+  Brain, X, Plus, Target, Megaphone,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -54,6 +55,21 @@ interface WebsiteData {
   indexNowKey: string | null;
   twitterApiKey: string | null;
   linkedinAccessToken: string | null;
+  // Brand Intelligence
+  uniqueValueProp: string | null;
+  competitors: string[];
+  keyProducts: string[];
+  targetLocation: string | null;
+}
+
+interface BlogSettingsData {
+  ctaText: string | null;
+  ctaUrl: string | null;
+  avoidTopics: string[];
+  writingStyle: string;
+  contentLength: string;
+  includeFAQ: boolean;
+  includeTableOfContents: boolean;
 }
 
 const ALL_DAYS = [
@@ -170,8 +186,17 @@ export default function WebsiteSettingsPage() {
   const { data: sessionData } = useSession();
   const isAdmin = sessionData?.user?.systemRole === "ADMIN";
   const [website, setWebsite] = useState<WebsiteData | null>(null);
+  const [blogSettings, setBlogSettings] = useState<BlogSettingsData>({
+    ctaText: null, ctaUrl: null, avoidTopics: [], writingStyle: "informative",
+    contentLength: "MEDIUM", includeFAQ: true, includeTableOfContents: true,
+  });
+  const [isSavingBlogSettings, setIsSavingBlogSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  // Helpers for array fields (tag-style input)
+  const [competitorInput, setCompetitorInput] = useState("");
+  const [keyProductInput, setKeyProductInput] = useState("");
+  const [avoidTopicInput, setAvoidTopicInput] = useState("");
 
   const nextPublish = useMemo(() => {
     if (!website?.autoPublish) return null;
@@ -199,14 +224,36 @@ export default function WebsiteSettingsPage() {
 
   const fetchWebsite = async () => {
     try {
-      const res = await fetch(`/api/websites/${websiteId}`);
-      if (res.ok) {
-        setWebsite(await res.json());
+      const [siteRes, bsRes] = await Promise.all([
+        fetch(`/api/websites/${websiteId}`),
+        fetch(`/api/websites/${websiteId}/blog-settings`),
+      ]);
+      if (siteRes.ok) setWebsite(await siteRes.json());
+      if (bsRes.ok) {
+        const bs = await bsRes.json();
+        if (bs && Object.keys(bs).length > 0) setBlogSettings((prev) => ({ ...prev, ...bs }));
       }
     } catch {
       toast.error("Failed to load website settings");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveBlogSettings = async () => {
+    setIsSavingBlogSettings(true);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/blog-settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(blogSettings),
+      });
+      if (res.ok) toast.success("Content settings saved");
+      else toast.error("Failed to save content settings");
+    } catch {
+      toast.error("Failed to save content settings");
+    } finally {
+      setIsSavingBlogSettings(false);
     }
   };
 
@@ -231,7 +278,7 @@ export default function WebsiteSettingsPage() {
     }
   };
 
-  const updateField = (field: string, value: string | boolean | number) => {
+  const updateField = (field: string, value: string | boolean | number | string[]) => {
     setWebsite((prev) => (prev ? { ...prev, [field]: value } : null));
   };
 
@@ -399,6 +446,145 @@ export default function WebsiteSettingsPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Brand Intelligence */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-4 w-4 text-primary" />
+                Brand Intelligence
+              </CardTitle>
+              <CardDescription>
+                Richer context = dramatically better AI content. The more you fill in, the more targeted and differentiated your articles become.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="space-y-2">
+                <Label>Unique Value Proposition</Label>
+                <Textarea
+                  placeholder="e.g., The only SEO platform that generates, publishes, and internally links blog posts automatically — no manual work needed."
+                  value={website.uniqueValueProp || ""}
+                  onChange={(e) => updateField("uniqueValueProp", e.target.value)}
+                  rows={2}
+                />
+                <p className="text-xs text-muted-foreground">
+                  What makes your business different? AI uses this to write differentiating CTAs and unique angles.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Geographic Focus</Label>
+                <Input
+                  placeholder="e.g., United States, Global, UK and Europe, Southeast Asia"
+                  value={website.targetLocation || ""}
+                  onChange={(e) => updateField("targetLocation", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  AI uses this to select relevant pricing data, examples, and market references.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Key Products / Features</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="e.g., Keyword Planner, Auto-Publish, WordPress Integration"
+                    value={keyProductInput}
+                    onChange={(e) => setKeyProductInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") {
+                        e.preventDefault();
+                        const val = keyProductInput.trim().replace(/,$/, "");
+                        if (val && !(website.keyProducts || []).includes(val)) {
+                          updateField("keyProducts", [...(website.keyProducts || []), val]);
+                        }
+                        setKeyProductInput("");
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const val = keyProductInput.trim();
+                      if (val && !(website.keyProducts || []).includes(val)) {
+                        updateField("keyProducts", [...(website.keyProducts || []), val]);
+                      }
+                      setKeyProductInput("");
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {(website.keyProducts || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {(website.keyProducts || []).map((p) => (
+                      <span key={p} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                        {p}
+                        <button type="button" onClick={() => updateField("keyProducts", (website.keyProducts || []).filter((x) => x !== p))}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Product/feature names the AI will naturally mention in relevant articles. Press Enter or comma to add.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Top Competitors</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="e.g., Ahrefs, SEMrush, Surfer SEO"
+                    value={competitorInput}
+                    onChange={(e) => setCompetitorInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") {
+                        e.preventDefault();
+                        const val = competitorInput.trim().replace(/,$/, "");
+                        if (val && !(website.competitors || []).includes(val)) {
+                          updateField("competitors", [...(website.competitors || []), val]);
+                        }
+                        setCompetitorInput("");
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const val = competitorInput.trim();
+                      if (val && !(website.competitors || []).includes(val)) {
+                        updateField("competitors", [...(website.competitors || []), val]);
+                      }
+                      setCompetitorInput("");
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {(website.competitors || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {(website.competitors || []).map((c) => (
+                      <span key={c} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 text-xs font-medium">
+                        {c}
+                        <button type="button" onClick={() => updateField("competitors", (website.competitors || []).filter((x) => x !== c))}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  AI uses competitor names to write comparison content and differentiate your positioning. Press Enter or comma to add.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="content" className="space-y-4 mt-4">
@@ -444,6 +630,158 @@ export default function WebsiteSettingsPage() {
                   </SelectContent>
                 </Select>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Content AI Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Megaphone className="h-4 w-4 text-primary" />
+                Content AI Preferences
+              </CardTitle>
+              <CardDescription>
+                Control what the AI emphasizes, promotes, and avoids in every article
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Call-to-Action Text</Label>
+                  <Input
+                    placeholder="e.g., Start your free trial"
+                    value={blogSettings.ctaText || ""}
+                    onChange={(e) => setBlogSettings((p) => ({ ...p, ctaText: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Call-to-Action URL</Label>
+                  <Input
+                    placeholder="e.g., https://app.stackserp.com/signup"
+                    value={blogSettings.ctaUrl || ""}
+                    onChange={(e) => setBlogSettings((p) => ({ ...p, ctaUrl: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground -mt-2">
+                AI will naturally embed this CTA near the end of each article.
+              </p>
+
+              <div className="space-y-2">
+                <Label>Topics to Avoid</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="e.g., competitor names, sensitive topics"
+                    value={avoidTopicInput}
+                    onChange={(e) => setAvoidTopicInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === ",") {
+                        e.preventDefault();
+                        const val = avoidTopicInput.trim().replace(/,$/, "");
+                        if (val && !(blogSettings.avoidTopics || []).includes(val)) {
+                          setBlogSettings((p) => ({ ...p, avoidTopics: [...(p.avoidTopics || []), val] }));
+                        }
+                        setAvoidTopicInput("");
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const val = avoidTopicInput.trim();
+                      if (val && !(blogSettings.avoidTopics || []).includes(val)) {
+                        setBlogSettings((p) => ({ ...p, avoidTopics: [...(p.avoidTopics || []), val] }));
+                      }
+                      setAvoidTopicInput("");
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+                {(blogSettings.avoidTopics || []).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {(blogSettings.avoidTopics || []).map((t) => (
+                      <span key={t} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 text-xs font-medium">
+                        {t}
+                        <button type="button" onClick={() => setBlogSettings((p) => ({ ...p, avoidTopics: (p.avoidTopics || []).filter((x) => x !== t) }))}>
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  AI will never mention these in any generated content. Press Enter or comma to add.
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Writing Style</Label>
+                  <Select
+                    value={blogSettings.writingStyle}
+                    onValueChange={(v) => setBlogSettings((p) => ({ ...p, writingStyle: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="informative">Informative</SelectItem>
+                      <SelectItem value="conversational">Conversational</SelectItem>
+                      <SelectItem value="technical">Technical</SelectItem>
+                      <SelectItem value="storytelling">Storytelling</SelectItem>
+                      <SelectItem value="persuasive">Persuasive</SelectItem>
+                      <SelectItem value="humorous">Humorous</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Default Article Length</Label>
+                  <Select
+                    value={blogSettings.contentLength}
+                    onValueChange={(v) => setBlogSettings((p) => ({ ...p, contentLength: v }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="SHORT">Short (~800 words)</SelectItem>
+                      <SelectItem value="MEDIUM">Medium (~1,500 words)</SelectItem>
+                      <SelectItem value="LONG">Long (~2,500 words)</SelectItem>
+                      <SelectItem value="PILLAR">Pillar (~4,000 words)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Include FAQ Section</Label>
+                  <p className="text-xs text-muted-foreground">Add an FAQ block at the end of each article</p>
+                </div>
+                <Switch
+                  checked={blogSettings.includeFAQ}
+                  onCheckedChange={(v) => setBlogSettings((p) => ({ ...p, includeFAQ: v }))}
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Include Table of Contents</Label>
+                  <p className="text-xs text-muted-foreground">Auto-generate a TOC for long articles</p>
+                </div>
+                <Switch
+                  checked={blogSettings.includeTableOfContents}
+                  onCheckedChange={(v) => setBlogSettings((p) => ({ ...p, includeTableOfContents: v }))}
+                />
+              </div>
+
+              <Button onClick={handleSaveBlogSettings} disabled={isSavingBlogSettings} size="sm">
+                {isSavingBlogSettings ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                Save Content Settings
+              </Button>
             </CardContent>
           </Card>
 
