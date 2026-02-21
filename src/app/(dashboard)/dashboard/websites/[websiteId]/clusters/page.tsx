@@ -224,26 +224,21 @@ export default function ClustersPage() {
   const clusterJobId = `cluster-gen-${websiteId}`;
   const clusterSteps = ["crawling", "analyzing", "generating", "saving"];
 
-  // Restore cluster suggestions from global context (backed by sessionStorage) on mount
+  // Restore cluster suggestions from DB-backed global context on mount
   useEffect(() => {
-    let job = getJob(clusterJobId);
-    // Fallback: read directly from sessionStorage in case ref isn't synced yet
-    if (!job) {
-      try {
-        const raw = sessionStorage.getItem("global-jobs");
-        if (raw) {
-          const all = JSON.parse(raw) as Array<{ id: string; status: string; resultData?: Record<string, unknown> }>;
-          job = all.find((j) => j.id === clusterJobId) as ReturnType<typeof getJob>;
-        }
-      } catch { /* ignore */ }
-    }
-    if (job?.status === "done" && job.resultData?.suggestions?.length) {
-      setSuggestions(job.resultData.suggestions);
-      setSelectedSuggestions(new Set(
-        (job.resultData.suggestions as SuggestedCluster[]).map((_, i) => i)
-      ));
-      if (job.resultData.stepStatus) setStepStatus(job.resultData.stepStatus);
-    }
+    const restore = () => {
+      const job = getJob(clusterJobId);
+      if (job?.status === "done" && job.resultData?.suggestions?.length) {
+        setSuggestions(job.resultData.suggestions);
+        setSelectedSuggestions(new Set(
+          (job.resultData.suggestions as SuggestedCluster[]).map((_, i) => i)
+        ));
+        if (job.resultData.stepStatus) setStepStatus(job.resultData.stepStatus);
+      }
+    };
+    restore();
+    const t = setTimeout(restore, 600);
+    return () => clearTimeout(t);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -291,7 +286,7 @@ export default function ClustersPage() {
       if (!data.suggestions?.length) {
         setSuggestions([]);
         setSelectedSuggestions(new Set());
-        updateJob(clusterJobId, { status: "done", progress: 100, resultData: { suggestions: [], stepStatus }, resultConsumed: false });
+        updateJob(clusterJobId, { status: "done", progress: 100, resultData: { suggestions: [], stepStatus } });
         return;
       }
 
@@ -302,7 +297,6 @@ export default function ClustersPage() {
         status: "done",
         progress: 100,
         resultData: { suggestions: data.suggestions, stepStatus },
-        resultConsumed: false,
       });
     } catch {
       toast.error("Network error — please try again");

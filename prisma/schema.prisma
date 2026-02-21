@@ -34,6 +34,7 @@ model User {
   organizations OrganizationMember[]
   subscription  Subscription?
   apiKeys       ApiKey[]
+  userJobs      UserJob[]
 }
 
 enum UserRole {
@@ -638,6 +639,33 @@ enum JobStatus {
   COMPLETED
   FAILED
   CANCELLED
+}
+
+// ============================================
+// USER JOB (UI job tracking per user)
+// ============================================
+
+model UserJob {
+  id        String   @id @default(uuid())
+  type      String   // "content" | "keywords" | "clusters" | "links"
+  label     String
+  status    String   @default("running") // "running" | "done" | "failed"
+  progress  Int      @default(0)
+  step      String?  // current step name
+  steps     String[] // ordered step names
+  error     String?
+  data      Json?    // result payload (suggestions, etc.)
+  href      String?  // page path for navigation
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  websiteId String
+
+  @@index([userId, websiteId])
+  @@index([userId, status])
 }
 
 // ============================================

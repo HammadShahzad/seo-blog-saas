@@ -145,7 +145,7 @@ export function GlobalJobsWidget() {
                     <span className="text-xs font-medium truncate block">
                       {job.label}
                     </span>
-                    {isDone && !job.resultConsumed && job.resultData && (
+                    {isDone && job.resultData && (
                       <span className="text-[10px] text-blue-600 font-medium">
                         Tap → to view results
                       </span>
@@ -155,8 +155,8 @@ export function GlobalJobsWidget() {
                     <Button
                       asChild
                       size="sm"
-                      variant={isDone && !job.resultConsumed && job.resultData ? "default" : "ghost"}
-                      className={`h-5 px-1.5 text-[10px] ${isDone && !job.resultConsumed && job.resultData ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}`}
+                      variant={isDone && job.resultData ? "default" : "ghost"}
+                      className={`h-5 px-1.5 text-[10px] ${isDone && job.resultData ? "bg-blue-600 hover:bg-blue-700 text-white" : ""}`}
                     >
                       <Link href={job.href}>
                         <ArrowRight className="h-2.5 w-2.5" />

@@ -23,7 +23,6 @@ export interface GlobalJob {
   error?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   resultData?: Record<string, any>;
-  resultConsumed?: boolean;
   createdAt: number;
 }
 
@@ -33,51 +32,42 @@ interface GlobalJobsContextValue {
   updateJob: (id: string, patch: Partial<GlobalJob>) => void;
   removeJob: (id: string) => void;
   getJob: (id: string) => GlobalJob | undefined;
-  consumeResult: (id: string) => void;
-}
-
-const STORAGE_KEY = "global-jobs";
-
-function loadFromStorage(): GlobalJob[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw) as GlobalJob[];
-  } catch {
-    return [];
-  }
-}
-
-function saveToStorage(jobs: GlobalJob[]) {
-  if (typeof window === "undefined") return;
-  try {
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
-  } catch {
-    // storage full or unavailable — ignore
-  }
 }
 
 const GlobalJobsContext = createContext<GlobalJobsContextValue | null>(null);
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function dbToJob(row: any): GlobalJob {
+  return {
+    id: row.id,
+    type: row.type,
+    label: row.label,
+    websiteId: row.websiteId,
+    href: row.href || "",
+    status: row.status as GlobalJob["status"],
+    progress: row.progress ?? 0,
+    currentStep: row.step ?? undefined,
+    steps: row.steps ?? undefined,
+    error: row.error ?? undefined,
+    resultData: row.data ?? undefined,
+    createdAt: new Date(row.createdAt).getTime(),
+  };
+}
+
 export function GlobalJobsProvider({ children }: { children: ReactNode }) {
   const [jobs, setJobs] = useState<GlobalJob[]>([]);
-  const hydratedRef = useRef(false);
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
 
-  // Hydrate from sessionStorage AFTER first client render (avoids SSR mismatch)
+  // Load jobs from DB on mount
   useEffect(() => {
-    const stored = loadFromStorage();
-    if (stored.length) setJobs(stored);
-    hydratedRef.current = true;
+    fetch("/api/user-jobs")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows) => {
+        if (Array.isArray(rows) && rows.length) setJobs(rows.map(dbToJob));
+      })
+      .catch(() => {});
   }, []);
-
-  // Persist to sessionStorage on every change (skip the initial empty write before hydration)
-  useEffect(() => {
-    if (!hydratedRef.current) return;
-    saveToStorage(jobs);
-  }, [jobs]);
 
   const addJob = useCallback(
     (job: Omit<GlobalJob, "createdAt">) => {
@@ -88,6 +78,24 @@ export function GlobalJobsProvider({ children }: { children: ReactNode }) {
         }
         return [...prev, { ...job, createdAt: Date.now() }];
       });
+
+      fetch("/api/user-jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: job.id,
+          type: job.type,
+          label: job.label,
+          status: job.status,
+          progress: job.progress,
+          step: job.currentStep ?? null,
+          steps: job.steps ?? [],
+          error: job.error ?? null,
+          data: job.resultData ?? null,
+          href: job.href,
+          websiteId: job.websiteId,
+        }),
+      }).catch(() => {});
     },
     []
   );
@@ -97,12 +105,27 @@ export function GlobalJobsProvider({ children }: { children: ReactNode }) {
       setJobs((prev) =>
         prev.map((j) => (j.id === id ? { ...j, ...patch } : j))
       );
+
+      const dbPatch: Record<string, unknown> = { id };
+      if (patch.status !== undefined) dbPatch.status = patch.status;
+      if (patch.progress !== undefined) dbPatch.progress = patch.progress;
+      if (patch.currentStep !== undefined) dbPatch.step = patch.currentStep;
+      if (patch.error !== undefined) dbPatch.error = patch.error;
+      if (patch.resultData !== undefined) dbPatch.data = patch.resultData;
+      if (patch.label !== undefined) dbPatch.label = patch.label;
+
+      fetch("/api/user-jobs", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dbPatch),
+      }).catch(() => {});
     },
     []
   );
 
   const removeJob = useCallback((id: string) => {
     setJobs((prev) => prev.filter((j) => j.id !== id));
+    fetch(`/api/user-jobs?id=${id}`, { method: "DELETE" }).catch(() => {});
   }, []);
 
   const getJob = useCallback(
@@ -110,15 +133,9 @@ export function GlobalJobsProvider({ children }: { children: ReactNode }) {
     []
   );
 
-  const consumeResult = useCallback((id: string) => {
-    setJobs((prev) =>
-      prev.map((j) => (j.id === id ? { ...j, resultConsumed: true } : j))
-    );
-  }, []);
-
   return (
     <GlobalJobsContext.Provider
-      value={{ jobs, addJob, updateJob, removeJob, getJob, consumeResult }}
+      value={{ jobs, addJob, updateJob, removeJob, getJob }}
     >
       {children}
     </GlobalJobsContext.Provider>
