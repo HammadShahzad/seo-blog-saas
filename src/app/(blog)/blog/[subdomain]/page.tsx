@@ -243,12 +243,11 @@ export default async function PublicBlogListPage({ params }: Props) {
               {website.brandName}
             </a>
           </p>
-          <p>
-            Powered by{" "}
-            <a href="https://stackserp.com" className="hover:text-foreground">
-              StackSerp
+          <div className="flex gap-4">
+            <a href={website.brandUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
+              Website
             </a>
-          </p>
+          </div>
         </div>
       </footer>
     </div>
