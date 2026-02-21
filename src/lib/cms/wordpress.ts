@@ -8,7 +8,7 @@
  *  - "plugin:<key>" → Plugin mode
  *  - base64(username:::appPassword) → App-password mode
  */
-import { marked } from "marked";
+import { Marked } from "marked";
 
 /**
  * Decode stored cmsApiKey into connection details.
@@ -312,30 +312,23 @@ export function markdownToHtml(markdown: string): string {
   // anchor links will work. Just ensure the TOC heading itself won't conflict.
   const withoutToc = stripped;
 
-  // Custom renderer: add id to headings, wrap tables for responsive scroll
-  const renderer = new marked.Renderer();
+  const md = new Marked({ gfm: true, breaks: false });
+  md.use({
+    renderer: {
+      heading({ text, depth }: { text: string; depth: number }) {
+        const id = headingSlug(text);
+        const cleanText = text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[*_`]/g, "");
+        return `<h${depth} id="${id}">${cleanText}</h${depth}>\n`;
+      },
+    },
+  });
 
-  renderer.heading = ({ text, depth }: { text: string; depth: number }) => {
-    const id = headingSlug(text);
-    // Strip any inline markdown from heading text (bold, links, etc.)
-    const cleanText = text.replace(/\[([^\]]+)\]\([^)]*\)/g, "$1").replace(/[*_`]/g, "");
-    return `<h${depth} id="${id}">${cleanText}</h${depth}>\n`;
-  };
+  const rawHtml = md.parse(withoutToc) as string;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  renderer.table = (token: any) => {
-    // Render the table normally via a fresh renderer, then wrap for responsive scroll
-    const defaultRenderer = new marked.Renderer();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tableHtml = (defaultRenderer as any).table(token);
-    return `<div style="overflow-x:auto;margin:1.5em 0">${tableHtml}</div>\n`;
-  };
-
-  const html = marked.parse(withoutToc, {
-    gfm: true,
-    breaks: false,
-    renderer,
-  }) as string;
+  const html = rawHtml.replace(
+    /<table[\s\S]*?<\/table>/g,
+    (table) => `<div style="overflow-x:auto;margin:1.5em 0">${table}</div>`
+  );
 
   return html;
 }
