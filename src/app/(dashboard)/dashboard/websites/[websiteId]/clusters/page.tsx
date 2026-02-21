@@ -218,20 +218,29 @@ export default function ClustersPage() {
     fetchClusters();
   }, [fetchClusters]);
 
-  const { addJob, updateJob, getJob, consumeResult } = useGlobalJobs();
+  const { addJob, updateJob, removeJob, getJob } = useGlobalJobs();
   const clusterJobId = `cluster-gen-${websiteId}`;
   const clusterSteps = ["crawling", "analyzing", "generating", "saving"];
 
-  // Restore pending cluster suggestions from global context when navigating back
+  // Restore cluster suggestions from global context (backed by sessionStorage) on mount
   useEffect(() => {
-    const job = getJob(clusterJobId);
-    if (job?.status === "done" && !job.resultConsumed && job.resultData?.suggestions?.length) {
+    let job = getJob(clusterJobId);
+    // Fallback: read directly from sessionStorage in case ref isn't synced yet
+    if (!job) {
+      try {
+        const raw = sessionStorage.getItem("global-jobs");
+        if (raw) {
+          const all = JSON.parse(raw) as Array<{ id: string; status: string; resultData?: Record<string, unknown> }>;
+          job = all.find((j) => j.id === clusterJobId) as ReturnType<typeof getJob>;
+        }
+      } catch { /* ignore */ }
+    }
+    if (job?.status === "done" && job.resultData?.suggestions?.length) {
       setSuggestions(job.resultData.suggestions);
       setSelectedSuggestions(new Set(
         (job.resultData.suggestions as SuggestedCluster[]).map((_, i) => i)
       ));
       if (job.resultData.stepStatus) setStepStatus(job.resultData.stepStatus);
-      consumeResult(clusterJobId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -317,7 +326,7 @@ export default function ClustersPage() {
       toast.success(`Saved ${toSave.length} topic clusters`);
       setSuggestions([]);
       setSelectedSuggestions(new Set());
-      consumeResult(clusterJobId);
+      removeJob(clusterJobId);
       fetchClusters();
     } catch {
       toast.error("Failed to save clusters");
@@ -456,7 +465,7 @@ export default function ClustersPage() {
                       setSuggestions([]);
                       setSelectedSuggestions(new Set());
                       setStepStatus(null);
-                      consumeResult(clusterJobId);
+                      removeJob(clusterJobId);
                     }}>
                     <X className="h-4 w-4" />
                   </Button>
@@ -537,7 +546,8 @@ export default function ClustersPage() {
                               }
                               return next;
                             });
-                            updateJob(clusterJobId, { resultData: { suggestions: remaining, stepStatus } });
+                            if (remaining.length === 0) { removeJob(clusterJobId); }
+                            else { updateJob(clusterJobId, { resultData: { suggestions: remaining, stepStatus } }); }
                           }}
                           title="Remove suggestion"
                         >

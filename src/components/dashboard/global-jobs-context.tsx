@@ -5,6 +5,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useEffect,
   useRef,
   type ReactNode,
 } from "react";
@@ -14,25 +15,14 @@ export interface GlobalJob {
   type: "content" | "keywords" | "clusters" | "links";
   label: string;
   websiteId: string;
-  /** Page path the user should be taken to */
   href: string;
   status: "running" | "done" | "failed";
-  /** 0-100 */
   progress: number;
-  /** Step name currently executing */
   currentStep?: string;
-  /** Ordered list of step IDs */
   steps?: string[];
-  /** Error message */
   error?: string;
-  /**
-   * Persisted result payload — survives navigation.
-   * keywords job  → { suggestions: Suggestion[] }
-   * clusters job  → { suggestions: SuggestedCluster[], steps: StepStatus }
-   */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   resultData?: Record<string, any>;
-  /** Whether the result has already been consumed/shown */
   resultConsumed?: boolean;
   createdAt: number;
 }
@@ -43,16 +33,42 @@ interface GlobalJobsContextValue {
   updateJob: (id: string, patch: Partial<GlobalJob>) => void;
   removeJob: (id: string) => void;
   getJob: (id: string) => GlobalJob | undefined;
-  /** Mark a job's result as consumed so the auto-open dialog doesn't fire again */
   consumeResult: (id: string) => void;
+}
+
+const STORAGE_KEY = "global-jobs";
+
+function loadFromStorage(): GlobalJob[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw) as GlobalJob[];
+  } catch {
+    return [];
+  }
+}
+
+function saveToStorage(jobs: GlobalJob[]) {
+  if (typeof window === "undefined") return;
+  try {
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(jobs));
+  } catch {
+    // storage full or unavailable — ignore
+  }
 }
 
 const GlobalJobsContext = createContext<GlobalJobsContextValue | null>(null);
 
 export function GlobalJobsProvider({ children }: { children: ReactNode }) {
-  const [jobs, setJobs] = useState<GlobalJob[]>([]);
+  const [jobs, setJobs] = useState<GlobalJob[]>(loadFromStorage);
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
+
+  // Persist to sessionStorage on every change
+  useEffect(() => {
+    saveToStorage(jobs);
+  }, [jobs]);
 
   const addJob = useCallback(
     (job: Omit<GlobalJob, "createdAt">) => {

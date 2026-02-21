@@ -125,15 +125,25 @@ export default function KeywordsPage() {
   const [isAddingSuggestions, setIsAddingSuggestions] = useState(false);
   const [suggestSeedKeyword, setSuggestSeedKeyword] = useState("");
 
-  // Restore pending suggestions from global context when navigating back to this page
-  const { addJob, updateJob, getJob, consumeResult } = useGlobalJobs();
+  const { addJob, updateJob, removeJob, getJob } = useGlobalJobs();
   const suggestJobId = `kw-suggest-${websiteId}`;
+
+  // Restore suggestions from global context (backed by sessionStorage) on mount
   useEffect(() => {
-    const job = getJob(suggestJobId);
-    if (job?.status === "done" && !job.resultConsumed && job.resultData?.suggestions?.length) {
+    let job = getJob(suggestJobId);
+    // Fallback: read directly from sessionStorage in case ref isn't synced yet
+    if (!job) {
+      try {
+        const raw = sessionStorage.getItem("global-jobs");
+        if (raw) {
+          const all = JSON.parse(raw) as Array<{ id: string; status: string; resultData?: Record<string, unknown> }>;
+          job = all.find((j) => j.id === suggestJobId) as ReturnType<typeof getJob>;
+        }
+      } catch { /* ignore */ }
+    }
+    if (job?.status === "done" && job.resultData?.suggestions?.length) {
       setSuggestions(job.resultData.suggestions);
       setSelectedSuggestions(new Set(job.resultData.suggestions.map((s: Suggestion) => s.keyword)));
-      consumeResult(suggestJobId);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -290,7 +300,7 @@ export default function KeywordsPage() {
         toast.success(`Added ${data.imported} keywords to queue`);
         setSuggestions([]);
         setSelectedSuggestions(new Set());
-        consumeResult(suggestJobId);
+        removeJob(suggestJobId);
         fetchKeywords();
       }
     } catch { toast.error("Failed to add keywords"); }
@@ -404,7 +414,7 @@ export default function KeywordsPage() {
                   </Button>
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground"
                     title="Dismiss suggestions"
-                    onClick={() => { setSuggestions([]); setSelectedSuggestions(new Set()); consumeResult(suggestJobId); }}>
+                    onClick={() => { setSuggestions([]); setSelectedSuggestions(new Set()); removeJob(suggestJobId); }}>
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
@@ -469,7 +479,8 @@ export default function KeywordsPage() {
                         const remaining = suggestions.filter(x => x.keyword !== s.keyword);
                         setSuggestions(remaining);
                         setSelectedSuggestions(prev => { const n = new Set(prev); n.delete(s.keyword); return n; });
-                        updateJob(suggestJobId, { resultData: { suggestions: remaining } });
+                        if (remaining.length === 0) { removeJob(suggestJobId); }
+                        else { updateJob(suggestJobId, { resultData: { suggestions: remaining } }); }
                       }}
                       title="Remove suggestion"
                     >
