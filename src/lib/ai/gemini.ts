@@ -24,7 +24,7 @@ export async function generateText(
 ): Promise<string> {
   const genAI = getGemini();
   const model = genAI.getGenerativeModel({
-    model: "gemini-3.1-pro-preview",
+    model: "gemini-2.0-flash",
     systemInstruction: systemPrompt,
     generationConfig: {
       temperature: options?.temperature ?? 0.7,
