@@ -24,7 +24,13 @@ export async function GET(
     }
 
     const { websiteId } = await params;
-    const website = await verifyAccess(websiteId, session.user.id);
+    const isAdmin = (session.user as { systemRole?: string }).systemRole === "ADMIN";
+    let website = await verifyAccess(websiteId, session.user.id);
+    if (!website && isAdmin) {
+      website = await prisma.website.findFirst({
+        where: { id: websiteId, status: { not: "DELETED" } },
+      });
+    }
     if (!website) {
       return NextResponse.json({ error: "Website not found" }, { status: 404 });
     }
@@ -47,7 +53,13 @@ export async function PATCH(
     }
 
     const { websiteId } = await params;
-    const website = await verifyAccess(websiteId, session.user.id);
+    const isAdmin = (session.user as { systemRole?: string }).systemRole === "ADMIN";
+    let website = await verifyAccess(websiteId, session.user.id);
+    if (!website && isAdmin) {
+      website = await prisma.website.findFirst({
+        where: { id: websiteId, status: { not: "DELETED" } },
+      });
+    }
     if (!website) {
       return NextResponse.json({ error: "Website not found" }, { status: 404 });
     }
@@ -96,7 +108,13 @@ export async function DELETE(
     }
 
     const { websiteId } = await params;
-    const website = await verifyAccess(websiteId, session.user.id);
+    const isAdmin = (session.user as { systemRole?: string }).systemRole === "ADMIN";
+    let website = await verifyAccess(websiteId, session.user.id);
+    if (!website && isAdmin) {
+      website = await prisma.website.findFirst({
+        where: { id: websiteId, status: { not: "DELETED" } },
+      });
+    }
     if (!website) {
       return NextResponse.json({ error: "Website not found" }, { status: 404 });
     }

@@ -12,6 +12,18 @@ export async function verifyWebsiteAccess(websiteId: string) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
 
+  // Admin can access any website
+  const isAdmin = (session.user as { systemRole?: string }).systemRole === "ADMIN";
+  if (isAdmin) {
+    const website = await prisma.website.findFirst({
+      where: { id: websiteId, status: { not: "DELETED" } },
+    });
+    if (!website) {
+      return { error: NextResponse.json({ error: "Website not found" }, { status: 404 }) };
+    }
+    return { session, website, organizationId: website.organizationId };
+  }
+
   const membership = await prisma.organizationMember.findFirst({
     where: { userId: session.user.id },
     select: { organizationId: true },

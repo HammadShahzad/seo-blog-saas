@@ -56,75 +56,43 @@ jobs:
           cp -r public .next/standalone/public
           cp -r .next/static .next/standalone/.next/static
 
-      - name: Setup SSH key
+      - name: Setup SSH (password auth)
         run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
           mkdir -p ~/.ssh
-          echo "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ env.DEPLOY_HOST }} >> ~/.ssh/known_hosts
 
       - name: Run DB migrations on droplet
+        env:
+          DEPLOY_PASS: ${{ secrets.DROPLET_PASSWORD }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+          sshpass -p "$DEPLOY_PASS" ssh -o StrictHostKeyChecking=no \
             ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} \
             "cd ${{ env.DEPLOY_PATH }} && DATABASE_URL='${{ secrets.DATABASE_URL }}' npx prisma migrate deploy 2>&1 || echo 'Migration skipped (no prisma binary on droplet — handled by next step)'"
 
       - name: Sync standalone build to droplet
+        env:
+          DEPLOY_PASS: ${{ secrets.DROPLET_PASSWORD }}
         run: |
-          rsync -avz --delete \
-            --exclude '.env' \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            .next/standalone/ \
-            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/.next/standalone/
-
-          # Also sync the static files
-          rsync -avz --delete \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            .next/static/ \
-            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/.next/static/
-
-          # Sync public folder
-          rsync -avz --delete \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            public/ \
-            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/public/
-
-          # Sync config files
-          rsync -avz \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            ecosystem.config.js worker.js package.json \
-            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/
+          R="sshpass -p \"$DEPLOY_PASS\" ssh -o StrictHostKeyChecking=no"
+          rsync -avz --delete --exclude '.env' -e "$R" .next/standalone/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/.next/standalone/
+          rsync -avz --delete -e "$R" .next/static/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/.next/static/
+          rsync -avz --delete -e "$R" public/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/public/
+          rsync -avz -e "$R" ecosystem.config.js worker.js package.json ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/
 
       - name: Run DB migrations via standalone prisma
+        env:
+          DEPLOY_PASS: ${{ secrets.DROPLET_PASSWORD }}
         run: |
-          # Copy prisma directory to droplet for migrations
-          rsync -avz \
-            -e "ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no" \
-            prisma/ \
-            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/prisma/
-
-          # Run migration using the node_modules we shipped in standalone
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'ENDSSH'
-          cd /var/www/stackserp
-          source /etc/environment 2>/dev/null || true
-          if [ -f .env ]; then export $(grep -v '^#' .env | xargs); fi
-          node .next/standalone/node_modules/.bin/prisma migrate deploy \
-            --schema /var/www/stackserp/prisma/schema.prisma 2>&1 || echo "Migration note: check DB manually"
-          ENDSSH
+          R="sshpass -p \"$DEPLOY_PASS\" ssh -o StrictHostKeyChecking=no"
+          rsync -avz -e "$R" prisma/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/prisma/
+          sshpass -p "$DEPLOY_PASS" ssh -o StrictHostKeyChecking=no ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd /var/www/stackserp && (test -f .env && export \$(grep -v '^#' .env | xargs) || true) && node .next/standalone/node_modules/.bin/prisma migrate deploy --schema /var/www/stackserp/prisma/schema.prisma 2>&1 || echo 'Migration note: check DB manually'"
 
       - name: Reload PM2 app
+        env:
+          DEPLOY_PASS: ${{ secrets.DROPLET_PASSWORD }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} << 'ENDSSH'
-          cd /var/www/stackserp
-          pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production
-          pm2 save
-          # Verify it's running
-          sleep 3
-          pm2 list
-          curl -s --max-time 5 http://127.0.0.1:3001 -o /dev/null -w "Health check: %{http_code}\n" || echo "App starting up..."
-          ENDSSH
+          sshpass -p "$DEPLOY_PASS" ssh -o StrictHostKeyChecking=no ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} "cd /var/www/stackserp && pm2 reload ecosystem.config.js --env production || pm2 start ecosystem.config.js --env production && pm2 save && sleep 3 && pm2 list && curl -s --max-time 5 http://127.0.0.1:3001 -o /dev/null -w 'Health check: %{http_code}\n' || echo 'App starting up...'"
 
       - name: Deployment summary
         run: |
