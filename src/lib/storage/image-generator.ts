@@ -1,22 +1,17 @@
 /**
  * AI Image Generation Pipeline
- * Gemini 2.0 Flash (creative prompt) → Imagen 4.0 → Sharp → WebP → Backblaze B2
+ * Gemini 3 Pro (native image gen) → Sharp → WebP → Backblaze B2
  *
- * Two-step pipeline:
- *   1. Gemini generates a detailed, creative, style-specific image prompt
- *   2. Imagen renders it (fast model for batch jobs, full model for manual regen)
+ * Single-step: Gemini 3 Pro generates images natively via responseModalities.
+ * Supports 4K output, ~94% text rendering accuracy, up to 14 reference images.
  *
- * Rate limits (Gemini API, per project):
- *   Free tier:  ~10-50 RPD for imagen-4.0-generate-001
- *   Tier 1:     ~70-200 RPD (billing linked)
- *   RPM:        ~10-20 RPM (varies by tier)
+ * Falls back to Imagen 4.0 if Gemini 3 Pro image gen fails.
  */
 import sharp from "sharp";
 import { uploadToB2 } from "./backblaze";
 
-const IMAGEN_FAST_MODEL = "imagen-4.0-fast-generate-001";
-const IMAGEN_FULL_MODEL = process.env.IMAGEN_MODEL || "imagen-4.0-generate-001";
-const GEMINI_PROMPT_MODEL = "gemini-2.0-flash";
+const GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview";
+const IMAGEN_FALLBACK_MODEL = "imagen-4.0-fast-generate-001";
 
 const IMAGE_STYLES = [
   "flat vector illustration with bold colors and clean geometric shapes",
@@ -30,62 +25,161 @@ const IMAGE_STYLES = [
 ];
 
 /**
- * Use Gemini to generate a rich, creative Imagen prompt from a raw topic/keyword.
- * Falls back to the original prompt if Gemini fails.
+ * Generate an image using Gemini 3 Pro native image generation.
+ * One API call — the model understands context and generates the image directly.
  */
-async function buildCreativePrompt(
-  rawPrompt: string,
+async function generateWithGemini3Pro(
   keyword: string,
   niche: string,
-  apiKey: string
-): Promise<string> {
+  blogContext: string,
+  apiKey: string,
+  retries = 3,
+): Promise<Buffer> {
   const style = IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
-  try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_PROMPT_MODEL}:generateContent`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        signal: AbortSignal.timeout(20000),
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `Create 1 unique, creative image generation prompt for a blog hero image about "${keyword}" in the ${niche} industry.
+  let lastError: Error | null = null;
+
+  const prompt = `Generate a high-quality blog hero image for an article about "${keyword}" in the ${niche} industry.
+
+Art style: ${style}
 
 CRITICAL RULES:
-- DO NOT use generic "desk with laptop" or "office workspace" scenes — be specific and creative
+- DO NOT use generic "desk with laptop" or "office workspace" scenes
 - Visually represent the EXACT topic using metaphors, symbols, or creative conceptual scenes
-- Art style: ${style}
 - No text, no words, no letters, no watermarks anywhere in the image
 - Make it eye-catching, specific, and memorable — not generic stock photo imagery
-- Aspect ratio: 16:9 landscape, wide composition
+- Wide landscape composition (16:9)
 
-Blog context: ${rawPrompt.slice(0, 300)}
+Blog context: ${blogContext.slice(0, 400)}`;
 
-Output ONLY a single JSON array with 1 string, example: ["detailed prompt here"]`,
-            }],
-          }],
-          generationConfig: { temperature: 1.0, maxOutputTokens: 300 },
-        }),
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_IMAGE_MODEL}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          signal: AbortSignal.timeout(90000),
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              responseModalities: ["TEXT", "IMAGE"],
+              temperature: 1.0,
+            },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.text();
+        console.error(`[Gemini3Pro] attempt ${attempt}/${retries} — ${response.status}:`, err.slice(0, 300));
+        lastError = new Error(`Gemini 3 Pro image API error (${response.status})`);
+
+        if (response.status === 429) {
+          const backoff = Math.min(attempt * 10000, 30000);
+          console.warn(`[Gemini3Pro] Rate limited, waiting ${backoff / 1000}s…`);
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
+        }
+        if (response.status >= 500) {
+          await new Promise((r) => setTimeout(r, attempt * 5000));
+          continue;
+        }
+        throw lastError;
       }
-    );
 
-    if (!res.ok) throw new Error(`Gemini prompt generation failed: ${res.status}`);
-    const data = await res.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || "";
-    const match = text.match(/\[[\s\S]*?\]/);
-    if (match) {
-      const parsed = JSON.parse(match[0]);
-      if (parsed[0] && typeof parsed[0] === "string") {
-        console.log(`[Image] Creative prompt generated (style: ${style.split(" ").slice(0, 3).join(" ")}…)`);
-        return parsed[0];
+      const data = await response.json();
+      const parts = data.candidates?.[0]?.content?.parts;
+
+      if (!parts || !Array.isArray(parts)) {
+        lastError = new Error("No parts in Gemini 3 Pro response");
+        await new Promise((r) => setTimeout(r, attempt * 3000));
+        continue;
+      }
+
+      for (const part of parts) {
+        if (part.inlineData?.data) {
+          console.log(`[Gemini3Pro] Image generated (style: ${style.split(" ").slice(0, 3).join(" ")}…)`);
+          return Buffer.from(part.inlineData.data, "base64");
+        }
+        if (part.inline_data?.data) {
+          console.log(`[Gemini3Pro] Image generated (style: ${style.split(" ").slice(0, 3).join(" ")}…)`);
+          return Buffer.from(part.inline_data.data, "base64");
+        }
+      }
+
+      console.warn(`[Gemini3Pro] attempt ${attempt} — no image data in response parts`);
+      lastError = new Error("No image data in Gemini 3 Pro response");
+      await new Promise((r) => setTimeout(r, attempt * 3000));
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < retries) {
+        console.warn(`[Gemini3Pro] attempt ${attempt} failed, retrying in ${attempt * 5}s…`);
+        await new Promise((r) => setTimeout(r, attempt * 5000));
       }
     }
-  } catch (err) {
-    console.warn("[Image] Gemini prompt generation failed, using fallback prompt:", err);
   }
-  // Fallback: use the original prompt with style appended
-  return `${rawPrompt} ${style}. No text or words in the image.`;
+
+  throw lastError || new Error("Gemini 3 Pro image generation failed after all retries");
+}
+
+/**
+ * Fallback: Imagen 4.0 (used only if Gemini 3 Pro fails)
+ */
+async function generateWithImagen(
+  prompt: string,
+  apiKey: string,
+  retries = 2,
+): Promise<Buffer> {
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_FALLBACK_MODEL}:predict`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
+          },
+          signal: AbortSignal.timeout(60000),
+          body: JSON.stringify({
+            instances: [{ prompt }],
+            parameters: { sampleCount: 1, personGeneration: "allow_adult" },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.text();
+        console.error(`[Imagen fallback] attempt ${attempt}/${retries} — ${response.status}:`, err.slice(0, 300));
+        lastError = new Error(`Imagen API error (${response.status})`);
+        if (response.status === 429) {
+          await new Promise((r) => setTimeout(r, attempt * 8000));
+          continue;
+        }
+        throw lastError;
+      }
+
+      const data = await response.json();
+      const base64 = data.predictions?.[0]?.bytesBase64Encoded;
+      if (!base64) {
+        lastError = new Error("No image data from Imagen");
+        continue;
+      }
+      return Buffer.from(base64, "base64");
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, attempt * 5000));
+      }
+    }
+  }
+
+  throw lastError || new Error("Imagen fallback failed");
 }
 
 export async function generateBlogImage(
@@ -95,30 +189,28 @@ export async function generateBlogImage(
   overlayText?: string,
   keyword?: string,
   niche?: string,
-  /** "fast" for batch/automated jobs (default); "high" for manual regeneration */
   quality: "fast" | "high" = "fast",
 ): Promise<string> {
   let apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
   apiKey = apiKey.replace(/\\n/g, "").trim();
 
-  const model = quality === "high" ? IMAGEN_FULL_MODEL : IMAGEN_FAST_MODEL;
+  const kw = keyword || slug.replace(/-/g, " ");
+  const nicheStr = niche || "business";
 
-  // Step 1: Use Gemini to craft a creative, detailed image prompt
-  const creativePrompt = await buildCreativePrompt(
-    prompt,
-    keyword || slug.replace(/-/g, " "),
-    niche || "business",
-    apiKey,
-  );
+  let imageBytes: Buffer;
 
-  const imageBytes = await generateWithImagen(creativePrompt, apiKey, 3, model);
+  try {
+    imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, quality === "high" ? 3 : 2);
+  } catch (err) {
+    console.warn("[Image] Gemini 3 Pro failed, falling back to Imagen:", err instanceof Error ? err.message : err);
+    const style = IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
+    const fallbackPrompt = `Blog hero image for "${kw}" in ${nicheStr}. ${style}. No text or words. 16:9 landscape.`;
+    imageBytes = await generateWithImagen(fallbackPrompt, apiKey);
+  }
 
   let processed = await sharp(imageBytes)
-    .resize(1200, 630, {
-      fit: "cover",
-      position: "center",
-    })
+    .resize(1200, 630, { fit: "cover", position: "center" })
     .toBuffer();
 
   if (overlayText) {
@@ -189,75 +281,6 @@ async function addTextOverlay(imageBuffer: Buffer, text: string): Promise<Buffer
     .toBuffer();
 }
 
-async function generateWithImagen(
-  prompt: string,
-  apiKey: string,
-  retries = 3,
-  model = IMAGEN_FAST_MODEL,
-): Promise<Buffer> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`;
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        signal: AbortSignal.timeout(60000),
-        body: JSON.stringify({
-          instances: [{ prompt }],
-          parameters: {
-            sampleCount: 1,
-            personGeneration: "allow_adult",
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.text();
-        console.error(`[Imagen ${model}] attempt ${attempt}/${retries} — ${response.status}:`, err);
-        lastError = new Error(`Imagen API error (${response.status}): ${err}`);
-
-        if (response.status === 429) {
-          // Rate limited — back off aggressively (RPM limit is 10-20)
-          const backoff = Math.min(attempt * 8000, 30000);
-          console.warn(`[Imagen] Rate limited, waiting ${backoff / 1000}s before retry…`);
-          await new Promise((r) => setTimeout(r, backoff));
-          continue;
-        }
-        if (response.status >= 500) {
-          await new Promise((r) => setTimeout(r, attempt * 5000));
-          continue;
-        }
-        throw lastError;
-      }
-
-      const data = await response.json();
-      const base64 = data.predictions?.[0]?.bytesBase64Encoded;
-
-      if (!base64) {
-        console.error(`[Imagen] attempt ${attempt}/${retries} — no image data:`, JSON.stringify(data).slice(0, 500));
-        lastError = new Error("No image data returned from Imagen");
-        await new Promise((r) => setTimeout(r, attempt * 3000));
-        continue;
-      }
-
-      return Buffer.from(base64, "base64");
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (attempt < retries) {
-        console.warn(`[Imagen] attempt ${attempt} failed, retrying in ${attempt * 5}s…`);
-        await new Promise((r) => setTimeout(r, attempt * 5000));
-      }
-    }
-  }
-
-  throw lastError || new Error("Image generation failed after all retries");
-}
-
 /**
  * Generate a smaller inline/section image (800x450, no text overlay)
  */
@@ -265,13 +288,25 @@ export async function generateInlineImage(
   prompt: string,
   slug: string,
   index: number,
-  websiteId: string
+  websiteId: string,
+  keyword?: string,
+  niche?: string,
 ): Promise<string> {
   let apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
   apiKey = apiKey.replace(/\\n/g, "").trim();
 
-  const imageBytes = await generateWithImagen(prompt, apiKey);
+  const kw = keyword || slug.replace(/-/g, " ");
+  const nicheStr = niche || "business";
+
+  let imageBytes: Buffer;
+
+  try {
+    imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, 2);
+  } catch {
+    const style = IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
+    imageBytes = await generateWithImagen(`${prompt} ${style}. No text. 16:9.`, apiKey);
+  }
 
   const processed = await sharp(imageBytes)
     .resize(800, 450, { fit: "cover", position: "center" })
@@ -283,7 +318,7 @@ export async function generateInlineImage(
 }
 
 /**
- * Generate and upload a thumbnail version too (400x225)
+ * Generate and upload a thumbnail version (400x225)
  */
 export async function generateThumbnail(
   imageBuffer: Buffer,
