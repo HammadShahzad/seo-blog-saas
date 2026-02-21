@@ -1,21 +1,19 @@
 /**
  * AI Image Generation Pipeline
- * Imagen 4.0 Fast → Sharp resize → WebP → Backblaze B2
+ * Imagen 4.0 (full) → Sharp resize → WebP → Backblaze B2
  *
  * Rate limits (Gemini API, per project):
- *   Free tier:  ~100 RPD for imagen-4.0-fast, ~10-50 RPD for standard
+ *   Free tier:  ~10-50 RPD for imagen-4.0-generate-001
  *   Tier 1:     ~70-200 RPD (billing linked)
- *   Tier 2+:    higher, request increase via Google form
  *   RPM:        ~10-20 RPM (varies by tier)
  *
- * We use imagen-4.0-fast-generate-001 (2x cheaper, 2x higher free quota,
- * faster generation, quality is plenty good for blog images).
+ * We use imagen-4.0-generate-001 (full model, maximum image quality).
  * Sequential calls with 3s+ gaps to stay under RPM limits.
  */
 import sharp from "sharp";
 import { uploadToB2 } from "./backblaze";
 
-const IMAGEN_MODEL = process.env.IMAGEN_MODEL || "imagen-4.0-fast-generate-001";
+const IMAGEN_MODEL = process.env.IMAGEN_MODEL || "imagen-4.0-generate-001";
 
 export async function generateBlogImage(
   prompt: string,
@@ -40,7 +38,7 @@ export async function generateBlogImage(
     processed = await addTextOverlay(processed, overlayText);
   }
 
-  processed = await sharp(processed).webp({ quality: 85 }).toBuffer();
+  processed = await sharp(processed).webp({ quality: 92 }).toBuffer();
 
   const key = `${websiteId}/blog-images/${slug}-featured.webp`;
   const url = await uploadToB2(processed, key, "image/webp");
@@ -184,7 +182,7 @@ export async function generateInlineImage(
 
   const processed = await sharp(imageBytes)
     .resize(800, 450, { fit: "cover", position: "center" })
-    .webp({ quality: 82 })
+    .webp({ quality: 90 })
     .toBuffer();
 
   const key = `${websiteId}/blog-images/${slug}-inline-${index}.webp`;

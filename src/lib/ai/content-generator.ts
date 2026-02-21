@@ -506,57 +506,7 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
       console.error("Featured image generation failed after retries:", err);
     }
 
-    // Cooldown between API calls to stay under RPM limits (10-20 RPM depending on tier)
-    if (featuredImageUrl) {
-      await new Promise((r) => setTimeout(r, 5000));
-    }
-
-    // 2. Inline images — pick up to 2 H2 sections spaced evenly
-    const h2Matches = [...finalContent.matchAll(/^## (.+)$/gm)];
-    if (h2Matches.length >= 2) {
-      let pickedIndices: number[];
-      if (h2Matches.length <= 3) {
-        pickedIndices = [0, h2Matches.length - 1];
-      } else {
-        const step = Math.floor(h2Matches.length / 3);
-        pickedIndices = [step, step * 2].filter((i) => i < h2Matches.length);
-      }
-
-      for (let imgIdx = 0; imgIdx < pickedIndices.length; imgIdx++) {
-        const h2 = h2Matches[pickedIndices[imgIdx]];
-        const heading = h2[1];
-        await progress("image", `Generating image ${imgIdx + 2} of ${pickedIndices.length + 1}…`);
-
-        try {
-          const inlinePrompt = `${imageStyle}. Create an image specifically about "${heading}" in the context of "${keyword}" for a ${ctx.niche} business. The image should visually represent this specific subtopic. No text, words, letters, or watermarks.`;
-          const inlineUrl = await generateInlineImage(
-            inlinePrompt,
-            postSlug,
-            imgIdx,
-            website.id
-          );
-
-          const h2Pattern = `## ${heading}`;
-          const h2Pos = finalContent.indexOf(h2Pattern);
-          if (h2Pos !== -1) {
-            const lineEnd = finalContent.indexOf("\n", h2Pos);
-            if (lineEnd !== -1) {
-              const nextBreak = finalContent.indexOf("\n\n", lineEnd + 1);
-              const insertPos = nextBreak !== -1 ? nextBreak : lineEnd;
-              const imgMd = `\n\n![${heading} - ${keyword}](${inlineUrl})\n`;
-              finalContent = finalContent.slice(0, insertPos) + imgMd + finalContent.slice(insertPos);
-            }
-          }
-        } catch (err) {
-          console.error(`Inline image ${imgIdx} failed after retries:`, err);
-        }
-
-        // Cooldown between inline images to avoid RPM rate limits
-        if (imgIdx < pickedIndices.length - 1) {
-          await new Promise((r) => setTimeout(r, 5000));
-        }
-      }
-    }
+    // Only 1 image per post (featured) using the full-quality Imagen model.
   } else if (includeImages) {
     await progress("image", "Skipping image generation (API key not configured)…");
   }
