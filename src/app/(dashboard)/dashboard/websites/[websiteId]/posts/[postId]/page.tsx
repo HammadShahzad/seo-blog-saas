@@ -86,12 +86,23 @@ export default function PostEditorPage() {
   });
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [isPushingToWP, setIsPushingToWP] = useState(false);
+  const [isPushingToShopify, setIsPushingToShopify] = useState(false);
   const [wpResult, setWpResult] = useState<{ url?: string; editUrl?: string } | null>(null);
+  const [shopifyResult, setShopifyResult] = useState<{ articleUrl?: string; adminUrl?: string } | null>(null);
   const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
   const [imagePromptInput, setImagePromptInput] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [autoSlug, setAutoSlug] = useState(isNew);
+
+  const [integrations, setIntegrations] = useState<{
+    wp: boolean;
+    shopify: boolean;
+    ghost: boolean;
+    webhook: boolean;
+    hostingMode: string;
+  }>({ wp: false, shopify: false, ghost: false, webhook: false, hostingMode: "HOSTED" });
 
   useEffect(() => {
     if (!isNew) {
@@ -105,6 +116,21 @@ export default function PostEditorPage() {
         .finally(() => setIsLoading(false));
     }
   }, [websiteId, postId, isNew]);
+
+  useEffect(() => {
+    fetch(`/api/websites/${websiteId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        setIntegrations({
+          wp: Boolean(data.cmsApiUrl && data.cmsApiKey),
+          shopify: Boolean(data.shopifyConfig),
+          ghost: Boolean(data.ghostConfig),
+          webhook: Boolean(data.webhookUrl),
+          hostingMode: data.hostingMode || "HOSTED",
+        });
+      })
+      .catch(() => {});
+  }, [websiteId]);
 
   const updateField = (field: string, value: unknown) => {
     setPost((p) => ({ ...p, [field]: value }));
@@ -164,6 +190,70 @@ export default function PostEditorPage() {
       toast.error("Failed to save post");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!post.title || !post.content) {
+      toast.error("Title and content are required");
+      return;
+    }
+    setIsPublishing(true);
+    try {
+      const payload = { ...post, wordCount, readingTime, status: "PUBLISHED" };
+      const url = isNew
+        ? `/api/websites/${websiteId}/posts`
+        : `/api/websites/${websiteId}/posts/${postId}`;
+      const method = isNew ? "POST" : "PATCH";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (res.ok) {
+        const saved = await res.json();
+        toast.success("Post published!");
+        setPost((p) => ({ ...p, status: "PUBLISHED" }));
+        if (isNew) {
+          router.replace(`/dashboard/websites/${websiteId}/posts/${saved.id}`);
+        }
+      } else {
+        const err = await res.json();
+        toast.error(err.error || "Failed to publish");
+      }
+    } catch {
+      toast.error("Failed to publish post");
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handlePushToShopify = async (status: "draft" | "published") => {
+    if (isNew || !postId) {
+      toast.error("Save the post first before pushing to Shopify");
+      return;
+    }
+    setIsPushingToShopify(true);
+    setShopifyResult(null);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/shopify/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, status }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setShopifyResult({ articleUrl: data.articleUrl, adminUrl: data.adminUrl });
+        toast.success(`Pushed to Shopify as ${status}!`);
+      } else {
+        toast.error(data.error || "Failed to push to Shopify");
+      }
+    } catch {
+      toast.error("Failed to push to Shopify");
+    } finally {
+      setIsPushingToShopify(false);
     }
   };
 
@@ -290,8 +380,35 @@ export default function PostEditorPage() {
             Save
           </Button>
 
-          {/* WordPress push dropdown */}
-          {!isNew && (
+          {/* Publish on StackSerp */}
+          {post.status !== "PUBLISHED" ? (
+            <Button
+              size="sm"
+              onClick={handlePublish}
+              disabled={isPublishing || isSaving}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isPublishing ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Publish
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => handleSave("DRAFT")}
+              disabled={isSaving}
+              className="border-yellow-500 text-yellow-700 hover:bg-yellow-50"
+            >
+              Unpublish
+            </Button>
+          )}
+
+          {/* WordPress push buttons */}
+          {!isNew && integrations.wp && (
             <div className="flex items-center gap-1">
               <Button
                 variant="outline"
@@ -323,16 +440,51 @@ export default function PostEditorPage() {
             </div>
           )}
 
-          {/* Save as ready for publishing */}
-          <Button
-            size="sm"
-            variant="secondary"
-            onClick={() => handleSave("REVIEW")}
-            disabled={isSaving}
-          >
-            <Send className="mr-2 h-4 w-4" />
-            Mark Ready
-          </Button>
+          {/* Shopify push buttons */}
+          {!isNew && integrations.shopify && (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePushToShopify("draft")}
+                disabled={isPushingToShopify || isSaving}
+                className="border-[#96bf48] text-[#5c8a1e] hover:bg-[#96bf48]/5"
+              >
+                {isPushingToShopify ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Shopify Draft
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => handlePushToShopify("published")}
+                disabled={isPushingToShopify || isSaving}
+                className="bg-[#5c8a1e] hover:bg-[#4a7018] text-white"
+              >
+                {isPushingToShopify ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Shopify Publish
+              </Button>
+            </div>
+          )}
+
+          {/* Save as ready for review */}
+          {post.status !== "PUBLISHED" && (
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => handleSave("REVIEW")}
+              disabled={isSaving}
+            >
+              <Send className="mr-2 h-4 w-4" />
+              Mark Ready
+            </Button>
+          )}
         </div>
       </div>
 
@@ -354,6 +506,30 @@ export default function PostEditorPage() {
               <a href={wpResult.editUrl} target="_blank" rel="noopener noreferrer"
                 className="text-xs text-[#21759b] hover:underline flex items-center gap-1 ml-3">
                 Edit in WP <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Shopify push success banner */}
+      {shopifyResult && (
+        <div className="flex items-center justify-between p-3 rounded-lg bg-[#96bf48]/10 border border-[#96bf48]/20 text-sm">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-[#5c8a1e]" />
+            <span className="font-medium text-[#5c8a1e]">Successfully pushed to Shopify</span>
+          </div>
+          <div className="flex gap-2">
+            {shopifyResult.articleUrl && (
+              <a href={shopifyResult.articleUrl} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-[#5c8a1e] hover:underline flex items-center gap-1">
+                View Article <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+            {shopifyResult.adminUrl && (
+              <a href={shopifyResult.adminUrl} target="_blank" rel="noopener noreferrer"
+                className="text-xs text-[#5c8a1e] hover:underline flex items-center gap-1 ml-3">
+                Edit in Shopify <ExternalLink className="h-3 w-3" />
               </a>
             )}
           </div>
