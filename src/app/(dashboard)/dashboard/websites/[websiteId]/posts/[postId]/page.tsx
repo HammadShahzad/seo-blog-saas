@@ -454,41 +454,51 @@ export default function PostEditorPage() {
     setIsDownloadingPDF(true);
     try {
       const html2pdf = (await import("html2pdf.js")).default;
-
-      const container = document.createElement("div");
-      container.style.cssText = "padding:40px 50px;max-width:800px;margin:0 auto;font-family:Georgia,serif;color:#1a1a1a;line-height:1.7;font-size:14px";
-
-      // Convert markdown to HTML using a simple render via the markdown editor's preview
       const { Marked } = await import("marked");
       const md = new Marked({ gfm: true, breaks: false });
       const htmlContent = md.parse(post.content) as string;
 
-      container.innerHTML = `
-        <div style="margin-bottom:32px;padding-bottom:24px;border-bottom:2px solid #e5e5e5">
-          <h1 style="font-size:28px;margin:0 0 12px;line-height:1.3;color:#111">${post.title || "Untitled"}</h1>
-          ${post.focusKeyword ? `<p style="font-size:12px;color:#666;margin:0">Focus keyword: ${post.focusKeyword}</p>` : ""}
-          ${post.wordCount ? `<p style="font-size:12px;color:#666;margin:4px 0 0">Word count: ${post.wordCount} &middot; ${post.readingTime || Math.ceil(post.wordCount / 200)} min read</p>` : ""}
-        </div>
-        <style>
-          h2 { font-size:22px; margin:28px 0 12px; color:#111; border-bottom:1px solid #eee; padding-bottom:8px; }
-          h3 { font-size:18px; margin:20px 0 8px; color:#222; }
-          p { margin:0 0 12px; }
-          ul, ol { margin:0 0 12px; padding-left:24px; }
-          li { margin-bottom:4px; }
-          table { width:100%; border-collapse:collapse; margin:16px 0; font-size:13px; }
-          th { background:#f5f5f5; font-weight:600; text-align:left; padding:8px 12px; border:1px solid #ddd; }
-          td { padding:8px 12px; border:1px solid #ddd; }
-          blockquote { margin:16px 0; padding:12px 20px; border-left:4px solid #ddd; color:#555; background:#fafafa; }
-          code { background:#f3f3f3; padding:2px 6px; border-radius:3px; font-size:13px; }
-          a { color:#2563eb; text-decoration:underline; }
-          img { max-width:100%; height:auto; margin:12px 0; border-radius:8px; }
-        </style>
-        ${htmlContent}
-      `;
-
-      document.body.appendChild(container);
-
       const slug = post.slug || post.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60) || "blog-post";
+
+      // Render inside a hidden iframe to isolate from page CSS (Tailwind lab()/oklch() colors crash html2canvas)
+      const iframe = document.createElement("iframe");
+      iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:800px;height:1px;border:none;opacity:0";
+      document.body.appendChild(iframe);
+
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!iframeDoc) throw new Error("Could not access iframe document");
+
+      iframeDoc.open();
+      iframeDoc.write(`<!DOCTYPE html><html><head><style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { padding:40px 50px; max-width:800px; margin:0 auto; font-family:Georgia,'Times New Roman',serif; color:#1a1a1a; line-height:1.7; font-size:14px; background:#fff; }
+        .pdf-header { margin-bottom:32px; padding-bottom:24px; border-bottom:2px solid #e5e5e5; }
+        .pdf-header h1 { font-size:28px; margin:0 0 12px; line-height:1.3; color:#111; }
+        .pdf-header p { font-size:12px; color:#666; margin:4px 0 0; }
+        h2 { font-size:22px; margin:28px 0 12px; color:#111; border-bottom:1px solid #eee; padding-bottom:8px; }
+        h3 { font-size:18px; margin:20px 0 8px; color:#222; }
+        p { margin:0 0 12px; }
+        ul, ol { margin:0 0 12px; padding-left:24px; }
+        li { margin-bottom:4px; }
+        table { width:100%; border-collapse:collapse; margin:16px 0; font-size:13px; }
+        th { background:#f5f5f5; font-weight:600; text-align:left; padding:8px 12px; border:1px solid #ddd; }
+        td { padding:8px 12px; border:1px solid #ddd; }
+        blockquote { margin:16px 0; padding:12px 20px; border-left:4px solid #ddd; color:#555; background:#fafafa; }
+        code { background:#f3f3f3; padding:2px 6px; border-radius:3px; font-size:13px; font-family:monospace; }
+        a { color:#2563eb; text-decoration:underline; }
+        img { max-width:100%; height:auto; margin:12px 0; border-radius:8px; }
+      </style></head><body>
+        <div class="pdf-header">
+          <h1>${(post.title || "Untitled").replace(/</g, "&lt;")}</h1>
+          ${post.focusKeyword ? `<p>Focus keyword: ${post.focusKeyword.replace(/</g, "&lt;")}</p>` : ""}
+          ${post.wordCount ? `<p>Word count: ${post.wordCount} &middot; ${post.readingTime || Math.ceil(post.wordCount / 200)} min read</p>` : ""}
+        </div>
+        ${htmlContent}
+      </body></html>`);
+      iframeDoc.close();
+
+      // Wait for iframe content to render
+      await new Promise((r) => setTimeout(r, 300));
 
       await html2pdf()
         .set({
@@ -499,10 +509,10 @@ export default function PostEditorPage() {
           jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
           pagebreak: { mode: ["avoid-all", "css", "legacy"] },
         })
-        .from(container)
+        .from(iframeDoc.body)
         .save();
 
-      document.body.removeChild(container);
+      document.body.removeChild(iframe);
       toast.success("PDF downloaded");
     } catch (err) {
       console.error("PDF download error:", err);
