@@ -93,6 +93,7 @@ export default function PostEditorPage() {
   const [shopifyResult, setShopifyResult] = useState<{ articleUrl?: string; adminUrl?: string } | null>(null);
   const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
   const [imagePromptInput, setImagePromptInput] = useState("");
+  const [imageCacheBust, setImageCacheBust] = useState<number>(Date.now());
   const [tagInput, setTagInput] = useState("");
   const [autoSlug, setAutoSlug] = useState(isNew);
 
@@ -305,6 +306,7 @@ export default function PostEditorPage() {
       const data = await res.json();
       if (res.ok) {
         updateField("featuredImage", data.imageUrl);
+        setImageCacheBust(Date.now());
         toast.success("New image generated and saved!");
         setImagePromptInput("");
       } else {
@@ -749,7 +751,7 @@ export default function PostEditorPage() {
                     <div className="relative group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
-                        src={post.featuredImage}
+                        src={`${post.featuredImage}?v=${imageCacheBust}`}
                         alt={post.featuredImageAlt || "Featured image"}
                         className="w-full rounded-lg aspect-video object-cover"
                       />

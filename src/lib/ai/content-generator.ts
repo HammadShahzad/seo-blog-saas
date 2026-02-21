@@ -490,16 +490,16 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
 
   if (includeImages && process.env.GOOGLE_AI_API_KEY) {
     await progress("image", "Generating featured image…");
-    const imageStyle = getImageStyle(ctx.niche);
-
-    // 1. Featured image (with retry built into generateWithImagen)
+    // 1. Featured image — Gemini crafts a creative prompt, Imagen renders it
     try {
-      const featPrompt = `${imageStyle}. Create an image that directly represents the concept of "${keyword}" for a ${ctx.niche} business. The image should clearly relate to "${outline.title}". No text, words, letters, or watermarks in the image. Make it specific and relevant, not generic stock imagery.`;
+      const featPrompt = `Create an image that directly represents the concept of "${keyword}" for a ${ctx.niche} business. The image should clearly relate to "${outline.title}". No text, words, letters, or watermarks.`;
       featuredImageUrl = await generateBlogImage(
         featPrompt,
         `${postSlug}-featured`,
         website.id,
-        outline.title
+        outline.title,
+        keyword,
+        ctx.niche,
       );
       featuredImageAlt = metadata.featuredImageAlt || `${keyword} - ${outline.title}`;
     } catch (err) {

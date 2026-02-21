@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Sparkles, Wrench, Zap, Shield } from "lucide-react";
 
@@ -91,7 +92,7 @@ const releases: Release[] = [
   },
 ];
 
-const typeConfig: Record<ChangeType, { icon: React.ElementType; label: string; color: string }> = {
+const typeConfig: Record<ChangeType, { icon: LucideIcon; label: string; color: string }> = {
   new: { icon: Sparkles, label: "New", color: "text-green-600 bg-green-500/10" },
   improvement: { icon: Zap, label: "Improved", color: "text-blue-600 bg-blue-500/10" },
   fix: { icon: Wrench, label: "Fixed", color: "text-orange-600 bg-orange-500/10" },
@@ -146,7 +147,7 @@ export default function ChangelogPage() {
                         return (
                           <li key={i} className="flex items-start gap-3">
                             <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${cfg.color}`}>
-                              <cfg.icon className="h-3 w-3" />
+                              {(() => { const Icon = cfg.icon; return <Icon className="h-3 w-3" />; })()}
                               {cfg.label}
                             </span>
                             <span className="text-sm leading-relaxed">{change.text}</span>

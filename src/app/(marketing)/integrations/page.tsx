@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://stackserp.com/integrations" },
 };
 
-const integrations = [
+const integrations: {
+  icon: LucideIcon;
+  name: string;
+  category: string;
+  badge: string;
+  badgeColor: string;
+  description: string;
+  features: string[];
+  setup: string;
+}[] = [
   {
     icon: Plug,
     name: "WordPress",
@@ -151,11 +161,13 @@ export default function IntegrationsPage() {
       {/* Integrations Grid */}
       <section className="py-16 px-4">
         <div className="max-w-7xl mx-auto grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {integrations.map((intg) => (
+          {integrations.map((intg) => {
+            const Icon = intg.icon;
+            return (
             <div key={intg.name} className="rounded-2xl border bg-card p-8 flex flex-col gap-5 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <intg.icon className="h-6 w-6" />
+                  <Icon className="h-6 w-6" />
                 </div>
                 <div className="flex flex-col items-end gap-1">
                   <Badge variant="outline" className={`text-xs ${intg.badgeColor}`}>{intg.badge}</Badge>
@@ -178,7 +190,8 @@ export default function IntegrationsPage() {
                 <p className="text-xs text-muted-foreground">{intg.setup}</p>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 

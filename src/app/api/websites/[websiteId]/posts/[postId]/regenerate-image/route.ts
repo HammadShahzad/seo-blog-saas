@@ -5,7 +5,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { generateBlogImage } from "@/lib/storage/image-generator";
-import { generateText } from "@/lib/ai/gemini";
 import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 export const maxDuration = 60;
@@ -42,22 +41,19 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json({ error: "Post not found" }, { status: 404 });
     }
 
-    // Build or use provided image prompt
-    let imagePrompt = body.prompt;
-    if (!imagePrompt) {
-      imagePrompt = await generateText(
-        `Create a professional, eye-catching image prompt for a blog post titled: "${post.title}"
-Topic: "${post.focusKeyword || post.title}" in the context of ${website?.niche || "business"}.
-Brand: ${website?.brandName || ""}
-Style: Clean, modern, professional. Suitable for a business blog. No text in the image.
-Describe the scene in 2-3 sentences for an AI image generator.
-Return only the image prompt, nothing else.`,
-        "You are a creative director specializing in B2B content marketing visuals."
-      );
-    }
+    // Build base prompt — Gemini inside generateBlogImage will enhance it creatively
+    const basePrompt = body.prompt ||
+      `Create an image that directly represents "${post.focusKeyword || post.title}" for a ${website?.niche || "business"} brand. Related to: "${post.title}". No text, words, or watermarks.`;
 
-    // Generate the image and upload to B2
-    const imageUrl = await generateBlogImage(imagePrompt, post.slug, websiteId);
+    // Generate the image — Gemini crafts a creative prompt, then Imagen renders it
+    const imageUrl = await generateBlogImage(
+      basePrompt,
+      post.slug,
+      websiteId,
+      undefined,
+      post.focusKeyword || post.title,
+      website?.niche || "business",
+    );
 
     // Persist the new URL
     const updated = await prisma.blogPost.update({
@@ -69,7 +65,6 @@ Return only the image prompt, nothing else.`,
     return NextResponse.json({
       success: true,
       imageUrl: updated.featuredImage,
-      prompt: imagePrompt,
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);

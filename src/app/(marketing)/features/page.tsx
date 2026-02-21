@@ -19,6 +19,7 @@ export const metadata: Metadata = {
     canonical: "https://stackserp.com/features",
   },
 };
+import type { LucideIcon } from "lucide-react";
 import {
   Zap,
   ArrowRight,
@@ -36,7 +37,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-const features = [
+const features: { icon: LucideIcon; title: string; subtitle: string; description: string; steps: string[] }[] = [
   {
     icon: Brain,
     title: "AI Content Generation",
@@ -218,7 +219,7 @@ export default function FeaturesPage() {
                 {/* Text */}
                 <div className="flex-1 max-w-xl">
                   <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 mb-4">
-                    <feature.icon className="h-6 w-6 text-primary" />
+                    {(() => { const Icon = feature.icon; return <Icon className="h-6 w-6 text-primary" />; })()}
                   </div>
                   <p className="text-sm font-medium text-primary mb-2">
                     {feature.subtitle}
@@ -247,7 +248,7 @@ export default function FeaturesPage() {
                   <div className="bg-muted/50 border rounded-xl p-8 aspect-[4/3] flex items-center justify-center">
                     <div className="text-center">
                       <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 mx-auto mb-4">
-                        <feature.icon className="h-8 w-8 text-primary" />
+                        {(() => { const Icon = feature.icon; return <Icon className="h-8 w-8 text-primary" />; })()}
                       </div>
                       <p className="text-sm font-medium text-muted-foreground">
                         {feature.title}

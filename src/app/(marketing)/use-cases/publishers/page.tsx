@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type { LucideIcon } from "lucide-react";
 import { ArrowRight, Newspaper, TrendingUp, CheckCircle2, DollarSign, Globe, Layers } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -18,7 +19,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://stackserp.com/use-cases/publishers" },
 };
 
-const benefits = [
+const benefits: { icon: LucideIcon; title: string; description: string }[] = [
   {
     icon: Layers,
     title: "Deep Topical Silos",
@@ -108,15 +109,18 @@ export default function PublishersUseCasePage() {
             <p className="text-muted-foreground max-w-xl mx-auto">From keyword research to auto-publishing, StackSerp handles the entire content pipeline.</p>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
-            {benefits.map((b) => (
+            {benefits.map((b) => {
+              const Icon = b.icon;
+              return (
               <div key={b.title} className="rounded-2xl border bg-card p-8">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary mb-5">
-                  <b.icon className="h-6 w-6" />
+                  <Icon className="h-6 w-6" />
                 </div>
                 <h3 className="text-xl font-bold mb-3">{b.title}</h3>
                 <p className="text-muted-foreground leading-relaxed">{b.description}</p>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

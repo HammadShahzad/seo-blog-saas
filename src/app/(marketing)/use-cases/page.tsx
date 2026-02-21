@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type { LucideIcon } from "lucide-react";
 import { ArrowRight, Rocket, Building2, Newspaper, Globe, CheckCircle2 } from "lucide-react";
 
 export const metadata: Metadata = {
@@ -18,7 +19,16 @@ export const metadata: Metadata = {
   alternates: { canonical: "https://stackserp.com/use-cases" },
 };
 
-const useCases = [
+const useCases: {
+  icon: LucideIcon;
+  title: string;
+  subtitle: string;
+  description: string;
+  benefits: string[];
+  cta: { label: string; href: string };
+  color: string;
+  badge: string;
+}[] = [
   {
     icon: Rocket,
     title: "Startups",
@@ -63,7 +73,7 @@ const useCases = [
       "Build feature-specific content clusters for long-tail SEO",
       "IndexNow integration for instant Google indexing",
     ],
-    cta: { label: "Start Free", href: "/register" },
+    cta: { label: "SaaS Guide", href: "/use-cases/saas" },
     color: "from-blue-500/10 to-blue-500/5",
     badge: "High Intent",
   },
@@ -138,7 +148,9 @@ export default function UseCasesPage() {
       {/* Use Cases Grid */}
       <section className="py-20 px-4">
         <div className="max-w-7xl mx-auto space-y-8">
-          {useCases.map((uc, i) => (
+          {useCases.map((uc, i) => {
+            const Icon = uc.icon;
+            return (
             <div
               key={uc.title}
               className={`rounded-2xl border bg-gradient-to-br ${uc.color} p-8 md:p-12`}
@@ -147,7 +159,7 @@ export default function UseCasesPage() {
                 <div className="flex-1 space-y-5">
                   <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <uc.icon className="h-6 w-6" />
+                      <Icon className="h-6 w-6" />
                     </div>
                     <Badge variant="outline" className="text-xs font-medium">{uc.badge}</Badge>
                   </div>
@@ -173,7 +185,8 @@ export default function UseCasesPage() {
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
