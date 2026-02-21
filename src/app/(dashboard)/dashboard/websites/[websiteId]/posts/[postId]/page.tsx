@@ -453,67 +453,74 @@ export default function PostEditorPage() {
     if (!post.content?.trim()) { toast.error("No content to export"); return; }
     setIsDownloadingPDF(true);
     try {
-      const html2pdf = (await import("html2pdf.js")).default;
       const { Marked } = await import("marked");
       const md = new Marked({ gfm: true, breaks: false });
       const htmlContent = md.parse(post.content) as string;
 
       const slug = post.slug || post.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60) || "blog-post";
+      const safeTitle = (post.title || "Untitled").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-      // Render inside a hidden iframe to isolate from page CSS (Tailwind lab()/oklch() colors crash html2canvas)
-      const iframe = document.createElement("iframe");
-      iframe.style.cssText = "position:fixed;left:-9999px;top:0;width:800px;height:1px;border:none;opacity:0";
-      document.body.appendChild(iframe);
+      // Open a clean popup window (no page CSS inheritance) and use browser native print-to-PDF.
+      // This avoids html2canvas entirely and its inability to handle lab()/oklch() color functions.
+      const printWindow = window.open("", "_blank", "width=900,height=700");
+      if (!printWindow) { toast.error("Please allow popups to download PDF"); setIsDownloadingPDF(false); return; }
 
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
-      if (!iframeDoc) throw new Error("Could not access iframe document");
+      printWindow.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${safeTitle}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { padding: 48px 56px; max-width: 780px; margin: 0 auto; font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a; line-height: 1.75; font-size: 14px; background: #fff; }
+    .pdf-header { margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e5e5e5; }
+    .pdf-header h1 { font-size: 26px; margin: 0 0 10px; line-height: 1.3; color: #111; }
+    .pdf-meta { font-size: 12px; color: #777; margin-top: 6px; }
+    h2 { font-size: 20px; margin: 28px 0 10px; color: #111; border-bottom: 1px solid #eee; padding-bottom: 6px; page-break-after: avoid; }
+    h3 { font-size: 17px; margin: 20px 0 8px; color: #222; page-break-after: avoid; }
+    h4 { font-size: 15px; margin: 16px 0 6px; color: #333; }
+    p { margin: 0 0 12px; orphans: 3; widows: 3; }
+    ul, ol { margin: 0 0 12px; padding-left: 24px; }
+    li { margin-bottom: 5px; }
+    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; page-break-inside: avoid; }
+    th { background: #f5f5f5; font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid #ddd; }
+    td { padding: 8px 12px; border: 1px solid #ddd; vertical-align: top; }
+    tr:nth-child(even) td { background: #fafafa; }
+    blockquote { margin: 16px 0; padding: 12px 20px; border-left: 4px solid #ccc; color: #555; background: #f9f9f9; }
+    code { background: #f3f3f3; padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: 'Courier New', monospace; }
+    pre { background: #f3f3f3; padding: 12px 16px; border-radius: 4px; overflow: auto; font-size: 12px; margin: 0 0 12px; }
+    a { color: #1d4ed8; }
+    img { max-width: 100%; height: auto; margin: 12px 0; border-radius: 4px; }
+    hr { border: none; border-top: 1px solid #e5e5e5; margin: 24px 0; }
+    @media print {
+      body { padding: 0; }
+      @page { margin: 18mm 18mm 18mm 18mm; size: A4; }
+      h2, h3 { page-break-after: avoid; }
+      table, figure { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class="pdf-header">
+    <h1>${safeTitle}</h1>
+    <div class="pdf-meta">
+      ${post.focusKeyword ? `Focus keyword: <strong>${post.focusKeyword.replace(/</g, "&lt;")}</strong>` : ""}
+      ${post.focusKeyword && post.wordCount ? " &nbsp;&middot;&nbsp; " : ""}
+      ${post.wordCount ? `${post.wordCount.toLocaleString()} words &middot; ${post.readingTime || Math.ceil(post.wordCount / 200)} min read` : ""}
+    </div>
+  </div>
+  ${htmlContent}
+  <script>
+    window.onload = function() {
+      document.title = ${JSON.stringify(slug)};
+      setTimeout(function() { window.print(); }, 400);
+    };
+  <\/script>
+</body>
+</html>`);
+      printWindow.document.close();
 
-      iframeDoc.open();
-      iframeDoc.write(`<!DOCTYPE html><html><head><style>
-        * { margin:0; padding:0; box-sizing:border-box; }
-        body { padding:40px 50px; max-width:800px; margin:0 auto; font-family:Georgia,'Times New Roman',serif; color:#1a1a1a; line-height:1.7; font-size:14px; background:#fff; }
-        .pdf-header { margin-bottom:32px; padding-bottom:24px; border-bottom:2px solid #e5e5e5; }
-        .pdf-header h1 { font-size:28px; margin:0 0 12px; line-height:1.3; color:#111; }
-        .pdf-header p { font-size:12px; color:#666; margin:4px 0 0; }
-        h2 { font-size:22px; margin:28px 0 12px; color:#111; border-bottom:1px solid #eee; padding-bottom:8px; }
-        h3 { font-size:18px; margin:20px 0 8px; color:#222; }
-        p { margin:0 0 12px; }
-        ul, ol { margin:0 0 12px; padding-left:24px; }
-        li { margin-bottom:4px; }
-        table { width:100%; border-collapse:collapse; margin:16px 0; font-size:13px; }
-        th { background:#f5f5f5; font-weight:600; text-align:left; padding:8px 12px; border:1px solid #ddd; }
-        td { padding:8px 12px; border:1px solid #ddd; }
-        blockquote { margin:16px 0; padding:12px 20px; border-left:4px solid #ddd; color:#555; background:#fafafa; }
-        code { background:#f3f3f3; padding:2px 6px; border-radius:3px; font-size:13px; font-family:monospace; }
-        a { color:#2563eb; text-decoration:underline; }
-        img { max-width:100%; height:auto; margin:12px 0; border-radius:8px; }
-      </style></head><body>
-        <div class="pdf-header">
-          <h1>${(post.title || "Untitled").replace(/</g, "&lt;")}</h1>
-          ${post.focusKeyword ? `<p>Focus keyword: ${post.focusKeyword.replace(/</g, "&lt;")}</p>` : ""}
-          ${post.wordCount ? `<p>Word count: ${post.wordCount} &middot; ${post.readingTime || Math.ceil(post.wordCount / 200)} min read</p>` : ""}
-        </div>
-        ${htmlContent}
-      </body></html>`);
-      iframeDoc.close();
-
-      // Wait for iframe content to render
-      await new Promise((r) => setTimeout(r, 300));
-
-      await html2pdf()
-        .set({
-          margin: [10, 10, 10, 10],
-          filename: `${slug}.pdf`,
-          image: { type: "jpeg", quality: 0.95 },
-          html2canvas: { scale: 2, useCORS: true, logging: false },
-          jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-          pagebreak: { mode: ["avoid-all", "css", "legacy"] },
-        })
-        .from(iframeDoc.body)
-        .save();
-
-      document.body.removeChild(iframe);
-      toast.success("PDF downloaded");
+      toast.success("Print dialog opened — choose 'Save as PDF'");
     } catch (err) {
       console.error("PDF download error:", err);
       toast.error("Failed to generate PDF");
