@@ -12,6 +12,7 @@ import { pushToShopify, ShopifyConfig } from "./cms/shopify";
 import { pushToWebflow, WebflowConfig } from "./cms/webflow";
 import { sendPostGeneratedEmail } from "./email";
 import { markdownToHtml } from "./cms/wordpress";
+import { updateOldPostsWithLink } from "./internal-linker";
 
 interface PublishHookInput {
   postId: string;
@@ -201,6 +202,18 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
   }
 
   await Promise.allSettled(tasks);
+
+  // Retroactive internal linking — fire-and-forget, never blocks publish
+  // Finds 3-5 older relevant posts and inserts a link to this new post in each
+  if (post.focusKeyword || post.title) {
+    updateOldPostsWithLink(
+      post.slug,
+      post.title,
+      post.focusKeyword || post.title,
+      websiteId,
+      baseUrl,
+    ).catch((e) => console.warn("[Linker] background update failed:", e?.message));
+  }
 
   // Revalidate the public blog pages so the post appears immediately
   try {
