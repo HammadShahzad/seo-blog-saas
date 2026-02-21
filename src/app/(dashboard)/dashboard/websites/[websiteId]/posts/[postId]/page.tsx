@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,17 +21,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
 import {
   ArrowLeft,
   Save,
-  Eye,
   Send,
   Loader2,
-  Clock,
   FileText,
   BarChart3,
-  Image,
   Tags,
   Plug,
   CheckCircle2,
@@ -44,7 +49,10 @@ import {
   ClipboardPaste,
   CalendarClock,
   X,
+  Globe,
 } from "lucide-react";
+// Lucide's Image component conflicts with Next.js <img>; alias to avoid naming clash
+import { Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { MarkdownEditor } from "@/components/editor/markdown-editor";
@@ -72,6 +80,14 @@ interface Post {
   externalUrl: string | null;
 }
 
+const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline"; className?: string }> = {
+  DRAFT:     { label: "Draft",     variant: "secondary" },
+  REVIEW:    { label: "Review",    variant: "outline" },
+  SCHEDULED: { label: "Scheduled", variant: "outline", className: "border-blue-400 text-blue-700 bg-blue-50" },
+  PUBLISHED: { label: "Published", variant: "default" },
+  ARCHIVED:  { label: "Archived",  variant: "secondary" },
+};
+
 export default function PostEditorPage() {
   const params = useParams();
   const router = useRouter();
@@ -80,25 +96,19 @@ export default function PostEditorPage() {
   const isNew = postId === "new";
 
   const [post, setPost] = useState<Partial<Post>>({
-    title: "",
-    slug: "",
-    content: "",
-    excerpt: "",
-    metaTitle: "",
-    metaDescription: "",
-    focusKeyword: "",
-    secondaryKeywords: [],
-    tags: [],
-    category: "",
-    status: "DRAFT",
+    title: "", slug: "", content: "", excerpt: "",
+    metaTitle: "", metaDescription: "", focusKeyword: "",
+    secondaryKeywords: [], tags: [], category: "", status: "DRAFT",
   });
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [isPushingToWP, setIsPushingToWP] = useState(false);
-  const [isPushingToShopify, setIsPushingToShopify] = useState(false);
-  const [wpResult, setWpResult] = useState<{ url?: string; editUrl?: string } | null>(null);
-  const [shopifyResult, setShopifyResult] = useState<{ articleUrl?: string; adminUrl?: string } | null>(null);
+  const [isPushingToCMS, setIsPushingToCMS] = useState(false);
+  const [cmsResult, setCmsResult] = useState<{
+    type: "wp" | "shopify" | null;
+    viewUrl?: string;
+    editUrl?: string;
+  } | null>(null);
   const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
   const [isFixingSEO, setIsFixingSEO] = useState(false);
   const [showScheduler, setShowScheduler] = useState(false);
@@ -130,10 +140,7 @@ export default function PostEditorPage() {
     if (!isNew) {
       fetch(`/api/websites/${websiteId}/posts/${postId}`)
         .then((r) => r.json())
-        .then((data) => {
-          setPost(data);
-          setAutoSlug(false);
-        })
+        .then((data) => { setPost(data); setAutoSlug(false); })
         .catch(() => toast.error("Failed to load post"))
         .finally(() => setIsLoading(false));
     }
@@ -159,14 +166,10 @@ export default function PostEditorPage() {
 
   const updateField = (field: string, value: unknown) => {
     setPost((p) => ({ ...p, [field]: value }));
-    // Auto-generate slug from title
     if (field === "title" && autoSlug) {
       const slug = (value as string)
-        .toLowerCase()
-        .replace(/[^\w\s-]/g, "")
-        .replace(/[\s_]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 80);
+        .toLowerCase().replace(/[^\w\s-]/g, "").replace(/[\s_]+/g, "-")
+        .replace(/^-+|-+$/g, "").slice(0, 80);
       setPost((p) => ({ ...p, title: value as string, slug }));
     }
   };
@@ -174,7 +177,6 @@ export default function PostEditorPage() {
   const wordCount = post.content ? post.content.split(/\s+/).filter(Boolean).length : 0;
   const readingTime = Math.ceil(wordCount / 200);
 
-  // Compute the live URL for the "View Live" button
   const liveUrl = (() => {
     if (post.externalUrl) return post.externalUrl;
     if (!post.slug || post.status !== "PUBLISHED") return null;
@@ -184,103 +186,113 @@ export default function PostEditorPage() {
     return null;
   })();
 
-  const handleSave = async (statusOverride?: string) => {
-    if (!post.title || !post.content) {
+  // ─── Single core save function — all saves go through here ───────────────
+  const savePost = async (statusOverride?: string): Promise<{ ok: boolean; saved?: Post }> => {
+    if (!post.title?.trim() || !post.content?.trim()) {
       toast.error("Title and content are required");
-      return;
+      return { ok: false };
     }
+    const payload = { ...post, wordCount, readingTime };
+    if (statusOverride) payload.status = statusOverride;
+
+    const url = isNew
+      ? `/api/websites/${websiteId}/posts`
+      : `/api/websites/${websiteId}/posts/${postId}`;
+    const res = await fetch(url, {
+      method: isNew ? "POST" : "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      toast.error(err.error || "Failed to save");
+      return { ok: false };
+    }
+    return { ok: true, saved: await res.json() };
+  };
+
+  // Run SEO auto-fix in background after any save (non-blocking)
+  const runSEOFix = (savedPostId: string) => {
+    setIsFixingSEO(true);
+    const contentAtSave = post.content;
+    fetch(`/api/websites/${websiteId}/posts/${savedPostId}/seo-fix`, { method: "POST" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.content && data.content !== contentAtSave) {
+          updateField("content", data.content);
+          const fixed = data.issuesFixed ?? {};
+          const msgs: string[] = [];
+          if (fixed.longParagraphs > 0) msgs.push(`${fixed.longParagraphs} paragraph(s) split`);
+          if (fixed.addedH3s) msgs.push("H3s added");
+          if (fixed.expandedWords) msgs.push("content expanded");
+          if (fixed.addedLinks) msgs.push("links added");
+          if (fixed.tocRegenerated) msgs.push("TOC updated");
+          if (msgs.length) toast.success(`Auto-optimized: ${msgs.join(", ")}`);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setIsFixingSEO(false));
+  };
+
+  const handleSave = async (statusOverride?: string) => {
     setIsSaving(true);
     try {
-      const payload = { ...post, wordCount, readingTime };
-      if (statusOverride) payload.status = statusOverride;
-
-      const url = isNew
-        ? `/api/websites/${websiteId}/posts`
-        : `/api/websites/${websiteId}/posts/${postId}`;
-      const method = isNew ? "POST" : "PATCH";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        const saved = await res.json();
-        toast.success(
-          statusOverride === "PUBLISHED" ? "Post published!" : "Post saved"
-        );
-        if (isNew) {
-          router.replace(
-            `/dashboard/websites/${websiteId}/posts/${saved.id}`
-          );
-        } else {
-          setPost((p) => ({ ...p, status: saved.status }));
-          // Auto-run SEO fix in background (non-blocking)
-          const contentAtSave = post.content;
-          setIsFixingSEO(true);
-          fetch(`/api/websites/${websiteId}/posts/${saved.id}/seo-fix`, { method: "POST" })
-            .then((r) => r.json())
-            .then((data) => {
-              if (data.content && data.content !== contentAtSave) {
-                updateField("content", data.content);
-                const fixed = data.issuesFixed ?? {};
-                const msgs: string[] = [];
-                if (fixed.longParagraphs > 0) msgs.push(`${fixed.longParagraphs} paragraph(s) split`);
-                if (fixed.addedH3s) msgs.push("H3s added");
-                if (fixed.expandedWords) msgs.push("content expanded");
-                if (fixed.addedLinks) msgs.push("links added");
-                if (fixed.tocRegenerated) msgs.push("TOC updated");
-                if (msgs.length > 0) toast.success(`Auto-optimized: ${msgs.join(", ")}`);
-              }
-            })
-            .catch(() => {})
-            .finally(() => setIsFixingSEO(false));
-        }
+      const { ok, saved } = await savePost(statusOverride);
+      if (!ok || !saved) return;
+      const msg = statusOverride === "PUBLISHED" ? "Post published!" :
+        statusOverride === "DRAFT" ? "Moved to Draft" :
+        statusOverride === "REVIEW" ? "Marked as ready for review" : "Post saved";
+      toast.success(msg);
+      if (isNew) {
+        router.replace(`/dashboard/websites/${websiteId}/posts/${saved.id}`);
       } else {
-        const err = await res.json();
-        toast.error(err.error || "Failed to save");
+        setPost((p) => ({ ...p, status: saved.status }));
+        runSEOFix(saved.id);
       }
-    } catch {
-      toast.error("Failed to save post");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleSchedule = async () => {
-    if (!scheduleDate) {
-      toast.error("Please pick a date and time");
-      return;
+  const handlePublish = async () => {
+    setIsPublishing(true);
+    try {
+      const { ok, saved } = await savePost("PUBLISHED");
+      if (!ok || !saved) return;
+      toast.success("Post published!");
+      setPost((p) => ({ ...p, status: "PUBLISHED" }));
+      if (isNew) {
+        router.replace(`/dashboard/websites/${websiteId}/posts/${saved.id}`);
+      } else {
+        runSEOFix(saved.id);
+      }
+    } finally {
+      setIsPublishing(false);
     }
+  };
+
+  const handleSchedule = async () => {
+    if (!scheduleDate) { toast.error("Please pick a date and time"); return; }
     const scheduledAt = new Date(scheduleDate);
-    if (scheduledAt <= new Date()) {
-      toast.error("Scheduled time must be in the future");
+    if (scheduledAt <= new Date()) { toast.error("Scheduled time must be in the future"); return; }
+    if (!post.title?.trim() || !post.content?.trim()) {
+      toast.error("Title and content are required");
       return;
     }
     setIsScheduling(true);
     try {
-      // First save current content, then set SCHEDULED status + scheduledAt
-      const saveRes = await fetch(`/api/websites/${websiteId}/posts/${postId}`, {
+      const res = await fetch(`/api/websites/${websiteId}/posts/${postId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: post.title,
-          slug: post.slug,
-          content: post.content,
-          excerpt: post.excerpt,
-          metaTitle: post.metaTitle,
-          metaDescription: post.metaDescription,
-          focusKeyword: post.focusKeyword,
-          secondaryKeywords: post.secondaryKeywords,
-          tags: post.tags,
-          category: post.category,
+          ...post, wordCount, readingTime,
           status: "SCHEDULED",
           scheduledAt: scheduledAt.toISOString(),
         }),
       });
-      if (!saveRes.ok) throw new Error("Failed to schedule");
-      const saved = await saveRes.json();
+      if (!res.ok) throw new Error("Failed to schedule");
+      const saved = await res.json();
       setPost((p) => ({ ...p, status: saved.status, scheduledAt: saved.scheduledAt }));
       setShowScheduler(false);
       toast.success(`Scheduled for ${scheduledAt.toLocaleString()}`);
@@ -300,18 +312,58 @@ export default function PostEditorPage() {
       });
       if (res.ok) {
         setPost((p) => ({ ...p, status: "DRAFT", scheduledAt: null }));
-        toast.success("Schedule removed — post moved to Draft");
+        setShowScheduler(false);
+        toast.success("Schedule removed — post is now a Draft");
       }
-    } catch {
-      toast.error("Failed to unschedule");
-    }
+    } catch { toast.error("Failed to unschedule"); }
+  };
+
+  const handlePushToWordPress = async (status: "draft" | "publish") => {
+    if (isNew) { toast.error("Save the post first"); return; }
+    setIsPushingToCMS(true);
+    setCmsResult(null);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/wordpress/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, status }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCmsResult({ type: "wp", viewUrl: data.wpPostUrl, editUrl: data.wpEditUrl });
+        if (data.wpPostUrl) setPost((p) => ({ ...p, externalUrl: data.wpPostUrl }));
+        toast.success(`Pushed to WordPress as ${status}!`);
+      } else {
+        toast.error(data.error || "Failed to push to WordPress");
+      }
+    } catch { toast.error("Failed to push to WordPress"); }
+    finally { setIsPushingToCMS(false); }
+  };
+
+  const handlePushToShopify = async (status: "draft" | "published") => {
+    if (isNew) { toast.error("Save the post first"); return; }
+    setIsPushingToCMS(true);
+    setCmsResult(null);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/shopify/push`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ postId, status }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCmsResult({ type: "shopify", viewUrl: data.articleUrl, editUrl: data.adminUrl });
+        if (data.articleUrl) setPost((p) => ({ ...p, externalUrl: data.articleUrl }));
+        toast.success(`Pushed to Shopify as ${status}!`);
+      } else {
+        toast.error(data.error || "Failed to push to Shopify");
+      }
+    } catch { toast.error("Failed to push to Shopify"); }
+    finally { setIsPushingToCMS(false); }
   };
 
   const handleAIRewrite = async () => {
-    if (!aiText.trim()) {
-      toast.error("Paste or type the text you want to rewrite");
-      return;
-    }
+    if (!aiText.trim()) { toast.error("Paste the text you want to rewrite"); return; }
     setIsRewriting(true);
     setAiResult("");
     try {
@@ -330,113 +382,11 @@ export default function PostEditorPage() {
     }
   };
 
-  const handlePublish = async () => {
-    if (!post.title || !post.content) {
-      toast.error("Title and content are required");
-      return;
-    }
-    setIsPublishing(true);
-    try {
-      const payload = { ...post, wordCount, readingTime, status: "PUBLISHED" };
-      const url = isNew
-        ? `/api/websites/${websiteId}/posts`
-        : `/api/websites/${websiteId}/posts/${postId}`;
-      const method = isNew ? "POST" : "PATCH";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (res.ok) {
-        const saved = await res.json();
-        toast.success("Post published!");
-        setPost((p) => ({ ...p, status: "PUBLISHED" }));
-        if (isNew) {
-          router.replace(`/dashboard/websites/${websiteId}/posts/${saved.id}`);
-        }
-      } else {
-        const err = await res.json();
-        toast.error(err.error || "Failed to publish");
-      }
-    } catch {
-      toast.error("Failed to publish post");
-    } finally {
-      setIsPublishing(false);
-    }
-  };
-
-  const handlePushToShopify = async (status: "draft" | "published") => {
-    if (isNew || !postId) {
-      toast.error("Save the post first before pushing to Shopify");
-      return;
-    }
-    setIsPushingToShopify(true);
-    setShopifyResult(null);
-    try {
-      const res = await fetch(`/api/websites/${websiteId}/shopify/push`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, status }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setShopifyResult({ articleUrl: data.articleUrl, adminUrl: data.adminUrl });
-        if (data.articleUrl) setPost((p) => ({ ...p, externalUrl: data.articleUrl }));
-        toast.success(`Pushed to Shopify as ${status}!`);
-      } else {
-        toast.error(data.error || "Failed to push to Shopify");
-      }
-    } catch {
-      toast.error("Failed to push to Shopify");
-    } finally {
-      setIsPushingToShopify(false);
-    }
-  };
-
-  const handlePushToWordPress = async (status: "draft" | "publish") => {
-    if (isNew || !postId) {
-      toast.error("Save the post first before pushing to WordPress");
-      return;
-    }
-    setIsPushingToWP(true);
-    setWpResult(null);
-    try {
-      const res = await fetch(`/api/websites/${websiteId}/wordpress/push`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, status }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setWpResult({ url: data.wpPostUrl, editUrl: data.wpEditUrl });
-        if (data.wpPostUrl) setPost((p) => ({ ...p, externalUrl: data.wpPostUrl }));
-        toast.success(`Pushed to WordPress as ${status}!`);
-      } else {
-        toast.error(data.error || "Failed to push to WordPress");
-        if (data.error?.includes("not connected")) {
-          toast.error("Go to Website Settings → WordPress to connect first");
-        }
-      }
-    } catch {
-      toast.error("Failed to push to WordPress");
-    } finally {
-      setIsPushingToWP(false);
-    }
-  };
-
   const handleAutoFixSEO = async () => {
-    if (isNew || !postId) {
-      toast.error("Save the post first");
-      return;
-    }
+    if (isNew) { toast.error("Save the post first"); return; }
     setIsFixingSEO(true);
     try {
-      const res = await fetch(
-        `/api/websites/${websiteId}/posts/${postId}/seo-fix`,
-        { method: "POST" }
-      );
+      const res = await fetch(`/api/websites/${websiteId}/posts/${postId}/seo-fix`, { method: "POST" });
       const data = await res.json();
       if (res.ok) {
         updateField("content", data.content);
@@ -451,56 +401,55 @@ export default function PostEditorPage() {
       } else {
         toast.error(data.error || "Auto-fix failed");
       }
-    } catch {
-      toast.error("Auto-fix failed");
-    } finally {
-      setIsFixingSEO(false);
-    }
+    } catch { toast.error("Auto-fix failed"); }
+    finally { setIsFixingSEO(false); }
   };
 
   const handleRegenerateImage = async (customPrompt?: string) => {
-    if (isNew || !postId) {
-      toast.error("Save the post first before regenerating the image");
-      return;
-    }
+    if (isNew) { toast.error("Save the post first"); return; }
     setIsRegeneratingImage(true);
     try {
-      const res = await fetch(
-        `/api/websites/${websiteId}/posts/${postId}/regenerate-image`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(customPrompt ? { prompt: customPrompt } : {}),
-        }
-      );
+      const res = await fetch(`/api/websites/${websiteId}/posts/${postId}/regenerate-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(customPrompt ? { prompt: customPrompt } : {}),
+      });
       const data = await res.json();
       if (res.ok) {
         updateField("featuredImage", data.imageUrl);
         setImageCacheBust(Date.now());
-        toast.success("New image generated and saved!");
+        toast.success("New image generated!");
         setImagePromptInput("");
       } else {
         toast.error(data.error || "Failed to generate image");
       }
-    } catch {
-      toast.error("Image generation failed");
-    } finally {
-      setIsRegeneratingImage(false);
-    }
+    } catch { toast.error("Image generation failed"); }
+    finally { setIsRegeneratingImage(false); }
   };
 
   const addTag = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && tagInput.trim()) {
       e.preventDefault();
-      const newTags = [...(post.tags || []), tagInput.trim()];
-      updateField("tags", newTags);
+      updateField("tags", [...(post.tags || []), tagInput.trim()]);
       setTagInput("");
     }
   };
 
-  const removeTag = (tag: string) => {
-    updateField("tags", (post.tags || []).filter((t) => t !== tag));
+  const removeTag = (tag: string) => updateField("tags", (post.tags || []).filter((t) => t !== tag));
+
+  const prefillScheduleDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(9, 0, 0, 0);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    setScheduleDate(
+      `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`
+    );
   };
+
+  const hasCMSIntegration = integrations.wp || integrations.shopify;
+
+  const statusCfg = STATUS_CONFIG[post.status || "DRAFT"];
 
   if (isLoading) {
     return (
@@ -512,30 +461,24 @@ export default function PostEditorPage() {
 
   return (
     <div className="space-y-4">
-      {/* Top Bar */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="icon">
+      {/* ── Top Bar ─────────────────────────────────────────────────────── */}
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        {/* Left: back + title + status */}
+        <div className="flex items-center gap-3 min-w-0">
+          <Button asChild variant="ghost" size="icon" className="shrink-0">
             <Link href={`/dashboard/websites/${websiteId}/posts`}>
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
-          <div>
-            <h2 className="text-xl font-bold">
-              {isNew ? "New Post" : "Edit Post"}
-            </h2>
-            <div className="flex items-center gap-2 mt-0.5">
-              <Badge variant={
-                post.status === "PUBLISHED" ? "default" :
-                post.status === "SCHEDULED" ? "outline" :
-                post.status === "REVIEW" ? "outline" : "secondary"
-              } className={post.status === "SCHEDULED" ? "border-blue-400 text-blue-700 bg-blue-50" : ""}>
-                {post.status === "SCHEDULED" ? (
-                  <span className="flex items-center gap-1">
-                    <CalendarClock className="h-3 w-3" />
-                    scheduled
-                  </span>
-                ) : post.status?.toLowerCase()}
+          <div className="min-w-0">
+            <h2 className="text-xl font-bold truncate">{isNew ? "New Post" : (post.title || "Edit Post")}</h2>
+            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+              <Badge
+                variant={statusCfg.variant}
+                className={statusCfg.className}
+              >
+                {post.status === "SCHEDULED" && <CalendarClock className="mr-1 h-3 w-3" />}
+                {statusCfg.label}
               </Badge>
               {post.status === "SCHEDULED" && post.scheduledAt && (
                 <span className="text-xs text-blue-600 font-medium">
@@ -543,193 +486,127 @@ export default function PostEditorPage() {
                 </span>
               )}
               <span className="text-xs text-muted-foreground">
-                {wordCount} words · {readingTime} min read
+                {wordCount.toLocaleString()} words · {readingTime} min read
               </span>
+              {isFixingSEO && (
+                <span className="text-xs text-green-600 flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  Optimizing…
+                </span>
+              )}
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => handleSave()}
-            disabled={isSaving}
-          >
-            {isSaving ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : isFixingSEO ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin text-green-600" />
-            ) : (
-              <Save className="mr-2 h-4 w-4" />
-            )}
-            {isFixingSEO ? "Optimizing…" : "Save"}
+
+        {/* Right: action buttons */}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
+          {/* Save */}
+          <Button variant="outline" size="sm" onClick={() => handleSave()} disabled={isSaving || isPublishing}>
+            {isSaving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+            Save
           </Button>
 
-          {/* View Live button — shown whenever we have a live URL */}
+          {/* View Live — only when published & URL known */}
           {liveUrl && (
             <a href={liveUrl} target="_blank" rel="noopener noreferrer">
               <Button variant="outline" size="sm" className="border-emerald-500 text-emerald-700 hover:bg-emerald-50">
-                <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
+                <Globe className="mr-1.5 h-3.5 w-3.5" />
                 View Live
               </Button>
             </a>
           )}
 
-          {/* Schedule / Publish / Unschedule */}
+          {/* ── Publish-state actions ── */}
           {post.status === "SCHEDULED" ? (
-            <div className="flex items-center gap-1">
-              <Button
-                size="sm"
-                onClick={handlePublish}
-                disabled={isPublishing || isSaving}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
+            <>
+              <Button size="sm" onClick={handlePublish} disabled={isPublishing || isSaving}
+                className="bg-green-600 hover:bg-green-700 text-white">
                 {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
                 Publish Now
               </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleUnschedule}
-                className="border-blue-400 text-blue-700 hover:bg-blue-50"
-              >
+              <Button size="sm" variant="outline" onClick={handleUnschedule}
+                className="border-blue-400 text-blue-700 hover:bg-blue-50">
                 <X className="mr-1 h-3.5 w-3.5" />
                 Unschedule
               </Button>
-            </div>
-          ) : post.status !== "PUBLISHED" ? (
-            <div className="flex items-center gap-1">
+            </>
+          ) : post.status === "PUBLISHED" ? (
+            <Button size="sm" variant="outline" onClick={() => handleSave("DRAFT")} disabled={isSaving}
+              className="border-yellow-500 text-yellow-700 hover:bg-yellow-50">
+              Unpublish
+            </Button>
+          ) : (
+            <>
+              {/* Mark Review — only for DRAFT (not REVIEW, not SCHEDULED) */}
+              {post.status === "DRAFT" && !isNew && (
+                <Button size="sm" variant="secondary" onClick={() => handleSave("REVIEW")} disabled={isSaving}>
+                  <Send className="mr-1.5 h-3.5 w-3.5" />
+                  Mark Review
+                </Button>
+              )}
+              {/* Schedule — only for saved posts */}
               {!isNew && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    // Pre-fill with tomorrow 9am in local time
-                    const tomorrow = new Date();
-                    tomorrow.setDate(tomorrow.getDate() + 1);
-                    tomorrow.setHours(9, 0, 0, 0);
-                    const pad = (n: number) => String(n).padStart(2, "0");
-                    setScheduleDate(
-                      `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`
-                    );
-                    setShowScheduler((v) => !v);
-                  }}
-                  className="border-blue-400 text-blue-700 hover:bg-blue-50"
-                >
+                <Button size="sm" variant="outline" onClick={() => { prefillScheduleDate(); setShowScheduler((v) => !v); }}
+                  className="border-blue-400 text-blue-700 hover:bg-blue-50">
                   <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
                   Schedule
                 </Button>
               )}
-              <Button
-                size="sm"
-                onClick={handlePublish}
-                disabled={isPublishing || isSaving}
-                className="bg-green-600 hover:bg-green-700 text-white"
-              >
-                {isPublishing ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                )}
+              <Button size="sm" onClick={handlePublish} disabled={isPublishing || isSaving}
+                className="bg-green-600 hover:bg-green-700 text-white">
+                {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
                 Publish
               </Button>
-            </div>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => handleSave("DRAFT")}
-              disabled={isSaving}
-              className="border-yellow-500 text-yellow-700 hover:bg-yellow-50"
-            >
-              Unpublish
-            </Button>
+            </>
           )}
 
-          {/* WordPress push buttons */}
-          {!isNew && integrations.wp && (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePushToWordPress("draft")}
-                disabled={isPushingToWP || isSaving}
-                className="border-[#21759b] text-[#21759b] hover:bg-[#21759b]/5"
-              >
-                {isPushingToWP ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Plug className="mr-1.5 h-3.5 w-3.5" />
+          {/* ── Push to CMS dropdown — only if connected ── */}
+          {!isNew && hasCMSIntegration && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isPushingToCMS}>
+                  {isPushingToCMS ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plug className="mr-1.5 h-3.5 w-3.5" />}
+                  Push to CMS
+                  <ChevronDown className="ml-1.5 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                {integrations.wp && (
+                  <>
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">WordPress</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => handlePushToWordPress("draft")} className="text-sm cursor-pointer">
+                      <Plug className="mr-2 h-3.5 w-3.5 text-[#21759b]" />
+                      Push as Draft
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handlePushToWordPress("publish")} className="text-sm cursor-pointer">
+                      <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-[#21759b]" />
+                      Publish to WordPress
+                    </DropdownMenuItem>
+                  </>
                 )}
-                WP Draft
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handlePushToWordPress("publish")}
-                disabled={isPushingToWP || isSaving}
-                className="bg-[#21759b] hover:bg-[#21759b]/90"
-              >
-                {isPushingToWP ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Plug className="mr-1.5 h-3.5 w-3.5" />
+                {integrations.wp && integrations.shopify && <DropdownMenuSeparator />}
+                {integrations.shopify && (
+                  <>
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">Shopify</DropdownMenuLabel>
+                    <DropdownMenuItem onClick={() => handlePushToShopify("draft")} className="text-sm cursor-pointer">
+                      <Plug className="mr-2 h-3.5 w-3.5 text-[#5c8a1e]" />
+                      Push as Draft
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handlePushToShopify("published")} className="text-sm cursor-pointer">
+                      <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-[#5c8a1e]" />
+                      Publish to Shopify
+                    </DropdownMenuItem>
+                  </>
                 )}
-                WP Publish
-              </Button>
-            </div>
-          )}
-
-          {/* Shopify push buttons */}
-          {!isNew && integrations.shopify && (
-            <div className="flex items-center gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handlePushToShopify("draft")}
-                disabled={isPushingToShopify || isSaving}
-                className="border-[#96bf48] text-[#5c8a1e] hover:bg-[#96bf48]/5"
-              >
-                {isPushingToShopify ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                )}
-                Shopify Draft
-              </Button>
-              <Button
-                size="sm"
-                onClick={() => handlePushToShopify("published")}
-                disabled={isPushingToShopify || isSaving}
-                className="bg-[#5c8a1e] hover:bg-[#4a7018] text-white"
-              >
-                {isPushingToShopify ? (
-                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <ExternalLink className="mr-1.5 h-3.5 w-3.5" />
-                )}
-                Shopify Publish
-              </Button>
-            </div>
-          )}
-
-          {/* Save as ready for review */}
-          {post.status !== "PUBLISHED" && (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => handleSave("REVIEW")}
-              disabled={isSaving}
-            >
-              <Send className="mr-2 h-4 w-4" />
-              Mark Ready
-            </Button>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
 
-      {/* Scheduler panel */}
+      {/* ── Scheduler Panel ───────────────────────────────────────────────── */}
       {showScheduler && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm">
+        <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm flex-wrap">
           <CalendarClock className="h-4 w-4 text-blue-600 shrink-0" />
           <span className="font-medium text-blue-800 shrink-0">Schedule publish:</span>
           <input
@@ -739,14 +616,10 @@ export default function PostEditorPage() {
             onChange={(e) => setScheduleDate(e.target.value)}
             className="border rounded-md px-2 py-1 text-sm bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-blue-400"
           />
-          <Button
-            size="sm"
-            onClick={handleSchedule}
-            disabled={isScheduling || !scheduleDate}
-            className="bg-blue-600 hover:bg-blue-700 text-white shrink-0"
-          >
+          <Button size="sm" onClick={handleSchedule} disabled={isScheduling || !scheduleDate}
+            className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
             {isScheduling ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CalendarClock className="mr-1.5 h-3.5 w-3.5" />}
-            Confirm Schedule
+            Confirm
           </Button>
           <button type="button" onClick={() => setShowScheduler(false)} className="ml-auto text-blue-400 hover:text-blue-700">
             <X className="h-4 w-4" />
@@ -754,7 +627,7 @@ export default function PostEditorPage() {
         </div>
       )}
 
-      {/* Scheduled banner — shown when post is scheduled */}
+      {/* ── Scheduled banner ─────────────────────────────────────────────── */}
       {post.status === "SCHEDULED" && post.scheduledAt && !showScheduler && (
         <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm">
           <CalendarClock className="h-4 w-4 text-blue-600 shrink-0" />
@@ -767,96 +640,77 @@ export default function PostEditorPage() {
               })}
             </strong>
           </span>
-          <button
-            type="button"
-            onClick={() => {
-              const d = new Date(post.scheduledAt!);
-              const pad = (n: number) => String(n).padStart(2, "0");
-              setScheduleDate(
-                `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
-              );
-              setShowScheduler(true);
-            }}
-            className="ml-auto text-xs text-blue-600 hover:underline font-medium"
-          >
+          <button type="button" onClick={() => {
+            const d = new Date(post.scheduledAt!);
+            const pad = (n: number) => String(n).padStart(2, "0");
+            setScheduleDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+            setShowScheduler(true);
+          }}
+            className="ml-auto text-xs text-blue-600 hover:underline font-medium whitespace-nowrap">
             Change date
           </button>
         </div>
       )}
 
-      {/* WordPress push success banner */}
-      {wpResult && (
-        <div className="flex items-center justify-between p-3 rounded-lg bg-[#21759b]/10 border border-[#21759b]/20 text-sm">
+      {/* ── CMS push result banner ────────────────────────────────────────── */}
+      {cmsResult && (
+        <div className={`flex items-center justify-between p-3 rounded-lg text-sm ${cmsResult.type === "wp" ? "bg-[#21759b]/10 border border-[#21759b]/20" : "bg-[#96bf48]/10 border border-[#96bf48]/20"}`}>
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-[#21759b]" />
-            <span className="font-medium text-[#21759b]">Successfully pushed to WordPress</span>
+            <CheckCircle2 className={`h-4 w-4 ${cmsResult.type === "wp" ? "text-[#21759b]" : "text-[#5c8a1e]"}`} />
+            <span className={`font-medium ${cmsResult.type === "wp" ? "text-[#21759b]" : "text-[#5c8a1e]"}`}>
+              Pushed to {cmsResult.type === "wp" ? "WordPress" : "Shopify"} successfully
+            </span>
           </div>
-          <div className="flex gap-2">
-            {wpResult.url && (
-              <a href={wpResult.url} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-[#21759b] hover:underline flex items-center gap-1">
+          <div className="flex gap-3">
+            {cmsResult.viewUrl && (
+              <a href={cmsResult.viewUrl} target="_blank" rel="noopener noreferrer"
+                className={`text-xs hover:underline flex items-center gap-1 ${cmsResult.type === "wp" ? "text-[#21759b]" : "text-[#5c8a1e]"}`}>
                 View Post <ExternalLink className="h-3 w-3" />
               </a>
             )}
-            {wpResult.editUrl && (
-              <a href={wpResult.editUrl} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-[#21759b] hover:underline flex items-center gap-1 ml-3">
-                Edit in WP <ExternalLink className="h-3 w-3" />
+            {cmsResult.editUrl && (
+              <a href={cmsResult.editUrl} target="_blank" rel="noopener noreferrer"
+                className={`text-xs hover:underline flex items-center gap-1 ${cmsResult.type === "wp" ? "text-[#21759b]" : "text-[#5c8a1e]"}`}>
+                Edit <ExternalLink className="h-3 w-3" />
               </a>
             )}
+            <button type="button" onClick={() => setCmsResult(null)} className="text-muted-foreground hover:text-foreground">
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       )}
 
-      {/* Shopify push success banner */}
-      {shopifyResult && (
-        <div className="flex items-center justify-between p-3 rounded-lg bg-[#96bf48]/10 border border-[#96bf48]/20 text-sm">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-[#5c8a1e]" />
-            <span className="font-medium text-[#5c8a1e]">Successfully pushed to Shopify</span>
-          </div>
-          <div className="flex gap-2">
-            {shopifyResult.articleUrl && (
-              <a href={shopifyResult.articleUrl} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-[#5c8a1e] hover:underline flex items-center gap-1">
-                View Article <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-            {shopifyResult.adminUrl && (
-              <a href={shopifyResult.adminUrl} target="_blank" rel="noopener noreferrer"
-                className="text-xs text-[#5c8a1e] hover:underline flex items-center gap-1 ml-3">
-                Edit in Shopify <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-          </div>
-        </div>
-      )}
-
+      {/* ── Main Grid ─────────────────────────────────────────────────────── */}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        {/* Main Editor */}
+        {/* Left: Editor */}
         <div className="space-y-4">
           {/* Title */}
           <Input
             placeholder="Post title..."
             value={post.title || ""}
             onChange={(e) => updateField("title", e.target.value)}
-            className="text-2xl font-bold h-14 text-xl border-0 border-b rounded-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+            className="text-xl font-bold h-14 border-0 border-b rounded-none px-0 focus-visible:ring-0 focus-visible:ring-offset-0"
           />
 
           {/* Slug */}
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span className="shrink-0">URL slug:</span>
+            <span className="shrink-0 text-xs">Slug:</span>
             <Input
               value={post.slug || ""}
-              onChange={(e) => {
-                setAutoSlug(false);
-                updateField("slug", e.target.value);
-              }}
-              className="h-7 text-sm"
+              onChange={(e) => { setAutoSlug(false); updateField("slug", e.target.value); }}
+              className="h-7 text-xs"
             />
           </div>
 
-          {/* AI Writing Assistant */}
+          {/* Markdown Editor */}
+          <MarkdownEditor
+            value={post.content || ""}
+            onChange={(v) => updateField("content", v)}
+            height={600}
+          />
+
+          {/* ── AI Writing Assistant — below editor so it doesn't interrupt flow ── */}
           <div className="border rounded-lg overflow-hidden">
             <button
               type="button"
@@ -866,90 +720,66 @@ export default function PostEditorPage() {
               <span className="flex items-center gap-2">
                 <Wand2 className="h-4 w-4 text-purple-600" />
                 AI Writing Assistant
+                <span className="text-xs font-normal text-purple-500">— rewrite, expand, shorten any section</span>
               </span>
-              {showAIPanel ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              {showAIPanel ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
             </button>
             {showAIPanel && (
               <div className="p-4 space-y-3 bg-white border-t">
-                <p className="text-xs text-muted-foreground">Paste any section of your article, choose an action, and apply it back.</p>
                 <Textarea
-                  placeholder="Paste the section you want to rewrite, expand, shorten or improve…"
+                  placeholder="Paste the section you want to transform…"
                   value={aiText}
                   onChange={(e) => setAiText(e.target.value)}
-                  rows={5}
+                  rows={4}
                   className="text-sm font-mono"
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  {(["rewrite", "expand", "shorten", "improve", "custom"] as const).map((a) => (
-                    <button
-                      key={a}
-                      type="button"
-                      onClick={() => setAiAction(a)}
+                  {(["improve", "rewrite", "expand", "shorten", "custom"] as const).map((a) => (
+                    <button key={a} type="button" onClick={() => setAiAction(a)}
                       className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                         aiAction === a
                           ? "bg-purple-600 text-white border-purple-600"
                           : "bg-white text-purple-700 border-purple-300 hover:border-purple-600"
-                      }`}
-                    >
+                      }`}>
                       {a.charAt(0).toUpperCase() + a.slice(1)}
                     </button>
                   ))}
-                  <Button
-                    size="sm"
-                    onClick={handleAIRewrite}
-                    disabled={isRewriting || !aiText.trim()}
-                    className="ml-auto bg-purple-600 hover:bg-purple-700 text-white"
-                  >
-                    {isRewriting ? (
-                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Wand2 className="mr-1.5 h-3.5 w-3.5" />
-                    )}
+                  <Button size="sm" onClick={handleAIRewrite} disabled={isRewriting || !aiText.trim()}
+                    className="ml-auto bg-purple-600 hover:bg-purple-700 text-white">
+                    {isRewriting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
                     {isRewriting ? "Working…" : "Apply"}
                   </Button>
                 </div>
                 {aiAction === "custom" && (
-                  <input
-                    type="text"
-                    placeholder="Describe what you want to do with this text…"
-                    value={aiCustomPrompt}
-                    onChange={(e) => setAiCustomPrompt(e.target.value)}
+                  <input type="text" placeholder="Describe what you want to do…"
+                    value={aiCustomPrompt} onChange={(e) => setAiCustomPrompt(e.target.value)}
                     className="w-full text-sm border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
                   />
                 )}
                 {aiResult && (
                   <div className="space-y-2">
-                    <div className="border rounded-md p-3 bg-gray-50 text-sm font-mono whitespace-pre-wrap max-h-60 overflow-y-auto">
+                    <div className="border rounded-md p-3 bg-gray-50 text-sm font-mono whitespace-pre-wrap max-h-56 overflow-y-auto">
                       {aiResult}
                     </div>
                     <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
+                      <Button size="sm" variant="outline"
                         className="text-xs border-purple-400 text-purple-700 hover:bg-purple-50"
-                        onClick={() => {
-                          navigator.clipboard.writeText(aiResult);
-                          toast.success("Copied to clipboard");
-                        }}
-                      >
+                        onClick={() => { navigator.clipboard.writeText(aiResult); toast.success("Copied!"); }}>
                         <ClipboardPaste className="mr-1 h-3 w-3" />
                         Copy
                       </Button>
-                      <Button
-                        size="sm"
-                        className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                      <Button size="sm" className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
                         onClick={() => {
                           if (aiText && post.content?.includes(aiText)) {
                             updateField("content", post.content.replace(aiText, aiResult));
-                            toast.success("Section replaced in editor");
+                            toast.success("Section replaced");
                           } else {
                             updateField("content", (post.content || "") + "\n\n" + aiResult);
                             toast.success("Appended to content");
                           }
                           setAiText(aiResult);
                           setAiResult("");
-                        }}
-                      >
+                        }}>
                         Replace in Editor
                       </Button>
                     </div>
@@ -958,50 +788,35 @@ export default function PostEditorPage() {
               </div>
             )}
           </div>
-
-          {/* Markdown Editor */}
-          <MarkdownEditor
-            value={post.content || ""}
-            onChange={(v) => updateField("content", v)}
-            height={600}
-          />
         </div>
 
         {/* Right Sidebar */}
         <div className="space-y-4">
           <Tabs defaultValue="seo">
             <TabsList className="w-full">
-              <TabsTrigger value="seo" className="flex-1 text-xs px-2">
-                <BarChart3 className="mr-1 h-3 w-3" />
-                SEO
+              <TabsTrigger value="seo" className="flex-1 text-xs px-1">
+                <BarChart3 className="mr-1 h-3 w-3" />SEO
               </TabsTrigger>
-              <TabsTrigger value="meta" className="flex-1 text-xs px-2">
-                <FileText className="mr-1 h-3 w-3" />
-                Meta
+              <TabsTrigger value="meta" className="flex-1 text-xs px-1">
+                <FileText className="mr-1 h-3 w-3" />Meta
               </TabsTrigger>
-              <TabsTrigger value="image" className="flex-1 text-xs px-2">
-                <Image className="mr-1 h-3 w-3" />
-                Image
+              <TabsTrigger value="image" className="flex-1 text-xs px-1">
+                <ImageIcon className="mr-1 h-3 w-3" />Image
               </TabsTrigger>
-              <TabsTrigger value="social" className="flex-1 text-xs px-2">
-                <Tags className="mr-1 h-3 w-3" />
-                Social
+              <TabsTrigger value="social" className="flex-1 text-xs px-1">
+                <Tags className="mr-1 h-3 w-3" />Social
               </TabsTrigger>
             </TabsList>
 
-            {/* SEO Tab */}
+            {/* ── SEO Tab ── */}
             <TabsContent value="seo" className="space-y-4 mt-4">
               <Card>
                 <CardContent className="pt-4">
                   <SEOScore
-                    title={post.title || ""}
-                    content={post.content || ""}
-                    metaTitle={post.metaTitle || ""}
-                    metaDescription={post.metaDescription || ""}
-                    focusKeyword={post.focusKeyword || ""}
-                    wordCount={wordCount}
-                    featuredImage={post.featuredImage}
-                    featuredImageAlt={post.featuredImageAlt}
+                    title={post.title || ""} content={post.content || ""}
+                    metaTitle={post.metaTitle || ""} metaDescription={post.metaDescription || ""}
+                    focusKeyword={post.focusKeyword || ""} wordCount={wordCount}
+                    featuredImage={post.featuredImage} featuredImageAlt={post.featuredImageAlt}
                     onAutoFix={!isNew ? handleAutoFixSEO : undefined}
                     isFixing={isFixingSEO}
                   />
@@ -1013,11 +828,9 @@ export default function PostEditorPage() {
                   <CardTitle className="text-sm">Focus Keyword</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Input
-                    placeholder="e.g., invoicing software"
+                  <Input placeholder="e.g., invoicing software"
                     value={post.focusKeyword || ""}
-                    onChange={(e) => updateField("focusKeyword", e.target.value)}
-                  />
+                    onChange={(e) => updateField("focusKeyword", e.target.value)} />
                 </CardContent>
               </Card>
 
@@ -1038,39 +851,35 @@ export default function PostEditorPage() {
                       <SelectContent>
                         <SelectItem value="DRAFT">Draft</SelectItem>
                         <SelectItem value="REVIEW">Review</SelectItem>
-                        <SelectItem value="SCHEDULED">Scheduled</SelectItem>
                         <SelectItem value="PUBLISHED">Published</SelectItem>
                         <SelectItem value="ARCHIVED">Archived</SelectItem>
+                        {/* SCHEDULED only appears if already scheduled (read-only context) */}
+                        {post.status === "SCHEDULED" && (
+                          <SelectItem value="SCHEDULED" disabled>
+                            Scheduled (use toolbar to change)
+                          </SelectItem>
+                        )}
                       </SelectContent>
                     </Select>
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Category</Label>
-                    <Input
-                      placeholder="e.g., Invoicing Tips"
+                    <Input placeholder="e.g., Invoicing Tips"
                       value={post.category || ""}
                       onChange={(e) => updateField("category", e.target.value)}
-                      className="h-8 text-sm"
-                    />
+                      className="h-8 text-sm" />
                   </div>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Tags (press Enter)</Label>
-                    <Input
-                      placeholder="Add tag..."
-                      value={tagInput}
+                    <Input placeholder="Add tag…" value={tagInput}
                       onChange={(e) => setTagInput(e.target.value)}
-                      onKeyDown={addTag}
-                      className="h-8 text-sm"
-                    />
+                      onKeyDown={addTag} className="h-8 text-sm" />
                     {(post.tags || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
+                      <div className="flex flex-wrap gap-1 mt-1">
                         {post.tags?.map((tag) => (
-                          <Badge
-                            key={tag}
-                            variant="secondary"
-                            className="text-xs cursor-pointer"
-                            onClick={() => removeTag(tag)}
-                          >
+                          <Badge key={tag} variant="secondary"
+                            className="text-xs cursor-pointer hover:bg-destructive/10"
+                            onClick={() => removeTag(tag)}>
                             {tag} ×
                           </Badge>
                         ))}
@@ -1081,21 +890,17 @@ export default function PostEditorPage() {
               </Card>
             </TabsContent>
 
-            {/* Meta Tab */}
+            {/* ── Meta Tab ── */}
             <TabsContent value="meta" className="space-y-4 mt-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm">Meta Title</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Textarea
-                    placeholder="SEO title (≤60 chars)"
-                    value={post.metaTitle || ""}
+                  <Textarea placeholder="SEO title (≤60 chars)" value={post.metaTitle || ""}
                     onChange={(e) => updateField("metaTitle", e.target.value)}
-                    rows={2}
-                    className="text-sm resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
+                    rows={2} className="text-sm resize-none" />
+                  <p className={`text-xs mt-1 ${(post.metaTitle || "").length > 60 ? "text-destructive" : "text-muted-foreground"}`}>
                     {(post.metaTitle || "").length}/60
                   </p>
                 </CardContent>
@@ -1106,14 +911,10 @@ export default function PostEditorPage() {
                   <CardTitle className="text-sm">Meta Description</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Textarea
-                    placeholder="Meta description (≤155 chars)"
-                    value={post.metaDescription || ""}
+                  <Textarea placeholder="Meta description (≤155 chars)" value={post.metaDescription || ""}
                     onChange={(e) => updateField("metaDescription", e.target.value)}
-                    rows={3}
-                    className="text-sm resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
+                    rows={3} className="text-sm resize-none" />
+                  <p className={`text-xs mt-1 ${(post.metaDescription || "").length > 155 ? "text-destructive" : "text-muted-foreground"}`}>
                     {(post.metaDescription || "").length}/155
                   </p>
                 </CardContent>
@@ -1124,28 +925,23 @@ export default function PostEditorPage() {
                   <CardTitle className="text-sm">Excerpt</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Textarea
-                    placeholder="Short post summary..."
-                    value={post.excerpt || ""}
+                  <Textarea placeholder="Short post summary…" value={post.excerpt || ""}
                     onChange={(e) => updateField("excerpt", e.target.value)}
-                    rows={3}
-                    className="text-sm resize-none"
-                  />
+                    rows={3} className="text-sm resize-none" />
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* Image Tab */}
+            {/* ── Image Tab ── */}
             <TabsContent value="image" className="space-y-4 mt-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm flex items-center gap-2">
-                    <Image className="h-4 w-4" />
+                    <ImageIcon className="h-4 w-4" />
                     Featured Image
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {/* Preview */}
                   {post.featuredImage ? (
                     <div className="relative group">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1158,7 +954,7 @@ export default function PostEditorPage() {
                         <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
                           <div className="text-center text-white">
                             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-                            <p className="text-xs">Generating image…</p>
+                            <p className="text-xs">Generating…</p>
                           </div>
                         </div>
                       )}
@@ -1166,95 +962,62 @@ export default function PostEditorPage() {
                   ) : (
                     <div className={`w-full aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-muted-foreground gap-2 ${isRegeneratingImage ? "border-primary/50 bg-primary/5" : ""}`}>
                       {isRegeneratingImage
-                        ? <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-xs">Generating image…</p></>
-                        : <><Image className="h-6 w-6" /><p className="text-xs">No image yet</p></>
-                      }
+                        ? <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-xs">Generating…</p></>
+                        : <><ImageIcon className="h-6 w-6" /><p className="text-xs">No image yet</p></>}
                     </div>
                   )}
 
-                  {/* AI Regenerate buttons */}
                   {!isNew && (
                     <div className="space-y-2">
-                      <Button
-                        size="sm"
-                        className="w-full"
-                        variant="outline"
-                        onClick={() => handleRegenerateImage()}
-                        disabled={isRegeneratingImage}
-                      >
+                      <Button size="sm" className="w-full" variant="outline"
+                        onClick={() => handleRegenerateImage()} disabled={isRegeneratingImage}>
                         {isRegeneratingImage
                           ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                          : <Sparkles className="mr-2 h-3.5 w-3.5" />
-                        }
+                          : <Sparkles className="mr-2 h-3.5 w-3.5" />}
                         {post.featuredImage ? "Regenerate with AI" : "Generate with AI"}
                       </Button>
-
-                      {/* Custom prompt input */}
                       <div className="flex gap-1.5">
-                        <input
-                          type="text"
-                          placeholder="Custom prompt (optional)…"
+                        <input type="text" placeholder="Custom prompt (optional)…"
                           value={imagePromptInput}
                           onChange={(e) => setImagePromptInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && imagePromptInput.trim()) {
-                              handleRegenerateImage(imagePromptInput.trim());
-                            }
-                          }}
+                          onKeyDown={(e) => { if (e.key === "Enter" && imagePromptInput.trim()) handleRegenerateImage(imagePromptInput.trim()); }}
                           className="flex-1 h-7 text-xs px-2 border rounded-md bg-background"
-                          disabled={isRegeneratingImage}
-                        />
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2"
+                          disabled={isRegeneratingImage} />
+                        <Button size="sm" variant="ghost" className="h-7 px-2"
                           onClick={() => imagePromptInput.trim() && handleRegenerateImage(imagePromptInput.trim())}
-                          disabled={isRegeneratingImage || !imagePromptInput.trim()}
-                          title="Generate from custom prompt"
-                        >
+                          disabled={isRegeneratingImage || !imagePromptInput.trim()}>
                           <RefreshCw className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
                   )}
 
-                  {/* Manual URL override */}
-                  <Input
-                    placeholder="Or paste image URL directly"
-                    value={post.featuredImage || ""}
-                    onChange={(e) => updateField("featuredImage", e.target.value)}
-                    className="text-xs h-8"
-                  />
-                  <Input
-                    placeholder="Alt text"
-                    value={post.featuredImageAlt || ""}
-                    onChange={(e) => updateField("featuredImageAlt", e.target.value)}
-                    className="text-xs h-8"
-                  />
+                  <Separator />
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground">Manual URL override</Label>
+                    <Input placeholder="Paste image URL…" value={post.featuredImage || ""}
+                      onChange={(e) => updateField("featuredImage", e.target.value)}
+                      className="text-xs h-8" />
+                    <Input placeholder="Alt text" value={post.featuredImageAlt || ""}
+                      onChange={(e) => updateField("featuredImageAlt", e.target.value)}
+                      className="text-xs h-8" />
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
 
-            {/* Social Tab */}
+            {/* ── Social Tab ── */}
             <TabsContent value="social" className="space-y-4 mt-4">
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Twitter/X Caption</CardTitle>
+                  <CardTitle className="text-sm">Twitter / X Caption</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Textarea
-                    placeholder="Tweet caption with hashtags..."
+                  <Textarea placeholder="Tweet caption with hashtags…"
                     value={(post.socialCaptions as { twitter?: string })?.twitter || ""}
-                    onChange={(e) =>
-                      updateField("socialCaptions", {
-                        ...(post.socialCaptions || {}),
-                        twitter: e.target.value,
-                      })
-                    }
-                    rows={3}
-                    className="text-sm resize-none"
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
+                    onChange={(e) => updateField("socialCaptions", { ...(post.socialCaptions || {}), twitter: e.target.value })}
+                    rows={3} className="text-sm resize-none" />
+                  <p className={`text-xs mt-1 ${((post.socialCaptions as { twitter?: string })?.twitter || "").length > 280 ? "text-destructive" : "text-muted-foreground"}`}>
                     {((post.socialCaptions as { twitter?: string })?.twitter || "").length}/280
                   </p>
                 </CardContent>
@@ -1265,18 +1028,10 @@ export default function PostEditorPage() {
                   <CardTitle className="text-sm">LinkedIn Caption</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <Textarea
-                    placeholder="LinkedIn post caption..."
+                  <Textarea placeholder="LinkedIn post caption…"
                     value={(post.socialCaptions as { linkedin?: string })?.linkedin || ""}
-                    onChange={(e) =>
-                      updateField("socialCaptions", {
-                        ...(post.socialCaptions || {}),
-                        linkedin: e.target.value,
-                      })
-                    }
-                    rows={4}
-                    className="text-sm resize-none"
-                  />
+                    onChange={(e) => updateField("socialCaptions", { ...(post.socialCaptions || {}), linkedin: e.target.value })}
+                    rows={4} className="text-sm resize-none" />
                 </CardContent>
               </Card>
             </TabsContent>
