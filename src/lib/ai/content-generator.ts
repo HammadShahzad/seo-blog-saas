@@ -72,16 +72,30 @@ const STEPS = [
   "image",
 ] as const;
 
-const IMAGE_STYLES = [
-  "flat vector illustration with bold colors and clean shapes",
-  "isometric 3D render with soft pastel palette",
-  "watercolor painting style with vibrant splashes",
-  "editorial illustration with geometric abstract elements",
-  "cinematic photorealistic scene with dramatic lighting",
-  "retro vintage poster style with muted tones",
-  "modern minimalist line art with accent color pops",
-  "collage-style mixed media with paper textures",
-];
+function getImageStyle(niche: string): string {
+  const n = niche.toLowerCase();
+  if (/food|restaurant|cook|recipe|bak/i.test(n))
+    return "appetizing professional food photography style, warm lighting, shallow depth of field";
+  if (/fashion|beauty|cosmetic|skincare/i.test(n))
+    return "clean editorial photography style, soft natural lighting, modern aesthetic";
+  if (/tech|saas|software|ai|developer|coding|startup/i.test(n))
+    return "clean modern flat illustration with a professional tech aesthetic, minimal and sleek";
+  if (/health|fitness|medical|wellness|yoga/i.test(n))
+    return "bright clean lifestyle photography style, natural and uplifting";
+  if (/finance|banking|invest|insurance|accounting/i.test(n))
+    return "professional corporate illustration, clean lines, trustworthy blue-toned palette";
+  if (/travel|hotel|tourism|adventure/i.test(n))
+    return "vivid landscape photography style, cinematic composition, natural colors";
+  if (/education|learning|school|course|tutoring/i.test(n))
+    return "friendly modern illustration, approachable and colorful, educational context";
+  if (/real.?estate|property|home|interior/i.test(n))
+    return "professional architectural photography style, bright and inviting interiors";
+  if (/marketing|seo|content|social.?media|agency/i.test(n))
+    return "clean modern flat illustration with bold accent colors, professional and data-driven feel";
+  if (/ecommerce|shop|retail|product/i.test(n))
+    return "clean product photography style on minimal background, professional commercial look";
+  return "clean professional illustration, modern and relevant to the topic";
+}
 
 function buildSystemPrompt(ctx: WebsiteContext): string {
   let prompt = `You are a professional blog writer for ${ctx.brandName} (${ctx.brandUrl}).
@@ -469,124 +483,68 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
     "You are an SEO specialist and social media expert. Return valid JSON only."
   );
 
-  // ─── STEP 7: IMAGE GENERATION ────────────────────────────────────
+  // ─── STEP 7: IMAGE GENERATION (sequential, one at a time) ───────
   let featuredImageUrl: string | undefined;
   let featuredImageAlt = metadata.featuredImageAlt || keyword;
   const postSlug = metadata.slug || slugify(outline.title);
 
   if (includeImages && process.env.GOOGLE_AI_API_KEY) {
-    await progress("image", "Generating images with Imagen 4.0...");
+    await progress("image", "Generating featured image…");
+    const imageStyle = getImageStyle(ctx.niche);
+
+    // 1. Featured image
     try {
-      // Pick a consistent art style for all images in this post
-      const artStyle = IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
-
-      // Extract H2 sections for inline images
-      const h2Regex = /^## (.+)$/gm;
-      const h2Sections: { heading: string; startIdx: number }[] = [];
-      let match;
-      while ((match = h2Regex.exec(finalContent)) !== null) {
-        h2Sections.push({ heading: match[1], startIdx: match.index });
-      }
-
-      // Ask AI to pick which sections deserve images + generate prompts for all images at once
-      const inlineCount = Math.min(3, Math.max(2, Math.floor(h2Sections.length / 2)));
-      const sectionList = h2Sections.map((s, i) => `${i + 1}. ${s.heading}`).join("\n");
-
-      interface ImagePrompts {
-        featured: string;
-        featuredAlt: string;
-        sections: { sectionIndex: number; prompt: string; alt: string }[];
-      }
-
-      const imagePrompts = await generateJSON<ImagePrompts>(
-        `Generate image prompts for a blog post about "${keyword}" titled "${outline.title}".
-
-Art style for ALL images: ${artStyle}
-
-## Sections in the article:
-${sectionList}
-
-Generate prompts for:
-1. ONE featured/hero image that captures the overall topic
-2. ${inlineCount} inline section images, each specific to its section content
-
-CRITICAL RULES:
-- Every image must be SPECIFIC to the topic "${keyword}", not generic stock imagery
-- DO NOT use "desk with laptop" or generic office scenes
-- Think of metaphors, diagrams, processes, or creative scenes that explain the concept
-- No text, words, or letters in any image
-- Each inline image should visually represent the specific section it's placed in
-- Use the same art style (${artStyle}) for visual consistency
-
-Return JSON:
-{
-  "featured": "detailed 2-3 sentence prompt for the hero image",
-  "featuredAlt": "descriptive alt text including the keyword",
-  "sections": [
-    { "sectionIndex": 1, "prompt": "detailed 2-3 sentence prompt for this section", "alt": "descriptive alt text" }
-  ]
-}`,
-        "You are a creative director specializing in content marketing visuals. Return valid JSON only."
+      const featPrompt = `${imageStyle}. Create an image that directly represents the concept of "${keyword}" for a ${ctx.niche} business. The image should clearly relate to "${outline.title}". No text, words, letters, or watermarks in the image. Make it specific and relevant, not generic stock imagery.`;
+      featuredImageUrl = await generateBlogImage(
+        featPrompt,
+        `${postSlug}-featured`,
+        website.id,
+        outline.title
       );
+      featuredImageAlt = metadata.featuredImageAlt || `${keyword} - ${outline.title}`;
+    } catch (err) {
+      console.error("Featured image generation failed:", err);
+    }
 
-      // Generate images one at a time to avoid API rate limits
+    // 2. Inline images — pick 2 H2 sections spaced evenly, generate one at a time
+    const h2Matches = [...finalContent.matchAll(/^## (.+)$/gm)];
+    if (h2Matches.length >= 4) {
+      const step = Math.floor(h2Matches.length / 3);
+      const pickedIndices = [step, step * 2].filter((i) => i < h2Matches.length);
 
-      // 1. Featured image first
-      try {
-        const featUrl = await generateBlogImage(
-          imagePrompts.featured,
-          `${postSlug}-featured`,
-          website.id,
-          outline.title
-        );
-        featuredImageUrl = featUrl;
-        featuredImageAlt = imagePrompts.featuredAlt || keyword;
-      } catch (imgErr) {
-        console.error("Featured image generation failed:", imgErr);
-      }
-
-      // 2. Inline images one by one
-      for (let i = 0; i < (imagePrompts.sections || []).length; i++) {
-        const sec = imagePrompts.sections[i];
-        if (!sec?.prompt || sec.sectionIndex < 1 || sec.sectionIndex > h2Sections.length) continue;
+      for (let imgIdx = 0; imgIdx < pickedIndices.length; imgIdx++) {
+        const h2 = h2Matches[pickedIndices[imgIdx]];
+        const heading = h2[1];
+        await progress("image", `Generating image ${imgIdx + 2} of ${pickedIndices.length + 1}…`);
 
         try {
+          const inlinePrompt = `${imageStyle}. Create an image specifically about "${heading}" in the context of "${keyword}" for a ${ctx.niche} business. The image should visually represent this specific subtopic. No text, words, letters, or watermarks.`;
           const inlineUrl = await generateInlineImage(
-            sec.prompt,
+            inlinePrompt,
             postSlug,
-            i,
+            imgIdx,
             website.id
           );
-          const alt = sec.alt || keyword;
-          const sectionIdx = sec.sectionIndex - 1;
-          if (sectionIdx >= 0 && sectionIdx < h2Sections.length) {
-            const heading = h2Sections[sectionIdx].heading;
-            const h2Pattern = `## ${heading}`;
-            const h2Pos = finalContent.indexOf(h2Pattern);
-            if (h2Pos !== -1) {
-              const lineEnd = finalContent.indexOf("\n", h2Pos);
-              if (lineEnd !== -1) {
-                const nextDoubleNewline = finalContent.indexOf("\n\n", lineEnd + 1);
-                const insertPos = nextDoubleNewline !== -1 ? nextDoubleNewline : lineEnd;
-                const imgMarkdown = `\n\n![${alt}](${inlineUrl})\n`;
-                finalContent = finalContent.slice(0, insertPos) + imgMarkdown + finalContent.slice(insertPos);
 
-                const shift = imgMarkdown.length;
-                for (let j = sectionIdx + 1; j < h2Sections.length; j++) {
-                  h2Sections[j].startIdx += shift;
-                }
-              }
+          // Insert after the first paragraph following this H2
+          const h2Pattern = `## ${heading}`;
+          const h2Pos = finalContent.indexOf(h2Pattern);
+          if (h2Pos !== -1) {
+            const lineEnd = finalContent.indexOf("\n", h2Pos);
+            if (lineEnd !== -1) {
+              const nextBreak = finalContent.indexOf("\n\n", lineEnd + 1);
+              const insertPos = nextBreak !== -1 ? nextBreak : lineEnd;
+              const imgMd = `\n\n![${heading} - ${keyword}](${inlineUrl})\n`;
+              finalContent = finalContent.slice(0, insertPos) + imgMd + finalContent.slice(insertPos);
             }
           }
-        } catch (imgErr) {
-          console.error(`Inline image ${i} generation failed:`, imgErr);
+        } catch (err) {
+          console.error(`Inline image ${imgIdx} failed:`, err);
         }
       }
-    } catch (err) {
-      console.error("Image generation failed:", err);
     }
   } else if (includeImages) {
-    await progress("image", "Skipping image generation (API key not configured)...");
+    await progress("image", "Skipping image generation (API key not configured)…");
   }
 
   // ─── FINAL: ASSEMBLE ─────────────────────────────────────────────

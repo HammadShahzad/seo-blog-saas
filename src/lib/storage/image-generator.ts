@@ -94,16 +94,17 @@ async function addTextOverlay(imageBuffer: Buffer, text: string): Promise<Buffer
 
 async function generateWithImagen(prompt: string, apiKey: string): Promise<Buffer> {
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict?key=${apiKey}`,
+    "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
     {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
       body: JSON.stringify({
         instances: [{ prompt }],
         parameters: {
           sampleCount: 1,
-          aspectRatio: "16:9",
-          safetyFilterLevel: "block_some",
           personGeneration: "allow_adult",
         },
       }),
@@ -112,13 +113,15 @@ async function generateWithImagen(prompt: string, apiKey: string): Promise<Buffe
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error(`Imagen API error: ${err}`);
+    console.error("Imagen API response:", response.status, err);
+    throw new Error(`Imagen API error (${response.status}): ${err}`);
   }
 
   const data = await response.json();
   const base64 = data.predictions?.[0]?.bytesBase64Encoded;
 
   if (!base64) {
+    console.error("Imagen API returned no image data:", JSON.stringify(data).slice(0, 500));
     throw new Error("No image data returned from Imagen");
   }
 
