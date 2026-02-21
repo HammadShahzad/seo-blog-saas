@@ -14,6 +14,66 @@ export async function GET() {
     take: 20,
   });
 
+  // Auto-sync running content jobs with actual GenerationJob status
+  const runningContentJobs = jobs.filter(
+    (j) => j.status === "running" && j.type === "content" && j.id.startsWith("content-")
+  );
+
+  if (runningContentJobs.length > 0) {
+    const genJobIds = runningContentJobs.map((j) => j.id.replace("content-", ""));
+    const genJobs = await prisma.generationJob.findMany({
+      where: { id: { in: genJobIds } },
+      select: { id: true, status: true, currentStep: true, progress: true, error: true },
+    });
+    const genMap = new Map(genJobs.map((g) => [g.id, g]));
+
+    for (const uj of runningContentJobs) {
+      const genId = uj.id.replace("content-", "");
+      const gen = genMap.get(genId);
+      if (!gen) continue;
+
+      let newStatus: string | null = null;
+      if (gen.status === "COMPLETED") newStatus = "done";
+      else if (gen.status === "FAILED") newStatus = "failed";
+
+      if (newStatus) {
+        await prisma.userJob.update({
+          where: { id: uj.id },
+          data: {
+            status: newStatus,
+            progress: gen.status === "COMPLETED" ? 100 : gen.progress,
+            step: gen.currentStep,
+            error: gen.error,
+          },
+        }).catch(() => {});
+
+        const idx = jobs.findIndex((j) => j.id === uj.id);
+        if (idx !== -1) {
+          jobs[idx] = {
+            ...jobs[idx],
+            status: newStatus,
+            progress: gen.status === "COMPLETED" ? 100 : gen.progress,
+            step: gen.currentStep,
+            error: gen.error,
+          };
+        }
+      } else if (gen.status === "PROCESSING" || gen.status === "QUEUED") {
+        // Update progress/step even if still running
+        if (gen.progress !== uj.progress || gen.currentStep !== uj.step) {
+          await prisma.userJob.update({
+            where: { id: uj.id },
+            data: { progress: gen.progress, step: gen.currentStep },
+          }).catch(() => {});
+
+          const idx = jobs.findIndex((j) => j.id === uj.id);
+          if (idx !== -1) {
+            jobs[idx] = { ...jobs[idx], progress: gen.progress, step: gen.currentStep };
+          }
+        }
+      }
+    }
+  }
+
   return NextResponse.json(jobs);
 }
 

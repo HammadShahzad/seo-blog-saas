@@ -53,7 +53,7 @@ interface SuggestedLink {
 
 interface StepStatus {
   crawl: "ok" | "failed";
-  gemini: "ok" | "failed";
+  ai: "ok" | "failed";
   error?: string;
   pagesFound: number;
 }
@@ -64,7 +64,7 @@ function AiGeneratingDialog({ open }: { open: boolean }) {
   const steps = [
     { icon: Globe, label: "Crawling your website…", detail: "Fetching homepage and sitemap directly" },
     { icon: Globe, label: "Discovering pages & sections…", detail: "Scanning links, features, pricing, blog…" },
-    { icon: Sparkles, label: "Mapping keywords to URLs…", detail: "Gemini is creating link pairs" },
+    { icon: Sparkles, label: "Mapping keywords to URLs…", detail: "AI is creating link pairs" },
     { icon: Sparkles, label: "Filtering & ranking links…", detail: "Removing duplicates, validating URLs" },
     { icon: Sparkles, label: "Almost done…", detail: "Finalizing your internal link pairs" },
   ];
@@ -124,8 +124,8 @@ function AiGeneratingDialog({ open }: { open: boolean }) {
 
 // Result dialog after API responds — shows what happened before review
 function ResultStatusBanner({ steps }: { steps: StepStatus }) {
-  const allGood = steps.crawl === "ok" && steps.gemini === "ok";
-  const geminiOnly = steps.crawl !== "ok" && steps.gemini === "ok";
+  const allGood = steps.crawl === "ok" && steps.ai === "ok";
+  const aiOnly = steps.crawl !== "ok" && steps.ai === "ok";
 
   if (allGood) {
     return (
@@ -136,14 +136,14 @@ function ResultStatusBanner({ steps }: { steps: StepStatus }) {
             Found {steps.pagesFound} pages on your website
           </p>
           <p className="text-green-700 text-xs mt-0.5">
-            Gemini mapped them to keyword→URL pairs below
+            Mapped them to keyword→URL pairs below
           </p>
         </div>
       </div>
     );
   }
 
-  if (geminiOnly) {
+  if (aiOnly) {
     return (
       <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm">
         <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -165,13 +165,13 @@ function ResultStatusBanner({ steps }: { steps: StepStatus }) {
       <div>
         <p className="font-medium text-red-800">AI generation failed</p>
         <p className="text-red-700 text-xs mt-0.5">
-          {steps.gemini === "failed" ? (
+          {steps.ai === "failed" ? (
             <>
-              Gemini 3.1 Pro returned an error — this is usually temporary. Try again in a moment. If it keeps failing, verify GOOGLE_AI_API_KEY is valid.
+              AI generation returned an error — this is usually temporary. Try again in a moment. If it keeps failing, verify your API keys are valid.
               {steps.error && <span className="block mt-1 bg-red-100 p-1.5 rounded text-red-800 font-mono text-[10px] break-all">{steps.error}</span>}
             </>
           ) : (
-            "Both crawl and Gemini failed — check your website URL and API keys"
+            "Both crawl and AI generation failed — check your website URL and API keys"
           )}
         </p>
       </div>

@@ -1,13 +1,52 @@
 /**
  * POST /api/cron/generate
- * Cron job that auto-generates blog posts for all active websites
- * Protected with CRON_SECRET env var (required)
+ * Cron job that auto-generates blog posts for all active websites.
+ * Respects each website's publishDays, publishTime, and timezone settings.
+ * Protected with CRON_SECRET env var (required).
  */
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { enqueueGenerationJob, checkGenerationLimit, recoverStuckJobs, triggerWorker } from "@/lib/job-queue";
 import { runPublishHook } from "@/lib/on-publish";
 import { requireCronAuth } from "@/lib/api-helpers";
+
+const DAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
+
+function isScheduledNow(
+  publishDays: string | null,
+  publishTime: string | null,
+  timezone: string | null,
+): boolean {
+  const tz = timezone || "UTC";
+  const now = new Date();
+
+  let localDay: string;
+  let localHour: number;
+  let localMinute: number;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      weekday: "short",
+      hour: "numeric",
+      minute: "numeric",
+      hour12: false,
+    }).formatToParts(now);
+    localDay = (parts.find((p) => p.type === "weekday")?.value || "").toUpperCase().slice(0, 3);
+    localHour = parseInt(parts.find((p) => p.type === "hour")?.value || "0", 10);
+    localMinute = parseInt(parts.find((p) => p.type === "minute")?.value || "0", 10);
+  } catch {
+    localDay = DAY_NAMES[now.getUTCDay()];
+    localHour = now.getUTCHours();
+    localMinute = now.getUTCMinutes();
+  }
+
+  const days = (publishDays || "MON,WED,FRI").split(",").map((d) => d.trim().toUpperCase());
+  if (!days.includes(localDay)) return false;
+
+  const [targetH, targetM] = (publishTime || "09:00").split(":").map(Number);
+  const diffMinutes = Math.abs(localHour * 60 + localMinute - (targetH * 60 + targetM));
+  return diffMinutes <= 30;
+}
 
 export async function POST(req: Request) {
   const authError = requireCronAuth(req);
@@ -44,7 +83,7 @@ export async function POST(req: Request) {
     const websites = await prisma.website.findMany({
       where: {
         status: "ACTIVE",
-        blogSettings: { autoPublish: true },
+        autoPublish: true,
       },
       include: {
         blogSettings: true,
@@ -54,6 +93,11 @@ export async function POST(req: Request) {
 
     for (const website of websites) {
       try {
+        if (!isScheduledNow(website.publishDays, website.publishTime, website.timezone)) {
+          results.push({ websiteId: website.id, name: website.name, action: "not_scheduled_now" });
+          continue;
+        }
+
         const activeJob = await prisma.generationJob.findFirst({
           where: { websiteId: website.id, status: { in: ["QUEUED", "PROCESSING"] } },
         });

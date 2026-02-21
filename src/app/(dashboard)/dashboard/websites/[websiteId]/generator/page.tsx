@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   Card,
@@ -165,7 +165,12 @@ export default function GeneratorPage() {
   }, [websiteId]);
 
   const { addJob: addGlobalJob, updateJob: updateGlobalJob } = useGlobalJobs();
-  const CONTENT_STEPS = PIPELINE_STEPS.map((s) => s.id);
+  const CONTENT_STEPS = useMemo(() => PIPELINE_STEPS.map((s) => s.id), []);
+
+  const addGlobalJobRef = useRef(addGlobalJob);
+  addGlobalJobRef.current = addGlobalJob;
+  const updateGlobalJobRef = useRef(updateGlobalJob);
+  updateGlobalJobRef.current = updateGlobalJob;
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -177,7 +182,7 @@ export default function GeneratorPage() {
       for (const j of jobs) {
         const gid = `content-${j.id}`;
         if (j.status === "QUEUED" || j.status === "PROCESSING") {
-          addGlobalJob({
+          addGlobalJobRef.current({
             id: gid,
             type: "content",
             label: j.input?.keyword || "Content generation",
@@ -189,7 +194,7 @@ export default function GeneratorPage() {
             steps: CONTENT_STEPS,
           });
         } else if (j.status === "COMPLETED" || j.status === "FAILED") {
-          updateGlobalJob(gid, {
+          updateGlobalJobRef.current(gid, {
             status: j.status === "COMPLETED" ? "done" : "failed",
             progress: j.status === "COMPLETED" ? 100 : j.progress,
             error: j.error || undefined,
@@ -199,7 +204,7 @@ export default function GeneratorPage() {
     } catch {
       // silent
     }
-  }, [websiteId, addGlobalJob, updateGlobalJob, CONTENT_STEPS]);
+  }, [websiteId, CONTENT_STEPS]);
 
   const fetchClusters = useCallback(async () => {
     try {
@@ -213,22 +218,31 @@ export default function GeneratorPage() {
     }
   }, [websiteId]);
 
+  // Stable refs so polling effects don't re-fire when callbacks change
+  const fetchJobsRef = useRef(fetchJobs);
+  fetchJobsRef.current = fetchJobs;
+  const fetchClustersRef = useRef(fetchClusters);
+  fetchClustersRef.current = fetchClusters;
+  const fetchKeywordsRef = useRef(fetchKeywords);
+  fetchKeywordsRef.current = fetchKeywords;
+
   useEffect(() => {
-    fetchKeywords();
-    fetchJobs();
-    fetchClusters();
+    fetchKeywordsRef.current();
+    fetchJobsRef.current();
+    fetchClustersRef.current();
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [websiteId, fetchKeywords, fetchJobs, fetchClusters]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [websiteId]);
 
   // Poll while there are active jobs
   useEffect(() => {
     const hasActive = activeJobs.some(j => j.status === "QUEUED" || j.status === "PROCESSING");
 
     if (hasActive && !pollRef.current) {
-      pollRef.current = setInterval(async () => {
-        await fetchJobs();
-        await fetchClusters();
-      }, 3000);
+      pollRef.current = setInterval(() => {
+        fetchJobsRef.current();
+        fetchClustersRef.current();
+      }, 4000);
     }
 
     if (!hasActive && pollRef.current) {
@@ -242,7 +256,7 @@ export default function GeneratorPage() {
         pollRef.current = null;
       }
     };
-  }, [activeJobs, fetchJobs, fetchClusters]);
+  }, [activeJobs]);
 
   // Notify on newly completed/failed jobs
   const prevJobsRef = useRef<Map<string, string>>(new Map());
@@ -439,7 +453,7 @@ export default function GeneratorPage() {
             AI Content Generator
           </h2>
           <p className="text-muted-foreground">
-            Generate SEO-optimized blog posts powered by Gemini + Perplexity
+            Generate SEO-optimized blog posts powered by advanced AI
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -633,7 +647,7 @@ export default function GeneratorPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <Label>Include AI Image</Label>
-                  <p className="text-xs text-muted-foreground">Imagen 4.0 featured image</p>
+                  <p className="text-xs text-muted-foreground">AI-generated featured image</p>
                 </div>
                 <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
               </div>
@@ -662,9 +676,9 @@ export default function GeneratorPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {[
-                { label: "Research", model: "Perplexity Sonar Pro" },
-                { label: "Writing", model: "Gemini 3.1 Pro" },
-                { label: "Images", model: "Imagen 4.0" },
+                { label: "Research", model: "Deep Research AI" },
+                { label: "Writing", model: "Advanced Language AI" },
+                { label: "Images", model: "AI Image Generation" },
               ].map((m) => (
                 <div key={m.label} className="flex items-center justify-between p-2.5 rounded-lg border">
                   <div>
@@ -722,7 +736,7 @@ export default function GeneratorPage() {
                   disabled={isResearching}
                 />
                 <p className="text-xs text-muted-foreground">
-                  AI will research this topic using Perplexity + direct website crawl, then generate a cluster of 12-16 optimized keywords.
+                  AI will research this topic using deep web analysis + direct website crawl, then generate a cluster of 12-16 optimized keywords.
                 </p>
               </div>
 

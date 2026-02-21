@@ -1,9 +1,21 @@
 /**
  * AI Image Generation Pipeline
- * Imagen 4.0 → Sharp resize → WebP → Backblaze B2
+ * Imagen 4.0 Fast → Sharp resize → WebP → Backblaze B2
+ *
+ * Rate limits (Gemini API, per project):
+ *   Free tier:  ~100 RPD for imagen-4.0-fast, ~10-50 RPD for standard
+ *   Tier 1:     ~70-200 RPD (billing linked)
+ *   Tier 2+:    higher, request increase via Google form
+ *   RPM:        ~10-20 RPM (varies by tier)
+ *
+ * We use imagen-4.0-fast-generate-001 (2x cheaper, 2x higher free quota,
+ * faster generation, quality is plenty good for blog images).
+ * Sequential calls with 3s+ gaps to stay under RPM limits.
  */
 import sharp from "sharp";
 import { uploadToB2 } from "./backblaze";
+
+const IMAGEN_MODEL = process.env.IMAGEN_MODEL || "imagen-4.0-fast-generate-001";
 
 export async function generateBlogImage(
   prompt: string,
@@ -92,40 +104,67 @@ async function addTextOverlay(imageBuffer: Buffer, text: string): Promise<Buffer
     .toBuffer();
 }
 
-async function generateWithImagen(prompt: string, apiKey: string): Promise<Buffer> {
-  const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: {
-          sampleCount: 1,
-          personGeneration: "allow_adult",
+async function generateWithImagen(prompt: string, apiKey: string, retries = 3): Promise<Buffer> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_MODEL}:predict`;
+  let lastError: Error | null = null;
+
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
         },
-      }),
+        body: JSON.stringify({
+          instances: [{ prompt }],
+          parameters: {
+            sampleCount: 1,
+            personGeneration: "allow_adult",
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const err = await response.text();
+        console.error(`[Imagen ${IMAGEN_MODEL}] attempt ${attempt}/${retries} — ${response.status}:`, err);
+        lastError = new Error(`Imagen API error (${response.status}): ${err}`);
+
+        if (response.status === 429) {
+          // Rate limited — back off aggressively (RPM limit is 10-20)
+          const backoff = Math.min(attempt * 8000, 30000);
+          console.warn(`[Imagen] Rate limited, waiting ${backoff / 1000}s before retry…`);
+          await new Promise((r) => setTimeout(r, backoff));
+          continue;
+        }
+        if (response.status >= 500) {
+          await new Promise((r) => setTimeout(r, attempt * 5000));
+          continue;
+        }
+        throw lastError;
+      }
+
+      const data = await response.json();
+      const base64 = data.predictions?.[0]?.bytesBase64Encoded;
+
+      if (!base64) {
+        console.error(`[Imagen] attempt ${attempt}/${retries} — no image data:`, JSON.stringify(data).slice(0, 500));
+        lastError = new Error("No image data returned from Imagen");
+        await new Promise((r) => setTimeout(r, attempt * 3000));
+        continue;
+      }
+
+      return Buffer.from(base64, "base64");
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      if (attempt < retries) {
+        console.warn(`[Imagen] attempt ${attempt} failed, retrying in ${attempt * 5}s…`);
+        await new Promise((r) => setTimeout(r, attempt * 5000));
+      }
     }
-  );
-
-  if (!response.ok) {
-    const err = await response.text();
-    console.error("Imagen API response:", response.status, err);
-    throw new Error(`Imagen API error (${response.status}): ${err}`);
   }
 
-  const data = await response.json();
-  const base64 = data.predictions?.[0]?.bytesBase64Encoded;
-
-  if (!base64) {
-    console.error("Imagen API returned no image data:", JSON.stringify(data).slice(0, 500));
-    throw new Error("No image data returned from Imagen");
-  }
-
-  return Buffer.from(base64, "base64");
+  throw lastError || new Error("Image generation failed after all retries");
 }
 
 /**

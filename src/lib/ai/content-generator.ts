@@ -217,7 +217,7 @@ export async function generateBlogPost(
   const systemPrompt = buildSystemPrompt(ctx);
 
   // ─── STEP 1: RESEARCH ───────────────────────────────────────────
-  await progress("research", `Researching "${keyword}" with Perplexity AI...`);
+  await progress("research", `Researching "${keyword}"...`);
   const research = await researchKeyword(keyword, {
     ...ctx,
     description: ctx.description,
@@ -492,7 +492,7 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
     await progress("image", "Generating featured image…");
     const imageStyle = getImageStyle(ctx.niche);
 
-    // 1. Featured image
+    // 1. Featured image (with retry built into generateWithImagen)
     try {
       const featPrompt = `${imageStyle}. Create an image that directly represents the concept of "${keyword}" for a ${ctx.niche} business. The image should clearly relate to "${outline.title}". No text, words, letters, or watermarks in the image. Make it specific and relevant, not generic stock imagery.`;
       featuredImageUrl = await generateBlogImage(
@@ -503,14 +503,24 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
       );
       featuredImageAlt = metadata.featuredImageAlt || `${keyword} - ${outline.title}`;
     } catch (err) {
-      console.error("Featured image generation failed:", err);
+      console.error("Featured image generation failed after retries:", err);
     }
 
-    // 2. Inline images — pick 2 H2 sections spaced evenly, generate one at a time
+    // Cooldown between API calls to stay under RPM limits (10-20 RPM depending on tier)
+    if (featuredImageUrl) {
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+
+    // 2. Inline images — pick up to 2 H2 sections spaced evenly
     const h2Matches = [...finalContent.matchAll(/^## (.+)$/gm)];
-    if (h2Matches.length >= 4) {
-      const step = Math.floor(h2Matches.length / 3);
-      const pickedIndices = [step, step * 2].filter((i) => i < h2Matches.length);
+    if (h2Matches.length >= 2) {
+      let pickedIndices: number[];
+      if (h2Matches.length <= 3) {
+        pickedIndices = [0, h2Matches.length - 1];
+      } else {
+        const step = Math.floor(h2Matches.length / 3);
+        pickedIndices = [step, step * 2].filter((i) => i < h2Matches.length);
+      }
 
       for (let imgIdx = 0; imgIdx < pickedIndices.length; imgIdx++) {
         const h2 = h2Matches[pickedIndices[imgIdx]];
@@ -526,7 +536,6 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
             website.id
           );
 
-          // Insert after the first paragraph following this H2
           const h2Pattern = `## ${heading}`;
           const h2Pos = finalContent.indexOf(h2Pattern);
           if (h2Pos !== -1) {
@@ -539,7 +548,12 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
             }
           }
         } catch (err) {
-          console.error(`Inline image ${imgIdx} failed:`, err);
+          console.error(`Inline image ${imgIdx} failed after retries:`, err);
+        }
+
+        // Cooldown between inline images to avoid RPM rate limits
+        if (imgIdx < pickedIndices.length - 1) {
+          await new Promise((r) => setTimeout(r, 5000));
         }
       }
     }

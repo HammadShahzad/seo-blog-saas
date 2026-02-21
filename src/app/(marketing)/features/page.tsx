@@ -6,13 +6,19 @@ import { Badge } from "@/components/ui/badge";
 import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 
 export const metadata: Metadata = {
-  title: "Features — StackSerp",
+  title: "Features | StackSerp AI Content & SEO Platform",
   description:
-    "AI content generation, multi-website management, SEO optimization, CMS integrations, social publishing, analytics and more. Everything you need for content marketing.",
+    "Explore StackSerp's powerful features: AI content generation, multi-website management, automated internal linking, CMS integrations, and programmatic SEO.",
+  keywords: "StackSerp features, AI SEO tools, programmatic SEO software, automated content creation",
   openGraph: {
-    title: "Features — StackSerp",
+    title: "StackSerp Features | Automate Your SEO",
     description:
-      "AI content generation, multi-website management, SEO optimization, and more.",
+      "From keyword clustering to one-click CMS publishing, discover how StackSerp replaces your entire content team.",
+    type: "website",
+    url: "https://stackserp.com/features",
+  },
+  alternates: {
+    canonical: "https://stackserp.com/features",
   },
 };
 import {
@@ -40,7 +46,7 @@ const features = [
     description:
       "Our AI doesn't just write — it researches, outlines, drafts, matches your tone, optimizes for SEO, generates metadata, and creates a custom featured image. Every post goes through a rigorous 7-step pipeline to ensure quality.",
     steps: [
-      "Deep topic research via Perplexity Sonar Pro",
+      "Deep topic research via real-time web analysis",
       "Structured outline with H2/H3 headings",
       "1,500–4,000 word long-form draft",
       "Brand voice & tone matching",

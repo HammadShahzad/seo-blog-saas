@@ -100,7 +100,7 @@ export async function POST(
 
       return NextResponse.json({
         suggestions,
-        steps: { crawl: "ok", gemini: "ok" },
+        steps: { crawl: "ok", ai: "ok" },
       });
     }
 

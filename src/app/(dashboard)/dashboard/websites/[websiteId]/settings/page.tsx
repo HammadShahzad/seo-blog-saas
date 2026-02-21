@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Card,
   CardContent,
@@ -27,7 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Loader2, Save, Globe, Palette, Bot, Share2, Code, AlertTriangle,
   CheckCircle2, XCircle, Download, Eye, EyeOff, ExternalLink, Plug,
-  Webhook, Zap, Twitter, Linkedin, ShoppingBag, ChevronDown,
+  Webhook, Zap, Twitter, Linkedin, ShoppingBag, ChevronDown, Clock, CalendarDays,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -46,6 +47,7 @@ interface WebsiteData {
   postsPerWeek: number;
   publishTime: string;
   publishDays: string;
+  timezone: string;
   hostingMode: string;
   googleAnalyticsId: string | null;
   gscPropertyUrl: string | null;
@@ -54,12 +56,142 @@ interface WebsiteData {
   linkedinAccessToken: string | null;
 }
 
+const ALL_DAYS = [
+  { key: "MON", label: "Mon" },
+  { key: "TUE", label: "Tue" },
+  { key: "WED", label: "Wed" },
+  { key: "THU", label: "Thu" },
+  { key: "FRI", label: "Fri" },
+  { key: "SAT", label: "Sat" },
+  { key: "SUN", label: "Sun" },
+] as const;
+
+const COMMON_TIMEZONES = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "America/Anchorage",
+  "Pacific/Honolulu",
+  "America/Toronto",
+  "America/Vancouver",
+  "America/Sao_Paulo",
+  "America/Argentina/Buenos_Aires",
+  "America/Mexico_City",
+  "Europe/London",
+  "Europe/Paris",
+  "Europe/Berlin",
+  "Europe/Amsterdam",
+  "Europe/Rome",
+  "Europe/Madrid",
+  "Europe/Zurich",
+  "Europe/Stockholm",
+  "Europe/Warsaw",
+  "Europe/Moscow",
+  "Europe/Istanbul",
+  "Asia/Dubai",
+  "Asia/Karachi",
+  "Asia/Kolkata",
+  "Asia/Dhaka",
+  "Asia/Bangkok",
+  "Asia/Singapore",
+  "Asia/Shanghai",
+  "Asia/Hong_Kong",
+  "Asia/Tokyo",
+  "Asia/Seoul",
+  "Australia/Sydney",
+  "Australia/Melbourne",
+  "Pacific/Auckland",
+];
+
+function getTimezoneLabel(tz: string): string {
+  try {
+    const now = new Date();
+    const offset = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      timeZoneName: "shortOffset",
+    }).formatToParts(now).find((p) => p.type === "timeZoneName")?.value || "";
+    return `${tz.replace(/_/g, " ")} (${offset})`;
+  } catch {
+    return tz;
+  }
+}
+
+function computeNextPublishDate(
+  publishDays: string,
+  publishTime: string,
+  timezone: string,
+): Date | null {
+  if (!publishDays || !publishTime) return null;
+  const days = publishDays.split(",").map((d) => d.trim().toUpperCase());
+  const dayMap: Record<string, number> = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+  const targetDayNumbers = days.map((d) => dayMap[d]).filter((n) => n !== undefined);
+  if (targetDayNumbers.length === 0) return null;
+
+  const [h, m] = publishTime.split(":").map(Number);
+  const tz = timezone || "UTC";
+  const now = new Date();
+
+  for (let offset = 0; offset <= 7; offset++) {
+    const candidate = new Date(now.getTime() + offset * 86400000);
+    try {
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        weekday: "short",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).formatToParts(candidate);
+      const weekday = (parts.find((p) => p.type === "weekday")?.value || "").toUpperCase().slice(0, 3);
+      const dayNum = dayMap[weekday];
+      if (!targetDayNumbers.includes(dayNum)) continue;
+
+      const localDateStr = `${parts.find((p) => p.type === "year")?.value}-${parts.find((p) => p.type === "month")?.value}-${parts.find((p) => p.type === "day")?.value}`;
+      const scheduledLocal = new Date(`${localDateStr}T${publishTime}:00`);
+      const localNowStr = new Intl.DateTimeFormat("en-CA", { timeZone: tz, hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(now);
+      const [datePart, timePart] = localNowStr.split(", ");
+      const localNow = new Date(`${datePart}T${timePart}:00`);
+
+      if (offset === 0 && scheduledLocal <= localNow) continue;
+
+      const offsetMs = now.getTime() - localNow.getTime();
+      return new Date(scheduledLocal.getTime() + offsetMs);
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
 export default function WebsiteSettingsPage() {
   const params = useParams();
   const websiteId = params.websiteId as string;
+  const { data: sessionData } = useSession();
+  const isAdmin = sessionData?.user?.systemRole === "ADMIN";
   const [website, setWebsite] = useState<WebsiteData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  const nextPublish = useMemo(() => {
+    if (!website?.autoPublish) return null;
+    return computeNextPublishDate(
+      website.publishDays || "MON,WED,FRI",
+      website.publishTime || "09:00",
+      website.timezone || "UTC",
+    );
+  }, [website?.autoPublish, website?.publishDays, website?.publishTime, website?.timezone]);
+
+  const toggleDay = (dayKey: string) => {
+    if (!website) return;
+    const current = (website.publishDays || "MON,WED,FRI").split(",").map((d) => d.trim());
+    const updated = current.includes(dayKey)
+      ? current.filter((d) => d !== dayKey)
+      : [...current, dayKey];
+    if (updated.length === 0) return;
+    const ordered = ALL_DAYS.map((d) => d.key).filter((k) => updated.includes(k));
+    updateField("publishDays", ordered.join(","));
+  };
 
   useEffect(() => {
     fetchWebsite();
@@ -290,34 +422,9 @@ export default function WebsiteSettingsPage() {
                   onCheckedChange={(v) => updateField("autoPublish", v)}
                 />
               </div>
+
               <Separator />
-              <div className="space-y-2">
-                <Label>Posts Per Week</Label>
-                <Select
-                  value={String(website.postsPerWeek)}
-                  onValueChange={(v) => updateField("postsPerWeek", parseInt(v))}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3, 5, 7, 10, 14].map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n} post{n !== 1 ? "s" : ""}/week
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>Publish Time (UTC)</Label>
-                <Input
-                  type="time"
-                  value={website.publishTime || "09:00"}
-                  onChange={(e) => updateField("publishTime", e.target.value)}
-                  className="w-32"
-                />
-              </div>
+
               <div className="space-y-2">
                 <Label>Hosting Mode</Label>
                 <Select
@@ -328,14 +435,158 @@ export default function WebsiteSettingsPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="API">API (You fetch via REST API)</SelectItem>
-                    <SelectItem value="WEBHOOK">Webhook (Push to your CMS)</SelectItem>
+                    {isAdmin && (
+                      <SelectItem value="HOSTED">Self-Hosted (Published on this platform)</SelectItem>
+                    )}
                     <SelectItem value="WORDPRESS">WordPress (Plugin or App Password)</SelectItem>
+                    <SelectItem value="WEBHOOK">Webhook (Push to your CMS)</SelectItem>
+                    <SelectItem value="API">API (You fetch via REST API)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </CardContent>
           </Card>
+
+          {website.autoPublish && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4" />
+                  Schedule
+                </CardTitle>
+                <CardDescription>
+                  Set when and how often posts are published
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label>Timezone</Label>
+                  <Select
+                    value={website.timezone || "UTC"}
+                    onValueChange={(v) => updateField("timezone", v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent className="max-h-60">
+                      {COMMON_TIMEZONES.map((tz) => (
+                        <SelectItem key={tz} value={tz}>
+                          {getTimezoneLabel(tz)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Publish Days</Label>
+                  <div className="flex flex-wrap gap-2">
+                    {ALL_DAYS.map((day) => {
+                      const active = (website.publishDays || "MON,WED,FRI")
+                        .split(",")
+                        .map((d) => d.trim())
+                        .includes(day.key);
+                      return (
+                        <button
+                          key={day.key}
+                          type="button"
+                          onClick={() => toggleDay(day.key)}
+                          className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
+                            active
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {(website.publishDays || "MON,WED,FRI").split(",").length} day{(website.publishDays || "MON,WED,FRI").split(",").length !== 1 ? "s" : ""} selected
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5">
+                      <Clock className="h-3.5 w-3.5" />
+                      Publish Time
+                    </Label>
+                    <Input
+                      type="time"
+                      value={website.publishTime || "09:00"}
+                      onChange={(e) => updateField("publishTime", e.target.value)}
+                      className="w-32"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Posts Per Week</Label>
+                    <Select
+                      value={String(website.postsPerWeek)}
+                      onValueChange={(v) => updateField("postsPerWeek", parseInt(v))}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[1, 2, 3, 5, 7, 10, 14].map((n) => (
+                          <SelectItem key={n} value={String(n)}>
+                            {n} post{n !== 1 ? "s" : ""}/week
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="rounded-lg border bg-muted/30 p-4">
+                  <div className="flex items-center gap-2 text-sm font-medium mb-1">
+                    <Clock className="h-4 w-4 text-primary" />
+                    Next Scheduled Post
+                  </div>
+                  {nextPublish ? (
+                    <div className="space-y-1">
+                      <p className="text-sm">
+                        {nextPublish.toLocaleDateString("en-US", {
+                          weekday: "long",
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                          timeZone: website.timezone || "UTC",
+                        })}
+                        {" at "}
+                        {nextPublish.toLocaleTimeString("en-US", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          timeZone: website.timezone || "UTC",
+                          timeZoneName: "short",
+                        })}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {(() => {
+                          const diff = nextPublish.getTime() - Date.now();
+                          const hours = Math.floor(diff / 3600000);
+                          const mins = Math.floor((diff % 3600000) / 60000);
+                          if (hours > 24) {
+                            const days = Math.floor(hours / 24);
+                            return `in ${days} day${days !== 1 ? "s" : ""}, ${hours % 24}h`;
+                          }
+                          return `in ${hours}h ${mins}m`;
+                        })()}
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No upcoming publish — check your day/time settings
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="wordpress" className="space-y-4 mt-4">

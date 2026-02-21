@@ -163,6 +163,7 @@ model Website {
   postsPerWeek Int     @default(3)
   publishTime  String? @default("09:00")
   publishDays  String? @default("MON,WED,FRI")
+  timezone     String? @default("UTC")
 
   // Blog Hosting Mode
   hostingMode HostingMode @default(HOSTED)

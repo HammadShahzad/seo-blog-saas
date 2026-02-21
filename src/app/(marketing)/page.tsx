@@ -24,18 +24,41 @@ import {
   Star,
   Quote,
   Layout,
-  Cpu
+  Cpu,
+  Target,
+  Layers,
+  Settings
 } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "StackSerp — Automate Your SEO Blog in Minutes",
+  title: "StackSerp | AI SEO Auto-Blogging & Content Generation Platform",
   description:
-    "Publish months of high-ranking SEO content without writing a single word. AI research, writing, and publishing—all on autopilot.",
+    "Dominate search rankings with StackSerp. Our AI automates keyword research, content generation, internal linking, and publishing. The ultimate SEO tool for startups and agencies.",
+  keywords: "AI blog writer, SEO automation, auto-blogging, programmatic SEO, content marketing AI, StackSerp",
   openGraph: {
-    title: "StackSerp — Automate Your SEO Blog in Minutes",
+    title: "StackSerp | Automate Your SEO Growth",
     description:
-      "Publish months of high-ranking SEO content without writing a single word. AI research, writing, and publishing—all on autopilot.",
+      "Generate months of high-ranking SEO content without writing a single word. AI research, writing, and publishing—all on autopilot.",
     type: "website",
+    url: "https://stackserp.com",
+    siteName: "StackSerp",
+    images: [
+      {
+        url: "/og-image.jpg",
+        width: 1200,
+        height: 630,
+        alt: "StackSerp AI SEO Platform",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "StackSerp | Automate Your SEO Growth",
+    description: "Generate months of high-ranking SEO content without writing a single word.",
+    images: ["/og-image.jpg"],
+  },
+  alternates: {
+    canonical: "https://stackserp.com",
   },
 };
 
@@ -53,34 +76,19 @@ export default function LandingPage() {
               <span className="text-xl font-bold tracking-tight">StackSerp</span>
             </Link>
             <div className="hidden md:flex items-center gap-8">
-              <Link
-                href="#features"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
+              <Link href="/features" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                 Features
               </Link>
-              <Link
-                href="#how-it-works"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                How It Works
+              <Link href="/use-cases" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                Use Cases
               </Link>
-              <Link
-                href="#pricing"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
+              <Link href="/pricing" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                 Pricing
               </Link>
-              <Link
-                href="#faq"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
-                FAQ
+              <Link href="/about" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
+                About Us
               </Link>
-              <Link
-                href="/blogs"
-                className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
-              >
+              <Link href="/blogs" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
                 Blog
               </Link>
             </div>
@@ -90,318 +98,173 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative pt-20 pb-32 md:pt-32 md:pb-48 overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-background to-background"></div>
-        <div className="absolute inset-x-0 -top-40 -z-10 transform-gpu overflow-hidden blur-3xl sm:-top-80">
-          <div className="relative left-[calc(50%-11rem)] aspect-[1155/678] w-[36.125rem] -translate-x-1/2 rotate-[30deg] bg-gradient-to-tr from-[#ff80b5] to-[#9089fc] opacity-20 sm:left-[calc(50%-30rem)] sm:w-[72.1875rem]"></div>
+      <section className="relative pt-24 pb-32 md:pt-36 md:pb-48 overflow-hidden">
+        {/* Abstract Backgrounds */}
+        <div className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/15 via-background to-background"></div>
+        <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/3 -z-10 opacity-30">
+          <div className="w-[800px] h-[800px] rounded-full bg-primary/20 blur-3xl filter mix-blend-multiply"></div>
         </div>
-        
-        <div className="max-w-6xl mx-auto px-4 text-center">
-          <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-3 py-1 text-sm font-medium text-primary mb-8 backdrop-blur-sm animate-fade-in-up">
-            <Sparkles className="mr-2 h-3.5 w-3.5 fill-primary" />
-            <span>New: Agentic Research Mode Live</span>
+        <div className="absolute bottom-0 left-0 translate-y-1/3 -translate-x-1/3 -z-10 opacity-30">
+          <div className="w-[600px] h-[600px] rounded-full bg-purple-500/20 blur-3xl filter mix-blend-multiply"></div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center relative z-10">
+          <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/5 px-4 py-1.5 text-sm font-medium text-primary mb-8 backdrop-blur-sm animate-fade-in-up hover:bg-primary/10 transition-colors cursor-pointer">
+            <Sparkles className="mr-2 h-4 w-4 fill-primary" />
+            <span>Introducing StackSerp v2.0 with Deep Content Engine</span>
+            <ArrowRight className="ml-2 h-4 w-4" />
           </div>
           
-          <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-8 leading-[1.1] animate-fade-in-up delay-100">
-            Dominate Search Rankings <br className="hidden md:block" />
+          <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tight mb-8 leading-[1.1] animate-fade-in-up delay-100">
+            Automate Your <br className="hidden md:block" />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-purple-500 to-blue-600">
-              Without Hiring Writers.
+              SEO Content Machine.
             </span>
           </h1>
           
           <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-12 leading-relaxed animate-fade-in-up delay-200">
-            Generate high-quality, SEO-optimized blog posts in minutes. 
-            Perfect for agencies and growth marketers who need results, not fluff.
+            Publish months of high-ranking, human-quality SEO content in minutes. We handle keyword clustering, AI generation, internal linking, and publishing.
           </p>
           
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16 animate-fade-in-up delay-300">
-            <Button asChild size="lg" className="text-lg px-8 h-14 w-full sm:w-auto shadow-xl shadow-primary/25 hover:shadow-primary/40 transition-all hover:-translate-y-1">
+            <Button asChild size="lg" className="text-lg px-8 h-14 w-full sm:w-auto shadow-xl shadow-primary/25 hover:shadow-primary/40 transition-all hover:-translate-y-1 group">
               <Link href="/register">
                 Start Ranking for Free
-                <ArrowRight className="ml-2 h-5 w-5" />
+                <ArrowRight className="ml-2 h-5 w-5 group-hover:translate-x-1 transition-transform" />
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="text-lg px-8 h-14 w-full sm:w-auto bg-background/50 backdrop-blur border-muted-foreground/20 hover:bg-muted/50 transition-all">
-              <Link href="#how-it-works">See How It Works</Link>
+              <Link href="#demo">Watch 2-Min Demo</Link>
             </Button>
           </div>
 
-          {/* Dashboard Mockup */}
-          <div className="relative mx-auto max-w-5xl rounded-xl border bg-background/50 p-2 shadow-2xl backdrop-blur-sm lg:rounded-2xl lg:p-4 animate-fade-in-up delay-500">
-            <div className="rounded-lg border bg-card shadow-sm overflow-hidden">
-               {/* Mockup Header */}
-               <div className="flex items-center border-b bg-muted/30 px-4 py-2.5">
-                 <div className="flex space-x-2">
-                   <div className="h-3 w-3 rounded-full bg-red-500/20 border border-red-500/50"></div>
-                   <div className="h-3 w-3 rounded-full bg-amber-500/20 border border-amber-500/50"></div>
-                   <div className="h-3 w-3 rounded-full bg-green-500/20 border border-green-500/50"></div>
-                 </div>
-                 <div className="mx-auto flex h-6 w-1/2 max-w-[300px] items-center justify-center rounded-md bg-muted/50 text-[10px] text-muted-foreground">
-                   stackserp.com/dashboard/generator
-                 </div>
-               </div>
-               
-               {/* Mockup Body */}
-               <div className="grid md:grid-cols-12 gap-0 h-[400px] md:h-[500px]">
-                 {/* Sidebar */}
-                 <div className="hidden md:block col-span-2 border-r bg-muted/10 p-4 space-y-4">
-                   <div className="h-8 w-full bg-primary/10 rounded-md animate-pulse"></div>
-                   <div className="space-y-2">
-                     <div className="h-6 w-3/4 bg-muted/40 rounded animate-pulse"></div>
-                     <div className="h-6 w-full bg-muted/40 rounded animate-pulse"></div>
-                     <div className="h-6 w-5/6 bg-muted/40 rounded animate-pulse"></div>
-                   </div>
-                 </div>
-                 
-                 {/* Main Content */}
-                 <div className="col-span-12 md:col-span-7 p-6 space-y-6">
-                   <div className="flex items-center justify-between">
-                     <div className="space-y-2">
-                       <div className="h-8 w-64 bg-muted/60 rounded animate-pulse"></div>
-                       <div className="h-4 w-96 bg-muted/40 rounded animate-pulse"></div>
-                     </div>
-                     <Badge className="bg-green-500/10 text-green-600 border-green-200">SEO Score: 98/100</Badge>
-                   </div>
-                   
-                   <div className="space-y-4">
-                     <div className="h-4 w-full bg-muted/30 rounded animate-pulse delay-75"></div>
-                     <div className="h-4 w-[95%] bg-muted/30 rounded animate-pulse delay-100"></div>
-                     <div className="h-4 w-[90%] bg-muted/30 rounded animate-pulse delay-150"></div>
-                     <div className="h-32 w-full bg-muted/20 rounded-lg animate-pulse delay-200 border-dashed border-2 flex items-center justify-center text-muted-foreground/30">
-                       AI Generated Image
-                     </div>
-                     <div className="h-4 w-full bg-muted/30 rounded animate-pulse delay-300"></div>
-                     <div className="h-4 w-[92%] bg-muted/30 rounded animate-pulse delay-400"></div>
-                   </div>
-                 </div>
-                 
-                 {/* SEO Panel */}
-                 <div className="hidden md:block col-span-3 border-l bg-muted/5 p-4 space-y-4">
-                   <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Optimization</div>
-                   <div className="space-y-3">
-                      {[1, 2, 3, 4].map((i) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <CheckCircle2 className="h-4 w-4 text-green-500" />
-                          <div className="h-3 w-32 bg-muted/40 rounded"></div>
-                        </div>
-                      ))}
-                      <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Bot className="h-4 w-4 text-blue-500" />
-                          <span className="text-xs font-semibold text-blue-700">AI Suggestions</span>
-                        </div>
-                        <div className="h-12 w-full bg-blue-100/30 rounded text-xs p-2 text-blue-900/60">
-                           Adding more internal links could boost authority...
-                        </div>
-                      </div>
-                   </div>
-                 </div>
-               </div>
-            </div>
-            
-            {/* Floating Badges */}
-            <div className="absolute -right-4 top-20 bg-background/90 backdrop-blur border p-3 rounded-lg shadow-xl hidden lg:block animate-float">
-               <div className="flex items-center gap-3">
-                 <div className="bg-green-100 p-2 rounded-full">
-                   <TrendingUp className="h-5 w-5 text-green-600" />
-                 </div>
-                 <div>
-                   <div className="text-xs text-muted-foreground">Traffic Growth</div>
-                   <div className="font-bold text-sm">+240% vs last month</div>
-                 </div>
-               </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-center gap-8 text-sm text-muted-foreground mt-12">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
+          <div className="flex flex-wrap items-center justify-center gap-6 md:gap-12 text-sm text-muted-foreground animate-fade-in-up delay-400 font-medium">
+            <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-full">
+              <CheckCircle2 className="h-5 w-5 text-green-500" />
               <span>No credit card required</span>
             </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-              <span>5 free posts/mo</span>
+            <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-full">
+              <ShieldCheck className="h-5 w-5 text-green-500" />
+              <span>100% AI-Detection Safe</span>
             </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-              <span>Cancel anytime</span>
+            <div className="flex items-center gap-2 bg-muted/50 px-4 py-2 rounded-full">
+              <Zap className="h-5 w-5 text-green-500" />
+              <span>Publishes instantly</span>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Social Proof / Trusted By */}
-      <section className="py-10 border-y bg-muted/20">
+      {/* Social Proof */}
+      <section className="py-12 border-y bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 text-center">
-          <p className="text-sm font-medium text-muted-foreground uppercase tracking-widest mb-8">
-            Trusted by 2,000+ Modern Marketing Teams
+          <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest mb-8">
+            Powering organic growth for 2,000+ modern teams
           </p>
-          <div className="flex flex-wrap justify-center gap-8 md:gap-16 opacity-60 grayscale hover:grayscale-0 transition-all duration-500">
-            <div className="flex items-center gap-2 text-xl font-bold"><Zap className="h-6 w-6" /> TechFlow</div>
-            <div className="flex items-center gap-2 text-xl font-bold"><Globe className="h-6 w-6" /> GlobalReach</div>
-            <div className="flex items-center gap-2 text-xl font-bold"><BarChart3 className="h-6 w-6" /> ScaleUp</div>
-            <div className="flex items-center gap-2 text-xl font-bold"><Bot className="h-6 w-6" /> AI Daily</div>
-            <div className="flex items-center gap-2 text-xl font-bold"><TrendingUp className="h-6 w-6" /> RankFast</div>
+          <div className="flex flex-wrap justify-center items-center gap-8 md:gap-20 opacity-70 grayscale hover:grayscale-0 transition-all duration-500">
+            <div className="flex items-center gap-2 text-2xl font-black tracking-tighter"><Zap className="h-8 w-8 text-yellow-500" /> TechFlow</div>
+            <div className="flex items-center gap-2 text-2xl font-black tracking-tighter"><Globe className="h-8 w-8 text-blue-500" /> GlobalReach</div>
+            <div className="flex items-center gap-2 text-2xl font-black tracking-tighter"><BarChart3 className="h-8 w-8 text-green-500" /> ScaleUp</div>
+            <div className="flex items-center gap-2 text-2xl font-black tracking-tighter"><Bot className="h-8 w-8 text-purple-500" /> AI Daily</div>
+            <div className="flex items-center gap-2 text-2xl font-black tracking-tighter"><TrendingUp className="h-8 w-8 text-rose-500" /> RankFast</div>
           </div>
         </div>
       </section>
 
-      {/* Problem Agitation Section */}
-      <section className="py-24 px-4 bg-background relative overflow-hidden">
-        <div className="max-w-6xl mx-auto">
-          <div className="grid md:grid-cols-2 gap-16 items-center">
-            <div>
-              <Badge variant="outline" className="mb-4 border-red-200 bg-red-50 text-red-600">The Problem</Badge>
-              <h2 className="text-3xl md:text-5xl font-bold mb-6">
-                Why is SEO still so <span className="text-red-600 underline decoration-red-300 decoration-wavy underline-offset-4">painful?</span>
-              </h2>
-              <p className="text-lg text-muted-foreground mb-8 leading-relaxed">
-                You know you need content to grow, but the process is broken. 
-                Most founders spend 20+ hours a week just managing writers.
-              </p>
-              <ul className="space-y-6">
-                <li className="flex items-start gap-4 p-4 rounded-lg bg-red-50/50 border border-transparent hover:border-red-100 transition-colors">
-                  <XCircle className="h-6 w-6 text-red-500 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block text-foreground text-lg">Wasting hours on research</strong>
-                    <span className="text-muted-foreground">Guessing keywords and staring at blank Google Docs is not a strategy.</span>
-                  </div>
-                </li>
-                <li className="flex items-start gap-4 p-4 rounded-lg bg-red-50/50 border border-transparent hover:border-red-100 transition-colors">
-                  <XCircle className="h-6 w-6 text-red-500 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block text-foreground text-lg">Spending $500+ per article</strong>
-                    <span className="text-muted-foreground">Managing freelancers who miss deadlines and deliver fluff is a full-time job.</span>
-                  </div>
-                </li>
-                <li className="flex items-start gap-4 p-4 rounded-lg bg-red-50/50 border border-transparent hover:border-red-100 transition-colors">
-                  <XCircle className="h-6 w-6 text-red-500 shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block text-foreground text-lg">The "Content Treadmill"</strong>
-                    <span className="text-muted-foreground">Formatting, finding images, and fixing meta tags manually kills your momentum.</span>
-                  </div>
-                </li>
-              </ul>
-            </div>
-            <div className="relative group">
-              <div className="absolute inset-0 bg-gradient-to-tr from-red-100 to-transparent rounded-2xl opacity-50 blur-3xl group-hover:opacity-75 transition-opacity" />
-              <div className="relative bg-card border shadow-xl rounded-2xl p-8 transform group-hover:scale-[1.02] transition-transform duration-500">
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="h-4 w-32 bg-red-100 rounded text-xs flex items-center px-2 text-red-700 font-bold">INVOICE #4092</div>
-                    <div className="text-red-600 font-bold">Unpaid</div>
-                  </div>
-                  <div className="h-4 w-3/4 bg-muted rounded animate-pulse" />
-                  <div className="h-4 w-full bg-muted rounded animate-pulse" />
-                  <div className="h-4 w-5/6 bg-muted rounded animate-pulse" />
-                  <div className="h-40 w-full bg-muted/50 rounded flex flex-col items-center justify-center text-muted-foreground gap-2">
-                    <Clock className="h-8 w-8 text-muted-foreground/50" />
-                    <span className="text-sm">Waiting for draft (3 days overdue)...</span>
-                  </div>
-                  <div className="flex gap-2 pt-4 border-t">
-                     <div className="h-8 w-24 bg-red-100 rounded" />
-                     <div className="h-8 w-24 bg-muted rounded" />
-                  </div>
-                </div>
-                <div className="absolute -bottom-6 -right-6 bg-red-600 text-white px-6 py-4 rounded-lg shadow-xl font-bold transform rotate-3 flex flex-col items-center border-4 border-white">
-                  <span className="text-xs uppercase opacity-80">Total Cost</span>
-                  <span className="text-2xl">$450.00</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Solution / Features Section */}
-      <section id="features" className="py-24 px-4 bg-muted/30">
+      {/* Bento Grid Features */}
+      <section id="features" className="py-32 px-4 bg-background relative">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
-            <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary">The Solution</Badge>
-            <h2 className="text-4xl md:text-5xl font-bold mb-6">
-              Your Entire Content Team in One AI.
+            <Badge variant="outline" className="mb-4 border-primary/30 bg-primary/10 text-primary px-4 py-1.5 text-sm">Everything You Need</Badge>
+            <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6 tracking-tight">
+              An entire SEO agency in <br className="hidden md:block" /> a single dashboard.
             </h2>
             <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-              StackSerp replaces 5 different tools and a freelancer team. 
-              From keyword to published post in minutes.
+              Replace your keyword research tools, freelance writers, editors, and VA publishers with one automated engine.
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Feature 1 */}
-            <div className="bg-background rounded-2xl p-8 shadow-sm border hover:border-blue-500/50 hover:shadow-lg transition-all group">
-              <div className="h-14 w-14 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Search className="h-7 w-7" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[300px]">
+            {/* Main Feature - Large */}
+            <div className="md:col-span-2 md:row-span-2 bg-gradient-to-br from-muted/50 to-muted/10 border rounded-3xl p-8 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110 duration-500">
+                <Search className="w-64 h-64" />
               </div>
-              <h3 className="text-2xl font-bold mb-3">Deep Research Agent</h3>
-              <p className="text-muted-foreground mb-6 leading-relaxed">
-                We don't just guess. Our AI analyzes top-ranking competitors, finds content gaps, and sources real data to ensure you rank #1.
-              </p>
-              <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold">1</div>
-                  <span className="text-sm font-medium">Live SERP Analysis</span>
+              <div className="relative z-10 h-full flex flex-col justify-between">
+                <div>
+                  <div className="h-12 w-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center mb-6">
+                    <Target className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-3xl font-bold mb-4">Programmatic Keyword Clustering</h3>
+                  <p className="text-lg text-muted-foreground max-w-md leading-relaxed">
+                    Enter a broad seed keyword, and our AI instantly builds a robust topical map. We group keywords by intent and volume, ensuring you build unshakeable topical authority without keyword cannibalization.
+                  </p>
                 </div>
-                <div className="flex items-center gap-3">
-                   <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold">2</div>
-                  <span className="text-sm font-medium">Competitor Gap Finder</span>
-                </div>
-                <div className="flex items-center gap-3">
-                   <div className="h-6 w-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold">3</div>
-                  <span className="text-sm font-medium">Citations & Sources</span>
+                <div className="flex gap-3 mt-8">
+                  <Badge variant="secondary" className="px-3 py-1 text-sm">Search Intent Analysis</Badge>
+                  <Badge variant="secondary" className="px-3 py-1 text-sm">Topical Mapping</Badge>
                 </div>
               </div>
             </div>
 
             {/* Feature 2 */}
-            <div className="bg-background rounded-2xl p-8 shadow-sm border hover:border-purple-500/50 hover:shadow-lg transition-all group relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                 <Bot className="h-40 w-40" />
-               </div>
-              <div className="h-14 w-14 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <FileText className="h-7 w-7" />
+            <div className="bg-gradient-to-br from-purple-500/5 to-transparent border rounded-3xl p-8 relative overflow-hidden group hover:border-purple-500/30 transition-colors">
+              <div className="h-12 w-12 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center mb-6">
+                <Bot className="h-6 w-6" />
               </div>
-              <h3 className="text-2xl font-bold mb-3">Human-Like Writing</h3>
-              <p className="text-muted-foreground mb-6 leading-relaxed">
-                Powered by Gemini 3.1 Pro + Claude. We write long-form content (2,000+ words) that sounds like you, not a robot.
+              <h3 className="text-xl font-bold mb-3">Human-Grade AI Writing</h3>
+              <p className="text-muted-foreground">
+                Advanced AI writing that reads naturally, passes AI detectors, and actually engages your audience.
               </p>
-               <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xs font-bold">1</div>
-                  <span className="text-sm font-medium">Custom Brand Voice</span>
-                </div>
-                <div className="flex items-center gap-3">
-                   <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xs font-bold">2</div>
-                  <span className="text-sm font-medium">Auto-Internal Linking</span>
-                </div>
-                <div className="flex items-center gap-3">
-                   <div className="h-6 w-6 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xs font-bold">3</div>
-                  <span className="text-sm font-medium">No Fluff or Jargon</span>
-                </div>
-              </div>
             </div>
 
             {/* Feature 3 */}
-            <div className="bg-background rounded-2xl p-8 shadow-sm border hover:border-green-500/50 hover:shadow-lg transition-all group">
-              <div className="h-14 w-14 rounded-xl bg-green-100 text-green-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
-                <Zap className="h-7 w-7" />
+            <div className="bg-gradient-to-br from-green-500/5 to-transparent border rounded-3xl p-8 relative overflow-hidden group hover:border-green-500/30 transition-colors">
+              <div className="h-12 w-12 rounded-xl bg-green-500/10 text-green-600 flex items-center justify-center mb-6">
+                <Link2 className="h-6 w-6" />
               </div>
-              <h3 className="text-2xl font-bold mb-3">One-Click Publish</h3>
-              <p className="text-muted-foreground mb-6 leading-relaxed">
-                Connect your CMS and publish directly. We handle formatting, images, meta tags, and schema automatically.
+              <h3 className="text-xl font-bold mb-3">Auto Internal Linking</h3>
+              <p className="text-muted-foreground">
+                We automatically scan your existing posts and interlink them using optimal anchor text to pass link juice efficiently.
               </p>
-               <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xs font-bold">1</div>
-                  <span className="text-sm font-medium">WordPress, Webflow, Shopify</span>
+            </div>
+
+            {/* Feature 4 */}
+            <div className="bg-gradient-to-br from-blue-500/5 to-transparent border rounded-3xl p-8 relative overflow-hidden group hover:border-blue-500/30 transition-colors">
+              <div className="h-12 w-12 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center mb-6">
+                <ImageIcon className="h-6 w-6" />
+              </div>
+              <h3 className="text-xl font-bold mb-3">AI Image Generation</h3>
+              <p className="text-muted-foreground">
+                Never search for stock photos again. We generate unique, context-aware featured images and diagrams for every post.
+              </p>
+            </div>
+
+            {/* Feature 5 */}
+            <div className="md:col-span-2 bg-gradient-to-br from-rose-500/5 to-transparent border rounded-3xl p-8 relative overflow-hidden group hover:border-rose-500/30 transition-colors flex flex-col md:flex-row items-center gap-8">
+              <div className="flex-1">
+                <div className="h-12 w-12 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center mb-6">
+                  <Zap className="h-6 w-6" />
                 </div>
-                <div className="flex items-center gap-3">
-                   <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xs font-bold">2</div>
-                  <span className="text-sm font-medium">AI-Generated Images</span>
+                <h3 className="text-2xl font-bold mb-3">One-Click CMS Publishing</h3>
+                <p className="text-muted-foreground mb-6">
+                  Connect your WordPress, Webflow, or custom Next.js stack. We format everything, handle meta tags, and publish instantly.
+                </p>
+                <Button variant="outline" asChild>
+                  <Link href="/features">See All Integrations <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                </Button>
+              </div>
+              <div className="w-full md:w-1/2 h-full bg-background rounded-xl border shadow-sm p-4 relative">
+                {/* Mini mock UI of integrations */}
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-xs">WP</div>
+                  <div className="w-10 h-10 bg-black rounded-lg flex items-center justify-center text-white font-bold text-xs">Next</div>
+                  <div className="w-10 h-10 bg-blue-400 rounded-lg flex items-center justify-center text-white font-bold text-xs">WF</div>
                 </div>
-                <div className="flex items-center gap-3">
-                   <div className="h-6 w-6 rounded-full bg-green-100 flex items-center justify-center text-green-600 text-xs font-bold">3</div>
-                  <span className="text-sm font-medium">Instant Indexing</span>
+                <div className="space-y-2">
+                  <div className="h-3 w-full bg-muted rounded-full animate-pulse"></div>
+                  <div className="h-3 w-4/5 bg-muted rounded-full animate-pulse delay-75"></div>
+                  <div className="h-3 w-5/6 bg-muted rounded-full animate-pulse delay-150"></div>
                 </div>
               </div>
             </div>
@@ -409,270 +272,214 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* How It Works */}
-      <section id="how-it-works" className="py-24 px-4 bg-background">
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              From Keyword to Ranking in 3 Steps
-            </h2>
-            <p className="text-lg text-muted-foreground">It&apos;s really this simple.</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 relative">
-            {/* Connector line (desktop only) */}
-            <div className="hidden md:block absolute top-[1.25rem] left-[16.66%] right-[16.66%] h-0.5 bg-gradient-to-r from-blue-300 via-purple-300 to-green-300 opacity-50" />
-
-            {[
-              {
-                step: 1,
-                title: "Enter Your Topic",
-                text: "Just give us a keyword or a broad topic. We'll find the best opportunities and cluster them for authority.",
-                icon: Search,
-                bgColor: "bg-blue-100",
-                textColor: "text-blue-600",
-                dotColor: "bg-blue-500",
-                shadowColor: "shadow-blue-200"
-              },
-              {
-                step: 2,
-                title: "Customize & Generate",
-                text: "Set your tone, word count, and format. Our AI researches and writes the full article in minutes.",
-                icon: Sparkles,
-                bgColor: "bg-purple-100",
-                textColor: "text-purple-600",
-                dotColor: "bg-purple-500",
-                shadowColor: "shadow-purple-200"
-              },
-              {
-                step: 3,
-                title: "Publish & Rank",
-                text: "Review the draft (if you want) and push to your site with one click. We notify Google immediately.",
-                icon: TrendingUp,
-                bgColor: "bg-green-100",
-                textColor: "text-green-600",
-                dotColor: "bg-green-500",
-                shadowColor: "shadow-green-200"
-              },
-            ].map((item) => (
-              <div key={item.step} className="relative text-center group">
-                {/* Step dot */}
-                <div className="flex justify-center mb-8 relative">
-                  <div className={`relative z-10 h-10 w-10 rounded-full ${item.bgColor} flex items-center justify-center border-4 border-background shadow-lg transition-transform group-hover:scale-110 duration-300`}>
-                    <div className={`h-3 w-3 rounded-full ${item.dotColor}`} />
+      {/* How It Works with Visuals */}
+      <section className="py-32 px-4 bg-muted/10 border-y">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            <div>
+              <Badge variant="outline" className="mb-4 bg-background">The Process</Badge>
+              <h2 className="text-4xl md:text-5xl font-bold mb-8 leading-tight">
+                From idea to live article in under 3 minutes.
+              </h2>
+              
+              <div className="space-y-8">
+                {[
+                  { title: "Define Your Goal", desc: "Enter a seed keyword or connect your Google Search Console. We'll identify what your audience is searching for.", icon: Settings, color: "text-blue-500" },
+                  { title: "Review The Topical Map", desc: "Our AI generates a full content cluster. Approve or modify the titles before we start writing.", icon: Layers, color: "text-purple-500" },
+                  { title: "Auto-Generate & Publish", desc: "We write the content, generate images, inject internal links, and push straight to your CMS.", icon: Cpu, color: "text-green-500" },
+                ].map((step, idx) => (
+                  <div key={idx} className="flex gap-6 relative group">
+                    {/* Vertical Line */}
+                    {idx !== 2 && <div className="absolute left-[1.15rem] top-12 bottom-[-2rem] w-0.5 bg-muted group-hover:bg-primary/50 transition-colors"></div>}
+                    
+                    <div className="relative z-10 flex-shrink-0 w-10 h-10 rounded-full bg-background border-2 border-muted group-hover:border-primary flex items-center justify-center transition-colors">
+                      <step.icon className={`h-4 w-4 ${step.color}`} />
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-xl font-bold mb-2 group-hover:text-primary transition-colors">{step.title}</h3>
+                      <p className="text-muted-foreground leading-relaxed">{step.desc}</p>
+                    </div>
                   </div>
-                </div>
-
-                {/* Card */}
-                <div className="bg-background border rounded-2xl p-8 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1 h-full">
-                  <div className={`h-14 w-14 rounded-2xl ${item.bgColor} ${item.textColor} flex items-center justify-center mx-auto mb-6 shadow-sm`}>
-                    <item.icon className="h-7 w-7" />
+                ))}
+              </div>
+            </div>
+            
+            <div className="relative">
+              <div className="absolute inset-0 bg-gradient-to-tr from-primary/20 via-purple-500/20 to-blue-500/20 rounded-3xl blur-3xl opacity-50"></div>
+              <div className="relative bg-background border rounded-3xl shadow-2xl p-2 md:p-4">
+                <div className="rounded-2xl border bg-card overflow-hidden flex flex-col h-[500px]">
+                  {/* Fake Browser Window */}
+                  <div className="flex items-center gap-2 border-b px-4 py-3 bg-muted/30">
+                    <div className="w-3 h-3 rounded-full bg-red-400"></div>
+                    <div className="w-3 h-3 rounded-full bg-amber-400"></div>
+                    <div className="w-3 h-3 rounded-full bg-green-400"></div>
                   </div>
-                  <h3 className="text-xl font-bold mb-3">{item.title}</h3>
-                  <p className="text-muted-foreground leading-relaxed">{item.text}</p>
+                  <div className="p-6 flex-1 flex flex-col gap-6">
+                    <div className="h-8 w-1/3 bg-muted rounded-lg"></div>
+                    <div className="h-10 w-full bg-primary/10 border border-primary/20 rounded-lg flex items-center px-4 gap-3 text-primary">
+                      <Search className="h-5 w-5" />
+                      <span className="font-medium">Best CRM for Marketing Agencies</span>
+                    </div>
+                    
+                    <div className="flex-1 border rounded-xl bg-muted/10 p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div className="h-5 w-32 bg-muted rounded"></div>
+                        <Badge className="bg-green-500/10 text-green-600 hover:bg-green-500/20 border-green-200">Generating...</Badge>
+                      </div>
+                      <div className="space-y-3">
+                        {[1, 2, 3, 4].map((i) => (
+                          <div key={i} className="flex gap-3 items-center">
+                            <div className={`w-4 h-4 rounded-full ${i === 1 ? 'bg-green-500' : 'bg-muted'} flex items-center justify-center`}>
+                              {i === 1 && <CheckCircle2 className="h-3 w-3 text-white" />}
+                            </div>
+                            <div className="h-3 w-full bg-muted/60 rounded"></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Testimonials */}
-      <section className="py-24 px-4 bg-muted/10 border-y">
+      {/* Target Audiences */}
+      <section className="py-32 px-4 bg-background">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              Loved by Growth Teams
-            </h2>
+            <h2 className="text-4xl md:text-5xl font-bold mb-6">Built for growth.</h2>
+            <p className="text-xl text-muted-foreground">Who uses StackSerp?</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
-             {[
-               {
-                 quote: "We increased our organic traffic by 400% in 3 months. StackSerp is the secret weapon for our agency.",
-                 author: "Alex J.",
-                 role: "Founder, GrowthAgency",
-                 rating: 5
-               },
-               {
-                 quote: "I used to pay writers $300/article. Now I generate better content for pennies. It's a no-brainer.",
-                 author: "Sarah M.",
-                 role: "Marketing Director, SaaS Co",
-                 rating: 5
-               },
-               {
-                 quote: "The internal linking feature alone saved me weeks of manual work. Best SEO tool I've used this year.",
-                 author: "David K.",
-                 role: "SEO Specialist",
-                 rating: 5
-               }
-             ].map((t, i) => (
-               <div key={i} className="bg-background p-8 rounded-2xl shadow-sm border relative">
-                 <Quote className="absolute top-6 right-6 h-8 w-8 text-muted-foreground/10" />
-                 <div className="flex gap-1 mb-4">
-                   {[...Array(t.rating)].map((_, i) => (
-                     <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                   ))}
-                 </div>
-                 <p className="text-lg mb-6 leading-relaxed">"{t.quote}"</p>
-                 <div>
-                   <div className="font-bold">{t.author}</div>
-                   <div className="text-sm text-muted-foreground">{t.role}</div>
-                 </div>
-               </div>
-             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Pricing Section */}
-      <section id="pricing" className="py-24 px-4 bg-background">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Simple Pricing, ROI in Days.
-            </h2>
-            <p className="text-lg text-muted-foreground">
-              Cheaper than one hour of a freelancer's time.
-            </p>
-          </div>
-          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto">
-            {[
-              { name: "Free", price: 0, sites: 1, posts: 5, highlight: false, btn: "Start Free" },
-              { name: "Starter", price: 29, sites: 3, posts: 20, highlight: false, btn: "Get Starter" },
-              { name: "Growth", price: 79, sites: 10, posts: 60, highlight: true, btn: "Get Growth" },
-              { name: "Agency", price: 199, sites: 50, posts: 200, highlight: false, btn: "Get Agency" },
-            ].map((plan) => (
-              <div
-                key={plan.name}
-                className={`bg-background rounded-xl p-8 border-2 flex flex-col ${
-                  plan.highlight 
-                    ? "border-primary shadow-2xl relative scale-105 z-10" 
-                    : "border-muted shadow-md hover:border-primary/20"
-                }`}
-              >
-                {plan.highlight && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-primary px-3 py-1 text-sm shadow-lg">Most Popular</Badge>
-                  </div>
-                )}
-                <h3 className="text-xl font-bold mb-2">{plan.name}</h3>
-                <div className="mb-6">
-                  <span className="text-4xl font-bold">${plan.price}</span>
-                  {plan.price > 0 && (
-                    <span className="text-muted-foreground">/mo</span>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <ul className="space-y-4 mb-8">
-                    <li className="flex items-center gap-3 text-sm">
-                      <Globe className="h-4 w-4 text-muted-foreground" />
-                      <strong>{plan.sites}</strong> website{plan.sites !== 1 ? "s" : ""}
-                    </li>
-                    <li className="flex items-center gap-3 text-sm">
-                      <FileText className="h-4 w-4 text-muted-foreground" />
-                      <strong>{plan.posts}</strong> posts/month
-                    </li>
-                    <li className="flex items-center gap-3 text-sm">
-                      <ImageIcon className="h-4 w-4 text-muted-foreground" />
-                      AI Image Generation
-                    </li>
-                    <li className="flex items-center gap-3 text-sm">
-                      <Link2 className="h-4 w-4 text-muted-foreground" />
-                      Auto-Internal Linking
-                    </li>
-                    <li className="flex items-center gap-3 text-sm">
-                      <Zap className="h-4 w-4 text-muted-foreground" />
-                      Instant Indexing
-                    </li>
-                  </ul>
-                </div>
-                <Button
-                  asChild
-                  className="w-full"
-                  variant={plan.highlight ? "default" : "outline"}
-                >
-                  <Link href="/register">{plan.btn}</Link>
-                </Button>
+            <div className="p-8 border rounded-3xl hover:shadow-xl transition-all bg-card flex flex-col text-center">
+              <div className="mx-auto w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mb-6">
+                <Globe className="h-8 w-8" />
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ Section */}
-      <section id="faq" className="py-24 px-4 bg-muted/10">
-        <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">Frequently Asked Questions</h2>
-          </div>
-          <div className="space-y-6">
-             {[
-               { q: "Will the content pass AI detectors?", a: "We focus on quality and value first. Our 'Human-Like' writing mode uses advanced prompting and multi-model editing to create natural, engaging content that reads well for humans, which is what actually matters to Google." },
-               { q: "Can I edit the posts before publishing?", a: "Absolutely. You get a full markdown editor to review, tweak, and perfect every post before it goes live. You're always in control." },
-               { q: "Does it work for my niche?", a: "Yes. StackSerp uses Perplexity for real-time research, so it can write about current events, technical topics, and specific niches with up-to-date accuracy." },
-               { q: "How does the 'Auto-Internal Linking' work?", a: "We scan your existing blog posts and automatically find relevant anchor text opportunities in the new articles to link back to your other pages, boosting your SEO structure." }
-             ].map((faq, i) => (
-               <div key={i} className="border rounded-xl p-6 bg-background hover:shadow-md transition-shadow">
-                 <h3 className="font-bold text-lg mb-2">{faq.q}</h3>
-                 <p className="text-muted-foreground leading-relaxed">{faq.a}</p>
-               </div>
-             ))}
+              <h3 className="text-2xl font-bold mb-4">Marketing Agencies</h3>
+              <p className="text-muted-foreground mb-6 flex-1">
+                Scale your client content offerings instantly. Manage 50+ websites from one dashboard, without hiring more writers.
+              </p>
+              <Link href="/use-cases/agencies" className="text-primary font-medium hover:underline inline-flex items-center justify-center">
+                Learn more <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
+            </div>
+            
+            <div className="p-8 border rounded-3xl hover:shadow-xl transition-all bg-card flex flex-col text-center">
+              <div className="mx-auto w-16 h-16 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mb-6">
+                <Zap className="h-8 w-8" />
+              </div>
+              <h3 className="text-2xl font-bold mb-4">SaaS Startups</h3>
+              <p className="text-muted-foreground mb-6 flex-1">
+                Build an organic acquisition moat early. Generate product-led content that drives high-intent signups to your app.
+              </p>
+              <Link href="/use-cases/startups" className="text-primary font-medium hover:underline inline-flex items-center justify-center">
+                Learn more <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
+            </div>
+            
+            <div className="p-8 border rounded-3xl hover:shadow-xl transition-all bg-card flex flex-col text-center">
+              <div className="mx-auto w-16 h-16 bg-green-100 text-green-600 rounded-2xl flex items-center justify-center mb-6">
+                <Layout className="h-8 w-8" />
+              </div>
+              <h3 className="text-2xl font-bold mb-4">Niche Publishers</h3>
+              <p className="text-muted-foreground mb-6 flex-1">
+                Grow your portfolio of affiliate and ad-revenue sites faster. StackSerp creates deep, authoritative silos automatically.
+              </p>
+              <Link href="/use-cases/publishers" className="text-primary font-medium hover:underline inline-flex items-center justify-center">
+                Learn more <ArrowRight className="ml-1 h-4 w-4" />
+              </Link>
+            </div>
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 px-4 relative overflow-hidden">
+      <section className="py-32 px-4 relative overflow-hidden border-t">
         <div className="absolute inset-0 bg-primary/5 -z-10"></div>
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-primary/10 rounded-full blur-3xl"></div>
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl"></div>
-        
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          <h2 className="text-4xl md:text-6xl font-bold mb-6 tracking-tight">
+          <Badge className="mb-8 px-4 py-1.5 text-sm bg-primary/20 text-primary hover:bg-primary/30 border-none">Start Growing Today</Badge>
+          <h2 className="text-4xl md:text-6xl font-black mb-6 tracking-tight">
             Stop waiting. Start ranking.
           </h2>
-          <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
-            Join the smart founders who are automating their growth. 
-            Get your first 5 posts for free today.
+          <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto leading-relaxed">
+            Join the smart founders who are automating their organic growth. 
+            Get your first 5 high-quality, SEO-optimized posts for free today.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Button asChild size="lg" className="text-lg px-10 h-14 w-full sm:w-auto shadow-xl hover:scale-105 transition-transform bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button asChild size="lg" className="text-xl px-12 h-16 shadow-2xl hover:scale-105 transition-transform bg-primary text-primary-foreground hover:bg-primary/90 rounded-full">
               <Link href="/register">
-                Start for Free
-                <ArrowRight className="ml-2 h-5 w-5" />
+                Start Ranking Free
+                <ArrowRight className="ml-2 h-6 w-6" />
               </Link>
             </Button>
-             <p className="text-sm text-muted-foreground mt-4 sm:mt-0 sm:hidden">
-              No credit card required.
-            </p>
           </div>
+          <p className="text-sm text-muted-foreground mt-6 font-medium">
+            No credit card required • Cancel anytime
+          </p>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="border-t py-12 px-4 bg-background">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-2">
+      <footer className="border-t py-16 px-4 bg-background">
+        <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-8 mb-12">
+          <div className="col-span-2 lg:col-span-2 flex flex-col gap-4">
+            <Link href="/" className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Logo className="h-5 w-5" />
               </div>
-              <span className="text-xl font-bold">StackSerp</span>
-            </div>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              The all-in-one AI content marketing platform for startups and agencies.
+              <span className="text-2xl font-bold">StackSerp</span>
+            </Link>
+            <p className="text-muted-foreground max-w-xs leading-relaxed mt-2">
+              The automated SEO content platform. Build topical authority and drive organic traffic on autopilot.
             </p>
+            <div className="flex gap-4 mt-4">
+              {/* Social Icons Placeholder */}
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer">X</div>
+              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center hover:bg-primary/20 hover:text-primary transition-colors cursor-pointer">in</div>
+            </div>
           </div>
           
-          <div className="flex gap-8 text-sm text-muted-foreground">
-            <Link href="#" className="hover:text-foreground">Terms</Link>
-            <Link href="#" className="hover:text-foreground">Privacy</Link>
-            <Link href="mailto:support@stackserp.com" className="hover:text-foreground">Contact</Link>
+          <div>
+            <h4 className="font-bold text-lg mb-4">Product</h4>
+            <ul className="space-y-3 text-muted-foreground">
+              <li><Link href="/features" className="hover:text-primary transition-colors">Features</Link></li>
+              <li><Link href="/pricing" className="hover:text-primary transition-colors">Pricing</Link></li>
+              <li><Link href="/integrations" className="hover:text-primary transition-colors">Integrations</Link></li>
+              <li><Link href="/changelog" className="hover:text-primary transition-colors">Changelog</Link></li>
+            </ul>
           </div>
-          
+
+          <div>
+            <h4 className="font-bold text-lg mb-4">Resources</h4>
+            <ul className="space-y-3 text-muted-foreground">
+              <li><Link href="/blogs" className="hover:text-primary transition-colors">Blog</Link></li>
+              <li><Link href="/use-cases" className="hover:text-primary transition-colors">Use Cases</Link></li>
+              <li><Link href="/about" className="hover:text-primary transition-colors">About Us</Link></li>
+              <li><Link href="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <h4 className="font-bold text-lg mb-4">Legal</h4>
+            <ul className="space-y-3 text-muted-foreground">
+              <li><Link href="/terms" className="hover:text-primary transition-colors">Terms of Service</Link></li>
+              <li><Link href="/privacy" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
+              <li><Link href="/dpa" className="hover:text-primary transition-colors">DPA</Link></li>
+            </ul>
+          </div>
+        </div>
+        
+        <div className="max-w-7xl mx-auto pt-8 border-t flex flex-col md:flex-row items-center justify-between gap-4">
           <p className="text-sm text-muted-foreground">
-            &copy; {new Date().getFullYear()} StackSerp.
+            &copy; {new Date().getFullYear()} StackSerp Inc. All rights reserved.
           </p>
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="w-2 h-2 rounded-full bg-green-500"></span>
+            All systems operational
+          </div>
         </div>
       </footer>
     </div>

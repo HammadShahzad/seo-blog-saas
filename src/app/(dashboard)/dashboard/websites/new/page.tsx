@@ -492,9 +492,9 @@ export default function NewWebsitePage() {
 const ANALYSIS_STEPS = [
   { label: "Connecting to website", icon: Globe, duration: 2000 },
   { label: "Crawling pages & extracting content", icon: Search, duration: 3000 },
-  { label: "Researching brand with Perplexity AI", icon: Brain, duration: 6000 },
+  { label: "Researching brand with deep AI analysis", icon: Brain, duration: 6000 },
   { label: "Understanding niche & audience", icon: Target, duration: 3000 },
-  { label: "Generating brand profile with Gemini", icon: FileText, duration: 4000 },
+  { label: "Generating brand profile", icon: FileText, duration: 4000 },
   { label: "Finalizing analysis", icon: Eye, duration: 2000 },
 ];
 

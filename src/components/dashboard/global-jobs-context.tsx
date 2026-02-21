@@ -59,15 +59,37 @@ export function GlobalJobsProvider({ children }: { children: ReactNode }) {
   const jobsRef = useRef(jobs);
   jobsRef.current = jobs;
 
-  // Load jobs from DB on mount
-  useEffect(() => {
+  const fetchingRef = useRef(false);
+  const hasRunningRef = useRef(false);
+
+  const fetchJobs = useCallback(() => {
+    if (fetchingRef.current) return;
+    fetchingRef.current = true;
     fetch("/api/user-jobs")
       .then((r) => (r.ok ? r.json() : []))
       .then((rows) => {
-        if (Array.isArray(rows) && rows.length) setJobs(rows.map(dbToJob));
+        if (Array.isArray(rows)) {
+          const mapped = rows.map(dbToJob);
+          setJobs(mapped);
+          hasRunningRef.current = mapped.some((j) => j.status === "running");
+        }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { fetchingRef.current = false; });
   }, []);
+
+  // Load jobs from DB on mount
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
+  // Poll every 5s while any job is "running" so the widget stays in sync
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (hasRunningRef.current) fetchJobs();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [fetchJobs]);
 
   const addJob = useCallback(
     (job: Omit<GlobalJob, "createdAt">) => {

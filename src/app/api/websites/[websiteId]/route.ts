@@ -59,7 +59,7 @@ export async function PATCH(
       "name", "domain", "niche", "description", "targetAudience",
       "tone", "brandName", "brandUrl", "primaryColor", "logoUrl",
       "faviconUrl", "customDomain", "autoPublish", "postsPerWeek",
-      "publishTime", "publishDays", "hostingMode", "webhookUrl",
+      "publishTime", "publishDays", "timezone", "hostingMode", "webhookUrl",
       "webhookSecret", "cmsType", "cmsApiUrl", "cmsApiKey",
       "googleAnalyticsId", "gscPropertyUrl", "twitterApiKey",
       "twitterApiSecret", "twitterAccessToken", "twitterAccessSecret",

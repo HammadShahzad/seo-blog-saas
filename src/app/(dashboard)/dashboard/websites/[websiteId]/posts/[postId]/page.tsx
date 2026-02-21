@@ -581,7 +581,7 @@ export default function PostEditorPage() {
                         <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
                           <div className="text-center text-white">
                             <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-                            <p className="text-xs">Generating with Imagen AI…</p>
+                            <p className="text-xs">Generating image…</p>
                           </div>
                         </div>
                       )}
@@ -589,7 +589,7 @@ export default function PostEditorPage() {
                   ) : (
                     <div className={`w-full aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-muted-foreground gap-2 ${isRegeneratingImage ? "border-primary/50 bg-primary/5" : ""}`}>
                       {isRegeneratingImage
-                        ? <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-xs">Generating with Imagen AI…</p></>
+                        ? <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-xs">Generating image…</p></>
                         : <><Image className="h-6 w-6" /><p className="text-xs">No image yet</p></>
                       }
                     </div>

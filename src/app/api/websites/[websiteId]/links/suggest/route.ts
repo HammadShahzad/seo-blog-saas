@@ -17,7 +17,7 @@ export interface SuggestResponse {
   suggestions: SuggestedLink[];
   steps: {
     crawl: "ok" | "failed";
-    gemini: "ok" | "failed";
+    ai: "ok" | "failed";
     error?: string;
     pagesFound: number;
   };
@@ -150,7 +150,7 @@ export async function POST(
     if (crawlStatus !== "ok" || crawledPages.length === 0) {
       return NextResponse.json({
         suggestions: [],
-        steps: { crawl: "failed", gemini: "failed", pagesFound: 0 },
+        steps: { crawl: "failed", ai: "failed", pagesFound: 0 },
       } as SuggestResponse);
     }
 
@@ -187,7 +187,7 @@ export async function POST(
       suggestions: filtered,
       steps: {
         crawl: crawlStatus,
-        gemini: geminiResult.status,
+        ai: geminiResult.status,
         error: geminiResult.error,
         pagesFound,
       },
