@@ -545,13 +545,14 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
 2. Naturally weave the primary keyword throughout (aim for 1-2% density — not stuffed, but present)
 3. Add related/LSI keywords naturally (synonyms, related terms people search for)
 4. Ensure proper heading hierarchy (H2, H3) — no heading level skips
-5. Add internal links — this is MANDATORY. You MUST insert ALL the links listed below into the article using real markdown syntax [anchor text](url). Do not skip this step.${internalLinkBlock}
+${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONLY use URLs from this exact list — do NOT invent or create any URLs that are not listed here.${internalLinkBlock}
    RULES FOR INTERNAL LINKS:
-   - YOU MUST ADD THESE LINKS. Insert every link that fits naturally — aim for 3-7 total.
+   - ONLY use URLs from the list above. If a URL is not in the list, do NOT use it.
+   - Do NOT hallucinate, guess, or create any URLs. Every link must match an entry above EXACTLY.
+   - Insert links where they fit naturally — aim for ${Math.min(consolidatedLinks.length, 7)} total.
    - Each URL may appear AT MOST ONCE. NEVER link to the same URL twice.
-   - Place links inline in the body text where the topic is being discussed — not all in one paragraph.
-   - Use descriptive anchor text that matches the context (not "click here" or "read more").
-   - Use REAL markdown links only: [anchor text](url). NEVER use placeholder formats.
+   - Use descriptive anchor text that matches the context.
+   - Use REAL markdown links only: [anchor text](url).` : `5. Do NOT add any internal links. There are no published posts to link to yet. Do NOT invent or hallucinate any URLs.`}
 6. Make sure the intro paragraph contains the keyword
 ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common questions (format as proper ## FAQ heading with ### for each question — this helps with Google's FAQ rich snippets)` : "7. Skip FAQ if not present"}
 8. CRITICAL: Every paragraph MUST be under 80 words (3-4 sentences max). Split any longer paragraph into two. This is a hard requirement for readability scoring.
@@ -603,11 +604,61 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
     );
   }
 
+  // Post-process: strip hallucinated links (URLs not in the provided list)
+  const allowedUrls = new Set<string>();
+  for (const l of consolidatedLinks) {
+    allowedUrls.add(l.url.replace(/\/$/, "").toLowerCase());
+  }
+  // Also allow TOC anchor links (#section-slug) and the brand URL
+  const brandHost = ctx.brandUrl ? new URL(ctx.brandUrl).hostname : "";
+
+  if (consolidatedLinks.length > 0) {
+    finalContent = finalContent.replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      (fullMatch, anchor: string, url: string) => {
+        // Allow anchor links (TOC)
+        if (url.startsWith("#")) return fullMatch;
+        // Allow links that are in our approved list
+        const normalizedUrl = url.replace(/\/$/, "").toLowerCase();
+        if (allowedUrls.has(normalizedUrl)) return fullMatch;
+        // Allow external links (not on our domain)
+        try {
+          const linkHost = new URL(url).hostname;
+          if (brandHost && linkHost !== brandHost) return fullMatch;
+        } catch {
+          // Not a valid URL — strip it
+        }
+        // This is a hallucinated internal link — remove it, keep anchor text
+        console.log(`[content-gen] Stripped hallucinated link: ${url}`);
+        return anchor;
+      }
+    );
+  } else {
+    // No internal links provided — strip ALL internal-looking links (same domain)
+    finalContent = finalContent.replace(
+      /\[([^\]]+)\]\(([^)]+)\)/g,
+      (fullMatch, anchor: string, url: string) => {
+        if (url.startsWith("#")) return fullMatch;
+        try {
+          const linkHost = new URL(url).hostname;
+          if (brandHost && linkHost === brandHost) {
+            console.log(`[content-gen] Stripped hallucinated link (no approved list): ${url}`);
+            return anchor;
+          }
+        } catch {
+          // Not a valid URL — keep as is
+        }
+        return fullMatch;
+      }
+    );
+  }
+
   // Post-process: remove duplicate links (keep first occurrence of each URL)
   const linkedUrls = new Set<string>();
   finalContent = finalContent.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
     (fullMatch, anchor: string, url: string) => {
+      if (url.startsWith("#")) return fullMatch;
       const normalizedUrl = url.replace(/\/$/, "").toLowerCase();
       if (linkedUrls.has(normalizedUrl)) {
         return anchor;
