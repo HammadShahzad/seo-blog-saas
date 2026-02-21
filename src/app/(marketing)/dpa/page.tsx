@@ -4,7 +4,14 @@ export const metadata: Metadata = {
   title: "Data Processing Agreement (DPA) | StackSerp",
   description:
     "StackSerp Data Processing Agreement — outlines how we process personal data on behalf of our customers in accordance with GDPR and applicable data protection laws.",
+  keywords: "StackSerp DPA, data processing agreement, GDPR compliance, data privacy",
   alternates: { canonical: "https://stackserp.com/dpa" },
+  openGraph: {
+    title: "Data Processing Agreement (DPA) | StackSerp",
+    description: "How StackSerp processes personal data on behalf of customers under GDPR.",
+    type: "website",
+    url: "https://stackserp.com/dpa",
+  },
 };
 
 export default function DpaPage() {

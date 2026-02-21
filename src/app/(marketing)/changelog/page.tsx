@@ -7,7 +7,14 @@ export const metadata: Metadata = {
   title: "Changelog | StackSerp Product Updates",
   description:
     "See what's new in StackSerp. Follow the latest product updates, feature releases, and improvements to the AI SEO content platform.",
+  keywords: "StackSerp changelog, product updates, new features, AI SEO tool updates",
   alternates: { canonical: "https://stackserp.com/changelog" },
+  openGraph: {
+    title: "What's New in StackSerp",
+    description: "Latest features, improvements, and fixes to the StackSerp AI SEO content platform.",
+    type: "website",
+    url: "https://stackserp.com/changelog",
+  },
 };
 
 type ChangeType = "new" | "improvement" | "fix" | "security";

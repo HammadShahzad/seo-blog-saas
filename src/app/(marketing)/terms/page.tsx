@@ -4,7 +4,14 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Terms of Service | StackSerp",
   description: "Read the StackSerp Terms of Service. Covers account usage, content rights, billing, refund policy, and limitations of liability.",
+  keywords: "StackSerp terms of service, terms and conditions, user agreement",
   alternates: { canonical: "https://stackserp.com/terms" },
+  openGraph: {
+    title: "Terms of Service | StackSerp",
+    description: "StackSerp's Terms of Service — account usage, billing, content rights, and refund policy.",
+    type: "website",
+    url: "https://stackserp.com/terms",
+  },
 };
 
 const LAST_UPDATED = "February 1, 2026";

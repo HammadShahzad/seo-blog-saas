@@ -4,7 +4,14 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "Privacy Policy | StackSerp",
   description: "StackSerp's Privacy Policy. Learn how we collect, use, and protect your personal data, AI-generated content, and API credentials.",
+  keywords: "StackSerp privacy policy, data protection, GDPR, personal data",
   alternates: { canonical: "https://stackserp.com/privacy" },
+  openGraph: {
+    title: "Privacy Policy | StackSerp",
+    description: "How StackSerp collects, uses, and protects your data.",
+    type: "website",
+    url: "https://stackserp.com/privacy",
+  },
 };
 
 const LAST_UPDATED = "February 1, 2026";
