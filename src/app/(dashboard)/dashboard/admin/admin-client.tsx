@@ -38,6 +38,7 @@ import { toast } from "sonner";
 import {
   Loader2, Search, Edit, Users, FileText, Plus,
   Trash2, Eye, Save, Send, ArrowLeft, ExternalLink,
+  Crown, Shield, User as UserIcon,
 } from "lucide-react";
 import { MarkdownEditor } from "@/components/editor/markdown-editor";
 import { SEOScore } from "@/components/editor/seo-score";
@@ -60,6 +61,13 @@ type UserWithSubscription = {
     postsGeneratedThisMonth: number;
     imagesGeneratedThisMonth: number;
   } | null;
+};
+
+type OrgMember = {
+  id: string;
+  role: string;
+  createdAt: string;
+  user: { id: string; name: string | null; email: string | null; createdAt: string };
 };
 
 type BlogPost = {
@@ -145,6 +153,12 @@ function UsersTab() {
   const [websitesUsed, setWebsitesUsed] = useState(0);
   const [postsUsed, setPostsUsed] = useState(0);
   const [imagesUsed, setImagesUsed] = useState(0);
+  const [orgMembers, setOrgMembers] = useState<OrgMember[]>([]);
+  const [isMembersLoading, setIsMembersLoading] = useState(false);
+  const [addMemberEmail, setAddMemberEmail] = useState("");
+  const [addMemberRole, setAddMemberRole] = useState("MEMBER");
+  const [isAddingMember, setIsAddingMember] = useState(false);
+  const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
 
   const handlePlanChange = (newPlan: string) => {
     setPlan(newPlan);
@@ -175,9 +189,72 @@ function UsersTab() {
     return () => clearTimeout(delayDebounceFn);
   }, [search]);
 
+  const fetchOrgMembers = async (userId: string) => {
+    setIsMembersLoading(true);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/team`);
+      if (res.ok) {
+        const data = await res.json();
+        setOrgMembers(data.members || []);
+      }
+    } catch {
+      /* silent */
+    } finally {
+      setIsMembersLoading(false);
+    }
+  };
+
+  const handleAddMember = async () => {
+    if (!addMemberEmail.trim() || !selectedUser) return;
+    setIsAddingMember(true);
+    try {
+      const res = await fetch(`/api/admin/users/${selectedUser.id}/team`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: addMemberEmail.trim(), role: addMemberRole }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`${addMemberEmail} added to team`);
+        setAddMemberEmail("");
+        fetchOrgMembers(selectedUser.id);
+      } else {
+        toast.error(data.error || "Failed to add member");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setIsAddingMember(false);
+    }
+  };
+
+  const handleRemoveMember = async (memberId: string) => {
+    if (!selectedUser) return;
+    setRemovingMemberId(memberId);
+    try {
+      const res = await fetch(
+        `/api/admin/users/${selectedUser.id}/team?memberId=${memberId}`,
+        { method: "DELETE" }
+      );
+      if (res.ok) {
+        toast.success("Member removed");
+        fetchOrgMembers(selectedUser.id);
+      } else {
+        const data = await res.json();
+        toast.error(data.error || "Failed to remove");
+      }
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      setRemovingMemberId(null);
+    }
+  };
+
   const handleEditClick = (user: UserWithSubscription) => {
     setSelectedUser(user);
     setRole(user.role);
+    setAddMemberEmail("");
+    setAddMemberRole("MEMBER");
     if (user.subscription) {
       setPlan(user.subscription.plan);
       setMaxWebsites(user.subscription.maxWebsites);
@@ -187,6 +264,7 @@ function UsersTab() {
       setPostsUsed(user.subscription.postsGeneratedThisMonth);
       setImagesUsed(user.subscription.imagesGeneratedThisMonth);
     }
+    fetchOrgMembers(user.id);
     setIsDialogOpen(true);
   };
 
@@ -374,6 +452,88 @@ function UsersTab() {
                   </div>
                 </>
               )}
+
+              {/* Team Members */}
+              <div className="border-t pt-4 space-y-3">
+                <p className="text-sm font-medium flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  Team Members
+                </p>
+
+                {isMembersLoading ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading members…
+                  </div>
+                ) : orgMembers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No team members yet.</p>
+                ) : (
+                  <div className="space-y-1 max-h-36 overflow-y-auto">
+                    {orgMembers.map((m) => {
+                      const RoleIcon =
+                        m.role === "OWNER" ? Crown :
+                        m.role === "ADMIN" ? Shield : UserIcon;
+                      return (
+                        <div key={m.id} className="flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-muted/50 text-sm">
+                          <div className="flex items-center gap-2">
+                            <RoleIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                            <span className="font-medium truncate max-w-[140px]">
+                              {m.user.name || m.user.email}
+                            </span>
+                            <span className="text-xs text-muted-foreground truncate max-w-[120px]">
+                              {m.user.name ? m.user.email : ""}
+                            </span>
+                          </div>
+                          {m.role !== "OWNER" && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+                              onClick={() => handleRemoveMember(m.id)}
+                              disabled={removingMemberId === m.id}
+                            >
+                              {removingMemberId === m.id
+                                ? <Loader2 className="h-3 w-3 animate-spin" />
+                                : <Trash2 className="h-3 w-3" />}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Add member inline */}
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="Add by email…"
+                    value={addMemberEmail}
+                    onChange={(e) => setAddMemberEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddMember())}
+                    className="flex-1 h-8 text-sm"
+                  />
+                  <Select value={addMemberRole} onValueChange={setAddMemberRole}>
+                    <SelectTrigger className="w-24 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="MEMBER">Member</SelectItem>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="h-8"
+                    disabled={isAddingMember || !addMemberEmail.trim()}
+                    onClick={handleAddMember}
+                  >
+                    {isAddingMember ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                  </Button>
+                </div>
+              </div>
 
               <div className="flex justify-end space-x-2 pt-4">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Cancel</Button>

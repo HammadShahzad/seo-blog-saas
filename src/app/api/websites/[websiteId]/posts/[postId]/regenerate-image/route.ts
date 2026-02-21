@@ -46,6 +46,7 @@ export async function POST(req: Request, { params }: Params) {
       `Create an image that directly represents "${post.focusKeyword || post.title}" for a ${website?.niche || "business"} brand. Related to: "${post.title}". No text, words, or watermarks.`;
 
     // Generate the image — Gemini crafts a creative prompt, then Imagen renders it
+    // Uses high-quality (full) Imagen model since this is a manual, on-demand request
     const imageUrl = await generateBlogImage(
       basePrompt,
       post.slug,
@@ -53,6 +54,7 @@ export async function POST(req: Request, { params }: Params) {
       undefined,
       post.focusKeyword || post.title,
       website?.niche || "business",
+      "high",
     );
 
     // Persist the new URL

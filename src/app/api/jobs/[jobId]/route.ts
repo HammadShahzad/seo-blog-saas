@@ -8,7 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { getJobStatus, processJob } from "@/lib/job-queue";
 import prisma from "@/lib/prisma";
 
-const STUCK_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+const STUCK_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes
 
 export async function GET(
   _req: Request,

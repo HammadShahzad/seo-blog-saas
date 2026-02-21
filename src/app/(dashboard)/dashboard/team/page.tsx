@@ -24,7 +24,16 @@ import {
   Mail,
   ArrowRight,
   Info,
+  Copy,
+  Check,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -69,6 +78,7 @@ export default function TeamPage() {
   const [isInviting, setIsInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<"MEMBER" | "ADMIN">("MEMBER");
   const [showInviteForm, setShowInviteForm] = useState(false);
 
   const fetchTeam = useCallback(async () => {
@@ -100,7 +110,7 @@ export default function TeamPage() {
       const res = await fetch("/api/team", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim() }),
+        body: JSON.stringify({ email: inviteEmail.trim(), role: inviteRole }),
       });
 
       const data = await res.json();
@@ -200,50 +210,15 @@ export default function TeamPage() {
 
       {/* Invite Form */}
       {showInviteForm && canInvite && (
-        <Card className="border-primary/20 bg-primary/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <Mail className="h-4 w-4" />
-              Add Team Member
-            </CardTitle>
-            <CardDescription>
-              They must already have an account on this platform
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex gap-3">
-              <div className="flex-1 space-y-1">
-                <Label htmlFor="inviteEmail" className="sr-only">
-                  Email address
-                </Label>
-                <Input
-                  id="inviteEmail"
-                  type="email"
-                  placeholder="colleague@example.com"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleInvite()}
-                />
-              </div>
-              <Button onClick={handleInvite} disabled={isInviting || !inviteEmail.trim()}>
-                {isInviting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  "Add"
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setShowInviteForm(false);
-                  setInviteEmail("");
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        <InviteForm
+          inviteEmail={inviteEmail}
+          setInviteEmail={setInviteEmail}
+          inviteRole={inviteRole}
+          setInviteRole={setInviteRole}
+          isInviting={isInviting}
+          onInvite={handleInvite}
+          onCancel={() => { setShowInviteForm(false); setInviteEmail(""); setInviteRole("MEMBER"); }}
+        />
       )}
 
       {/* Members List */}
@@ -370,5 +345,94 @@ export default function TeamPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ────────────────── INVITE FORM ──────────────────
+
+function InviteForm({
+  inviteEmail,
+  setInviteEmail,
+  inviteRole,
+  setInviteRole,
+  isInviting,
+  onInvite,
+  onCancel,
+}: {
+  inviteEmail: string;
+  setInviteEmail: (v: string) => void;
+  inviteRole: "MEMBER" | "ADMIN";
+  setInviteRole: (v: "MEMBER" | "ADMIN") => void;
+  isInviting: boolean;
+  onInvite: () => void;
+  onCancel: () => void;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const copySignupLink = () => {
+    const link = `${window.location.origin}/register`;
+    navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Card className="border-primary/20 bg-primary/5">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Mail className="h-4 w-4" />
+          Add Team Member
+        </CardTitle>
+        <CardDescription>
+          Enter their email address and choose their role. They need a StackSerp account — share the signup link below if they don&apos;t have one yet.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Email + role row */}
+        <div className="flex gap-2">
+          <Input
+            type="email"
+            placeholder="colleague@example.com"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onInvite()}
+            className="flex-1"
+          />
+          <Select value={inviteRole} onValueChange={(v) => setInviteRole(v as "MEMBER" | "ADMIN")}>
+            <SelectTrigger className="w-32">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MEMBER">Member</SelectItem>
+              <SelectItem value="ADMIN">Admin</SelectItem>
+            </SelectContent>
+          </Select>
+          <Button onClick={onInvite} disabled={isInviting || !inviteEmail.trim()}>
+            {isInviting ? <Loader2 className="h-4 w-4 animate-spin" /> : "Add"}
+          </Button>
+          <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        </div>
+
+        {/* Role hint */}
+        <p className="text-xs text-muted-foreground">
+          <strong>Member</strong> — can view and edit content. &nbsp;
+          <strong>Admin</strong> — can also manage team and website settings.
+        </p>
+
+        {/* Signup link for sharing */}
+        <div className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2">
+          <span className="text-xs text-muted-foreground flex-1 truncate">
+            Share signup link: {typeof window !== "undefined" ? window.location.origin : "https://stackserp.com"}/register
+          </span>
+          <button
+            onClick={copySignupLink}
+            className="text-xs text-primary hover:underline flex items-center gap-1 shrink-0"
+          >
+            {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

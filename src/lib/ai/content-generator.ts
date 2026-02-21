@@ -500,13 +500,14 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
         outline.title,
         keyword,
         ctx.niche,
+        "fast",
       );
       featuredImageAlt = metadata.featuredImageAlt || `${keyword} - ${outline.title}`;
     } catch (err) {
       console.error("Featured image generation failed after retries:", err);
     }
 
-    // Only 1 image per post (featured) using the full-quality Imagen model.
+    // Only 1 image per post (featured) — uses fast model for batch jobs.
   } else if (includeImages) {
     await progress("image", "Skipping image generation (API key not configured)…");
   }

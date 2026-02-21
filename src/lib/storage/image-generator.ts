@@ -1,10 +1,10 @@
 /**
  * AI Image Generation Pipeline
- * Gemini 2.0 Flash (creative prompt) → Imagen 4.0 (full) → Sharp → WebP → Backblaze B2
+ * Gemini 2.0 Flash (creative prompt) → Imagen 4.0 → Sharp → WebP → Backblaze B2
  *
  * Two-step pipeline:
  *   1. Gemini generates a detailed, creative, style-specific image prompt
- *   2. Imagen 4.0 (full model) renders it at max quality
+ *   2. Imagen renders it (fast model for batch jobs, full model for manual regen)
  *
  * Rate limits (Gemini API, per project):
  *   Free tier:  ~10-50 RPD for imagen-4.0-generate-001
@@ -14,7 +14,8 @@
 import sharp from "sharp";
 import { uploadToB2 } from "./backblaze";
 
-const IMAGEN_MODEL = process.env.IMAGEN_MODEL || "imagen-4.0-generate-001";
+const IMAGEN_FAST_MODEL = "imagen-4.0-fast-generate-001";
+const IMAGEN_FULL_MODEL = process.env.IMAGEN_MODEL || "imagen-4.0-generate-001";
 const GEMINI_PROMPT_MODEL = "gemini-2.0-flash";
 
 const IMAGE_STYLES = [
@@ -45,6 +46,7 @@ async function buildCreativePrompt(
       {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        signal: AbortSignal.timeout(20000),
         body: JSON.stringify({
           contents: [{
             parts: [{
@@ -93,10 +95,14 @@ export async function generateBlogImage(
   overlayText?: string,
   keyword?: string,
   niche?: string,
+  /** "fast" for batch/automated jobs (default); "high" for manual regeneration */
+  quality: "fast" | "high" = "fast",
 ): Promise<string> {
   let apiKey = process.env.GOOGLE_AI_API_KEY;
   if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
   apiKey = apiKey.replace(/\\n/g, "").trim();
+
+  const model = quality === "high" ? IMAGEN_FULL_MODEL : IMAGEN_FAST_MODEL;
 
   // Step 1: Use Gemini to craft a creative, detailed image prompt
   const creativePrompt = await buildCreativePrompt(
@@ -106,7 +112,7 @@ export async function generateBlogImage(
     apiKey,
   );
 
-  const imageBytes = await generateWithImagen(creativePrompt, apiKey);
+  const imageBytes = await generateWithImagen(creativePrompt, apiKey, 3, model);
 
   let processed = await sharp(imageBytes)
     .resize(1200, 630, {
@@ -183,8 +189,13 @@ async function addTextOverlay(imageBuffer: Buffer, text: string): Promise<Buffer
     .toBuffer();
 }
 
-async function generateWithImagen(prompt: string, apiKey: string, retries = 3): Promise<Buffer> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_MODEL}:predict`;
+async function generateWithImagen(
+  prompt: string,
+  apiKey: string,
+  retries = 3,
+  model = IMAGEN_FAST_MODEL,
+): Promise<Buffer> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= retries; attempt++) {
@@ -195,6 +206,7 @@ async function generateWithImagen(prompt: string, apiKey: string, retries = 3): 
           "Content-Type": "application/json",
           "x-goog-api-key": apiKey,
         },
+        signal: AbortSignal.timeout(60000),
         body: JSON.stringify({
           instances: [{ prompt }],
           parameters: {

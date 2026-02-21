@@ -79,7 +79,7 @@ export async function GET(
     const access = await verifyWebsiteAccess(websiteId);
     if ("error" in access) return access.error;
 
-    const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+    const tenMinutesAgo = new Date(Date.now() - 20 * 60 * 1000);
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
     const jobs = await prisma.generationJob.findMany({
       where: {

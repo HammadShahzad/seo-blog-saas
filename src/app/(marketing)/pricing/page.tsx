@@ -146,6 +146,16 @@ const faqs = [
     answer:
       "We offer a 14-day money-back guarantee on all paid plans. If you're not satisfied within the first 14 days, contact support for a full refund.",
   },
+  {
+    question: "How do team members work?",
+    answer:
+      "Each plan includes a set number of team seats: Free (1), Starter (3), Growth (10), Agency (unlimited). Team members share the same workspace — websites, posts, and keywords are all accessible to everyone on the team. You can assign roles: Owner (full access including billing), Admin (manage team and settings), or Member (view and edit content). Adding someone requires they have a StackSerp account — just enter their email in Team settings.",
+  },
+  {
+    question: "Can I give different permissions to team members?",
+    answer:
+      "Yes. Every team member has a role: Owner, Admin, or Member. Owners have full control including billing. Admins can manage websites, generate content, and invite new members. Members can create and edit content but cannot change settings or manage the team.",
+  },
 ];
 
 export default function PricingPage() {

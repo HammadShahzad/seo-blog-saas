@@ -313,7 +313,7 @@ export async function getJobStatus(jobId: string) {
  * Marks them as FAILED and resets their associated keywords to PENDING.
  */
 export async function recoverStuckJobs(): Promise<number> {
-  const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+  const tenMinutesAgo = new Date(Date.now() - 20 * 60 * 1000);
 
   const stuckJobs = await prisma.generationJob.findMany({
     where: {

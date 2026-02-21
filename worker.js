@@ -25,7 +25,7 @@ async function poll() {
         Authorization: `Bearer ${CRON_SECRET}`,
       },
       body: JSON.stringify({}),
-      signal: AbortSignal.timeout(180000),
+      signal: AbortSignal.timeout(290000),
     });
 
     const data = await res.json();
