@@ -198,8 +198,7 @@ function countWords(text: string): number {
 /**
  * Detect and strip repeated/looped content.
  * Strategy 1: repeated H2 heading (most reliable — AI loops back to the top).
- * Strategy 2: exact large-chunk match (original fallback).
- * Strategy 3: orphaned "## " at end of content (truncated mid-heading — strip it).
+ * Strategy 2: orphaned "## " at end of content (truncated mid-heading — strip it).
  */
 function deduplicateContent(text: string): string {
   const lines = text.split("\n");
@@ -218,23 +217,12 @@ function deduplicateContent(text: string): string {
     seenH2s.set(heading, i);
   }
 
-  // Strategy 3: orphaned heading stub ("## " or "## \n") at very end — strip it
+  // Strategy 2: orphaned heading stub ("## " or "## \n") at very end — strip it
   const trimmed = text.trimEnd();
   const stubMatch = trimmed.match(/([\s\S]*?)\n##\s*$/);
   if (stubMatch) {
     console.log(`[content-gen] Stripped orphaned heading stub at end`);
     return stubMatch[1].trimEnd();
-  }
-
-  // Strategy 2: exact large-chunk match
-  const fullText = text.trim();
-  for (let chunkSize = Math.floor(fullText.length * 0.3); chunkSize >= 200; chunkSize -= 50) {
-    const firstChunk = fullText.slice(0, chunkSize).trim();
-    const secondOccurrence = fullText.indexOf(firstChunk, chunkSize - 50);
-    if (secondOccurrence > 0 && secondOccurrence < fullText.length * 0.7) {
-      console.log(`[content-gen] Detected duplicate chunk at position ${secondOccurrence}, trimming`);
-      return fullText.slice(0, secondOccurrence).trim();
-    }
   }
 
   return text;
@@ -301,17 +289,42 @@ Continue the article from the very next word. Maintain the same writing style, t
     const contText = contResult.text.trim();
     if (!contText) break;
 
-    // Overlap guard: if continuation starts by repeating the last sentence, skip that overlap
-    const tailForOverlap = accumulated.slice(-300).toLowerCase();
-    let joinAt = 0;
-    for (let len = Math.min(150, contText.length); len > 30; len -= 10) {
-      if (tailForOverlap.includes(contText.slice(0, len).toLowerCase())) {
-        joinAt = len;
-        break;
+    // Overlap guard 1: if continuation restarts the article from the beginning,
+    // find where the new content diverges from the accumulated text and keep only
+    // the new portion (the part after the overlap).
+    const accLower = accumulated.toLowerCase();
+    const contLower = contText.toLowerCase();
+    let restartSkip = 0;
+    if (accLower.slice(0, 200) === contLower.slice(0, 200)) {
+      // Model restarted from the very beginning — find where the continuation
+      // extends beyond the accumulated content and keep only that extension.
+      const matchLen = Math.min(accumulated.length, contText.length);
+      let divergeAt = 0;
+      for (let j = 0; j < matchLen; j++) {
+        if (accLower[j] !== contLower[j]) { divergeAt = j; break; }
+        divergeAt = j + 1;
+      }
+      if (divergeAt > accumulated.length * 0.5) {
+        restartSkip = divergeAt;
+        console.log(`[content-gen] ${label} continuation restarted from beginning — skipping first ${restartSkip} overlapping chars`);
       }
     }
 
-    accumulated = accumulated.trimEnd() + "\n\n" + contText.slice(joinAt).trim();
+    // Overlap guard 2: if continuation repeats the tail of accumulated
+    let joinAt = restartSkip;
+    if (joinAt === 0) {
+      const tailForOverlap = accumulated.slice(-300).toLowerCase();
+      for (let len = Math.min(150, contText.length); len > 30; len -= 10) {
+        if (tailForOverlap.includes(contText.slice(0, len).toLowerCase())) {
+          joinAt = len;
+          break;
+        }
+      }
+    }
+
+    const newContent = contText.slice(joinAt).trim();
+    if (!newContent) break;
+    accumulated = accumulated.trimEnd() + "\n\n" + newContent;
     const totalNow = countWords(accumulated);
     console.log(`[content-gen] ${label} continuation ${attempt}: +${countWords(contText)} words, total now ${totalNow}`);
 
