@@ -99,19 +99,21 @@ export default function NewWebsitePage() {
 
       if (res.ok) {
         const data = await res.json();
+        const pick = (val: unknown, fallback: string) =>
+          Array.isArray(val) ? (val[0] as string) || fallback : (val as string) || fallback;
         setFormData((prev) => ({
           ...prev,
-          brandName: data.brandName || prev.name,
-          brandUrl: data.brandUrl || `https://${prev.domain}`,
-          primaryColor: data.primaryColor || prev.primaryColor,
-          niche: data.niche || "",
-          description: data.description || "",
-          targetAudience: data.targetAudience || "",
-          tone: data.tone || prev.tone,
-          uniqueValueProp: data.uniqueValueProp || "",
-          competitors: data.competitors || [],
-          keyProducts: data.keyProducts || [],
-          targetLocation: data.targetLocation || "",
+          brandName: pick(data.brandName, prev.name),
+          brandUrl: pick(data.brandUrl, `https://${prev.domain}`),
+          primaryColor: pick(data.primaryColor, prev.primaryColor),
+          niche: pick(data.niche, ""),
+          description: pick(data.description, ""),
+          targetAudience: pick(data.targetAudience, ""),
+          tone: pick(data.tone, prev.tone),
+          uniqueValueProp: pick(data.uniqueValueProp, ""),
+          competitors: Array.isArray(data.competitors) ? data.competitors : [],
+          keyProducts: Array.isArray(data.keyProducts) ? data.keyProducts : [],
+          targetLocation: pick(data.targetLocation, ""),
         }));
         setAiAnalyzed(true);
         toast.success("AI analyzed your website — review and confirm below");
@@ -146,19 +148,21 @@ export default function NewWebsitePage() {
 
       if (res.ok) {
         const data = await res.json();
+        const pick = (val: unknown, fallback: string) =>
+          Array.isArray(val) ? (val[0] as string) || fallback : (val as string) || fallback;
         setFormData((prev) => ({
           ...prev,
-          brandName: data.brandName || prev.name,
-          brandUrl: data.brandUrl || `https://${prev.domain}`,
-          primaryColor: data.primaryColor || prev.primaryColor,
-          niche: data.niche || "",
-          description: data.description || "",
-          targetAudience: data.targetAudience || "",
-          tone: data.tone || prev.tone,
-          uniqueValueProp: data.uniqueValueProp || "",
-          competitors: data.competitors || [],
-          keyProducts: data.keyProducts || [],
-          targetLocation: data.targetLocation || "",
+          brandName: pick(data.brandName, prev.name),
+          brandUrl: pick(data.brandUrl, `https://${prev.domain}`),
+          primaryColor: pick(data.primaryColor, prev.primaryColor),
+          niche: pick(data.niche, ""),
+          description: pick(data.description, ""),
+          targetAudience: pick(data.targetAudience, ""),
+          tone: pick(data.tone, prev.tone),
+          uniqueValueProp: pick(data.uniqueValueProp, ""),
+          competitors: Array.isArray(data.competitors) ? data.competitors : [],
+          keyProducts: Array.isArray(data.keyProducts) ? data.keyProducts : [],
+          targetLocation: pick(data.targetLocation, ""),
         }));
         setAiAnalyzed(true);
         toast.success("Re-analyzed successfully");
