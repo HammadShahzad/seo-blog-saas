@@ -143,7 +143,12 @@ ${ctx.ctaText && ctx.ctaUrl ? `- Include a call-to-action: "${ctx.ctaText}" link
 ${ctx.avoidTopics?.length ? `- Never mention: ${ctx.avoidTopics.join(", ")}` : ""}
 - Format: Markdown with proper H2/H3 hierarchy
 - Write for humans first, search engines second
-- Use active voice, short paragraphs, and clear language
+- Use active voice, very short paragraphs (2-3 sentences max, under 60 words), and clear language
+
+OPENING PARAGRAPH RULE:
+- NEVER start a blog post with "It is [time] on a [day]" or any time-based scene-setting
+- NEVER use "Picture this" or "Imagine this" or "You're sitting at your desk"
+- Every article should open DIFFERENTLY — with data, a question, a contrarian take, or a micro case study
 
 EEAT (Experience, Expertise, Authority, Trust) RULES:
 - Write from the perspective of an expert with 10+ years of hands-on experience
@@ -468,7 +473,7 @@ ${research.keyStatistics.slice(0, 4).map((s) => `- ${s}`).join("\n")}
 ${research.rawResearch.substring(0, 2500)}
 
 ## Outline Rules
-- H1 title: SEO-optimized (50-70 chars), includes keyword, reflects the winning angle
+- H1 title: MUST contain the EXACT focus keyword "${keyword}" (or very close variant). SEO-optimized (50-70 chars), reflects the winning angle. If you cannot fit the exact keyword, use as many of its words as possible in the title.
 - STRICT section count based on target word count (${targetWords} words):
   ${contentLength === "SHORT"  ? "• SHORT article → MAXIMUM 3 content H2 sections (each ~300 words)" : ""}
   ${contentLength === "MEDIUM" ? "• MEDIUM article → MAXIMUM 5 content H2 sections (each ~400 words)" : ""}
@@ -488,6 +493,24 @@ ${ctx.requiredSections?.length ? `- MUST include these sections: ${ctx.requiredS
 Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."] }], "uniqueAngle": "..." }`,
     systemPrompt
   );
+
+  // Ensure the title contains the focus keyword
+  const keywordLower = keyword.toLowerCase();
+  if (!outline.title.toLowerCase().includes(keywordLower)) {
+    const keywordWords = keywordLower.split(/\s+/);
+    const titleLower = outline.title.toLowerCase();
+    const hasPartial = keywordWords.length > 2 && keywordWords.filter(w => titleLower.includes(w)).length >= keywordWords.length - 1;
+    if (!hasPartial) {
+      const colonTitle = `${outline.title}: ${keyword.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}`;
+      if (colonTitle.length <= 75) {
+        outline.title = colonTitle;
+      } else {
+        outline.title = `${keyword.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ")}: ${outline.title}`;
+        if (outline.title.length > 75) outline.title = outline.title.slice(0, 72) + "...";
+      }
+      console.log(`[content-gen] Title fixed to include keyword: "${outline.title}"`);
+    }
+  }
 
   // ─── STEP 3: DRAFT ───────────────────────────────────────────────
   await progress("draft", "Writing full article draft...");
@@ -537,11 +560,31 @@ ${research.rawResearch.substring(0, 3500)}
 ## Writing Guidelines:
 
 **HOOK (most important rule):**
-The opening 2-3 paragraphs MUST drop the reader into a SPECIFIC, RELATABLE SITUATION before introducing the topic.
-Think: paint a vivid scene the audience has lived through. A frustrated late-night moment, a specific pain point, a surprising contrast.
-BAD opening: "Getting X used to be straightforward. Now it's complicated."
-BAD opening: "In today's competitive landscape..."
-GOOD opening: Put the reader IN a moment. Make them think "that's me."
+Your opening MUST be unique. Use this specific hook style: ${(() => {
+  const hookStyles = [
+    { style: "CONTRARIAN", instruction: `Open with a bold, contrarian statement that challenges conventional wisdom about "${keyword}". State something surprising that makes the reader think 'Wait, really?' Do NOT use "Most advice about X is wrong." Be original. Make a specific, testable claim.` },
+    { style: "DATA-LEAD", instruction: `Open with a specific number or statistic. ${research.keyStatistics[0] ? `Use this real data: "${research.keyStatistics[0]}"` : "Pull a compelling number from the research below."} Frame it as: "[Number]. That's [what it means]. Here's why that matters to you."` },
+    { style: "QUESTION-CHAIN", instruction: `Open with 3 increasingly specific questions about "${keyword}" that ${ctx.targetAudience} are asking right now. Make the third question surprisingly specific. Then answer with: "The answer to all three is the same."` },
+    { style: "CASE-STUDY-OPEN", instruction: `Open with a real 2-sentence result. Name a real company, tool, or person from the research data. "[Name] achieved [specific measurable result] by [specific action]. Most ${ctx.targetAudience} do the exact opposite."` },
+    { style: "MYTH-BUSTER", instruction: `Name the single biggest misconception about "${keyword}" in the ${ctx.niche} space. State it as fact, then immediately contradict it with evidence. "Everyone tells you [myth]. ${research.keyStatistics[1] ? `The data says otherwise: ${research.keyStatistics[1]}` : "The data tells a completely different story."}"` },
+    { style: "COST-OF-INACTION", instruction: `Open with what "${keyword}" done wrong actually costs. Be specific: dollars, hours, lost customers, or missed opportunities. "${ctx.targetAudience} who ignore [aspect of ${keyword}] lose [specific amount] per [time period]. Here's the math."` },
+    { style: "PREDICTION", instruction: `Open with a forward-looking prediction about "${keyword}" that's backed by research. "By [timeframe], [specific change will happen]. The ${ctx.targetAudience} who prepare now will [benefit]. The rest will [consequence]."` },
+    { style: "DIRECT-ADDRESS", instruction: `Open by directly telling the reader what they're doing wrong, with zero preamble. "You're spending too much time on [wrong thing] and not enough on [right thing]. ${research.contentGaps[0] ? `And the biggest gap? ${research.contentGaps[0]}` : "Here's proof."}"` },
+  ];
+  // Use keyword hash for deterministic variety — different keywords always get different hooks
+  let hash = 0;
+  for (let i = 0; i < keyword.length; i++) hash = ((hash << 5) - hash + keyword.charCodeAt(i)) | 0;
+  const picked = hookStyles[Math.abs(hash) % hookStyles.length];
+  return `**${picked.style}**\n${picked.instruction}`;
+})()}
+
+BANNED OPENING PATTERNS (never use these):
+- "It is [time] on a [day]. You are [doing something]..." — this is the most cliché AI opening. NEVER use it.
+- "Picture this..." or "Imagine this..."
+- "In today's [anything]..."
+- "You're sitting at your desk..." or any "You are..." second-person scene-setting
+- Starting with a time of day or day of the week
+- Generic scene descriptions where someone is frustrated at a computer
 
 **Structure:**
 - Open with the HOOK (story/scenario/question)
@@ -552,14 +595,29 @@ ${isComparisonArticle ? `- ⚠️ MANDATORY COMPARISON TABLE: You MUST include a
 ${includeFAQ ? "- FAQ section (4-5 questions with detailed answers)" : ""}
 - Conclusion with CTA for ${ctx.brandName}
 
+**Content personality for THIS article:**
+${(() => {
+  const personalities = [
+    "Write like a practitioner sharing notes from the field. Heavy on 'here's what I actually did' and 'here's what happened.' Minimal theory, maximum real-world tactics.",
+    "Write like an investigative journalist who uncovered something most people missed. Cite specific data, name real tools/companies, and connect dots the reader hasn't considered.",
+    "Write like a mentor who's seen others make expensive mistakes. Be direct, slightly blunt. 'Stop doing X. Start doing Y. Here's why.' Practical above all.",
+    "Write like a strategist briefing a CEO. Every paragraph should answer 'so what?' or 'what do I do with this?' Include frameworks, decision criteria, and trade-offs.",
+    "Write like a technical expert simplifying complex ideas. Use analogies specific to ${ctx.targetAudience}. Break down the 'how' behind the 'what.'",
+    "Write like someone who just ran an experiment and is sharing the results. Include specific before/after numbers, what surprised you, and what you'd do differently.",
+  ];
+  let h = 0;
+  for (let i = 0; i < keyword.length; i++) h = ((h << 7) - h + keyword.charCodeAt(i)) | 0;
+  return personalities[Math.abs(h) % personalities.length];
+})()}
+
 **Content rules:**
 - Write ${targetWords} words — comprehensive, beats competitors
 - Every section must have a DIFFERENT internal structure: mix of prose, bullet lists, numbered steps, comparison tables, code snippets (if relevant), or callout boxes
 - Include real statistics and data from the research with context
 - Use the keyword "${keyword}" naturally — in first 100 words, one H2, and conclusion
-- Write from an EXPERT perspective: "In my testing," "I've found," "From my experience," "What I noticed"
+- Write from an EXPERT perspective using the personality above. Vary your expert voice phrases: "In my testing," "I've found," "From my experience," "What I noticed," "After running this for 6 months," "The data surprised me," "Here's what nobody mentions"
 - EXPERT CALLOUTS: use at most 2 total "Pro Tip:" callouts in the ENTIRE article. Make them count — share something non-obvious that only someone with real experience would know. DO NOT add a "Pro Tip" in every section.
-- Keep every paragraph under 80 words (3-4 sentences max)
+- Keep every paragraph under 60 words (2-3 sentences max). Short paragraphs improve readability.
 - Use active voice, concrete examples, and specific numbers
 - NEVER use: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "landscape" (metaphorical), "realm," "robust," "cutting-edge," "embark on a journey," "navigating the complexities," "unlock the power"
 - NEVER use em-dash (—). Use commas or periods instead.
@@ -613,7 +671,7 @@ CRITICAL: Write the COMPLETE article with ALL sections from the outline. Do NOT 
 ${brandContext}
 
 Include:
-1. A compelling 2-3 paragraph HOOK that drops the reader into a specific, relatable scenario
+1. A compelling 2-3 paragraph HOOK. NEVER start with "It is [time] on a [day]" or scene-setting. Instead open with: a shocking statistic, a contrarian claim, a rapid-fire question, or a 2-sentence case study result
 2. A "Key Takeaways" section with 4-5 bullet points summarizing the article
 ${includeTableOfContents ? `3. A Table of Contents with these exact headings:\n${contentSections.map(s => `- ${s.heading}`).join("\n")}` : ""}
 
@@ -648,7 +706,7 @@ Rules:
 - Start with the H2 heading: ## ${section.heading}
 - Use a mix of prose, bullet lists, and data
 - Write from expert perspective with first-person insights
-- Keep paragraphs under 80 words
+- Keep paragraphs under 60 words (2-3 sentences max)
 - Do NOT use em-dashes, "delve," "dive deep," "game-changer," "leverage," "utilize"
 ${isLast ? `- End with a strong conclusion paragraph and CTA for ${ctx.brandName}${ctx.ctaText ? `: "${ctx.ctaText}"` : ""}${ctx.ctaUrl ? ` (${ctx.ctaUrl})` : ""}` : ""}
 ${isComparisonArticle && i === 0 ? "- Include a markdown comparison table in this section" : ""}
@@ -718,7 +776,8 @@ Audience: ${ctx.targetAudience}
 ## Your editing checklist (apply ALL of these):
 
 **Kill generic patterns:**
-- If the opening paragraph sounds like every other article on this topic, rewrite it with a specific scene, question, or startling observation that immediately pulls the reader in
+- CHECK THE OPENING FIRST: If it starts with "It is [time]...", "Picture this...", "Imagine...", "You're sitting at...", or any time-based scene-setting, COMPLETELY rewrite it. Replace with a bold stat, contrarian claim, or 2-sentence case study.
+- If the opening paragraph sounds like every other article on this topic, rewrite it with a shocking stat, a provocative question, or a counterintuitive insight
 - Count the "Pro Tip:" labels. If there are more than 2, delete the weakest ones and fold those insights naturally into the surrounding prose
 - If any paragraph starts with "It is important to...", "In today's...", "As a [profession]...", or "With the rise of...", rewrite it completely
 - If any two sections have the same rhythm/structure, change one of them
@@ -733,7 +792,7 @@ Audience: ${ctx.targetAudience}
 - No "Furthermore," "Moreover," "Additionally" — use normal transitions
 - No starting sentences with "So," or "Well,"
 - Kill every instance of: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "realm," "robust," "cutting-edge," "embark on a journey," "navigate the complexities," "unlock the power"
-- Keep every paragraph under 80 words. Split anything longer.
+- Keep every paragraph under 60 words (2-3 sentences max). Split anything longer.
 
 **Preserve everything structural:**
 - Keep ALL headings exactly as written (character for character — the TOC depends on them matching)
@@ -806,13 +865,14 @@ ${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONL
    RULES FOR INTERNAL LINKS:
    - ONLY use URLs from the list above. If a URL is not in the list, do NOT use it.
    - Do NOT hallucinate, guess, or create any URLs. Every link must match an entry above EXACTLY.
-   - Insert links where they fit naturally — aim for ${Math.min(consolidatedLinks.length, 7)} total.
-   - Each URL may appear AT MOST ONCE. NEVER link to the same URL twice.
+   - Use AS MANY links from the list as possible — aim for at least ${Math.min(consolidatedLinks.length, 15)} internal links total. More internal links = better SEO.
+   - Each URL may appear up to 2 times if needed (with different anchor text in different contexts).
+   - Spread links throughout ALL sections — every H2 section should contain at least 1-2 internal links where relevant.
    - Use descriptive anchor text that matches the context.
    - Use REAL markdown links only: [anchor text](url).` : `5. Do NOT add any internal links. There are no published posts to link to yet. Do NOT invent or hallucinate any URLs.`}
 6. Make sure the intro paragraph contains the keyword
 ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common questions (format as proper ## FAQ heading with ### for each question — this helps with Google's FAQ rich snippets)` : "7. Skip FAQ if not present"}
-8. CRITICAL: Every paragraph MUST be under 80 words (3-4 sentences max). Split any longer paragraph into two.
+8. CRITICAL: Every paragraph MUST be under 60 words (2-3 sentences max). Split any longer paragraph into two. Short paragraphs dramatically improve readability scores.
 9. DO NOT stuff keywords — keep it natural
 10. Preserve the humor and conversational tone, do not make it robotic
 11a. REMOVE any remaining AI phrases: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "realm," "robust," "cutting-edge," "embark," "navigate the complexities," "unlock the power"
@@ -930,17 +990,18 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
     );
   }
 
-  // Post-process: remove duplicate links (keep first occurrence of each URL)
-  const linkedUrls = new Set<string>();
+  // Post-process: remove excessive duplicate links (allow each URL up to 2 times)
+  const linkedUrlCounts = new Map<string, number>();
   finalContent = finalContent.replace(
     /\[([^\]]+)\]\(([^)]+)\)/g,
     (fullMatch, anchor: string, url: string) => {
       if (url.startsWith("#")) return fullMatch;
       const normalizedUrl = url.replace(/\/$/, "").toLowerCase();
-      if (linkedUrls.has(normalizedUrl)) {
+      const count = linkedUrlCounts.get(normalizedUrl) || 0;
+      if (count >= 2) {
         return anchor;
       }
-      linkedUrls.add(normalizedUrl);
+      linkedUrlCounts.set(normalizedUrl, count + 1);
       return fullMatch;
     }
   );
@@ -972,22 +1033,37 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
     }).join("\n");
   })();
 
-  // Post-process: break overly long paragraphs (>80 words) for readability
-  finalContent = finalContent
-    .split("\n\n")
-    .flatMap((block) => {
-      const trimmed = block.trim();
-      // Skip headings, lists, images, code blocks, tables
-      if (/^(#{1,6}\s|[-*]\s|\d+\.\s|!\[|```|<|\|)/.test(trimmed)) return [block];
-      const words = trimmed.split(/\s+/);
-      if (words.length <= 80) return [block];
-      // Split at the sentence boundary closest to the midpoint
-      const sentences = trimmed.match(/[^.!?]+[.!?]+/g);
-      if (!sentences || sentences.length < 2) return [block];
-      const mid = Math.ceil(sentences.length / 2);
-      return [sentences.slice(0, mid).join("").trim(), sentences.slice(mid).join("").trim()];
-    })
-    .join("\n\n");
+  // Post-process: break overly long paragraphs (>60 words) for readability
+  function splitLongParagraphs(text: string): string {
+    return text
+      .split("\n\n")
+      .flatMap((block) => {
+        const trimmed = block.trim();
+        if (/^(#{1,6}\s|[-*]\s|\d+\.\s|!\[|```|<|\||\*\*Pro Tip)/.test(trimmed)) return [block];
+        const words = trimmed.split(/\s+/);
+        if (words.length <= 60) return [block];
+        const sentences = trimmed.match(/[^.!?]+[.!?]+(?:\s|$)/g);
+        if (!sentences || sentences.length < 2) return [block];
+        // Split into chunks of ~60 words each
+        const chunks: string[] = [];
+        let current: string[] = [];
+        let currentWordCount = 0;
+        for (const sentence of sentences) {
+          const sentenceWords = sentence.trim().split(/\s+/).length;
+          if (currentWordCount + sentenceWords > 60 && current.length > 0) {
+            chunks.push(current.join("").trim());
+            current = [];
+            currentWordCount = 0;
+          }
+          current.push(sentence);
+          currentWordCount += sentenceWords;
+        }
+        if (current.length > 0) chunks.push(current.join("").trim());
+        return chunks.filter(c => c.length > 0);
+      })
+      .join("\n\n");
+  }
+  finalContent = splitLongParagraphs(finalContent);
 
   // ─── STEP 6: METADATA ────────────────────────────────────────────
   await progress("metadata", "Generating SEO metadata, schema, and social captions...");
@@ -1035,13 +1111,15 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
     "You are an SEO specialist and social media expert. Return valid JSON only."
   );
 
-  // ─── STEP 7: IMAGE GENERATION ────────────────────────────────────
+  // ─── STEP 7: IMAGE GENERATION (1 featured + 2 inline) ──────────────
   let featuredImageUrl: string | undefined;
   let featuredImageAlt = metadata.featuredImageAlt || keyword;
   const postSlug = metadata.slug || slugify(outline.title);
 
   if (includeImages && process.env.GOOGLE_AI_API_KEY) {
-    await progress("image", "Generating featured image…");
+    await progress("image", "Generating featured image + 2 inline images…");
+
+    // 1) Featured image
     try {
       const featPrompt = `Create an image that directly represents the concept of "${keyword}" for a ${ctx.niche} business. The image should clearly relate to "${outline.title}". No text, words, letters, or watermarks.`;
       featuredImageUrl = await generateBlogImage(
@@ -1058,10 +1136,61 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       console.error(`[content-gen] Featured image generation failed: ${reason}`);
-      // Don't block post creation — image can be generated manually from the post editor
-      // The reason is preserved in the return value so the job can surface it
       featuredImageUrl = undefined;
       (options as Record<string, unknown>)._imageError = reason;
+    }
+
+    // 2) Inline images — insert after the 2nd and 4th H2 sections
+    const h2Regex = /^## .+$/gm;
+    const h2Matches: { index: number; text: string }[] = [];
+    let h2Match;
+    while ((h2Match = h2Regex.exec(finalContent)) !== null) {
+      h2Matches.push({ index: h2Match.index, text: h2Match[0] });
+    }
+
+    // Pick insertion points: after ~33% and ~66% of content sections
+    const insertAfterIndices = h2Matches.length >= 4
+      ? [1, 3]
+      : h2Matches.length >= 2
+        ? [0, Math.min(1, h2Matches.length - 1)]
+        : [];
+
+    for (let imgIdx = 0; imgIdx < insertAfterIndices.length; imgIdx++) {
+      const sectionIdx = insertAfterIndices[imgIdx];
+      const sectionHeading = h2Matches[sectionIdx]?.text?.replace(/^## /, "") || keyword;
+
+      try {
+        const inlinePrompt = `Create an illustrative image for the section "${sectionHeading}" of a blog post about "${keyword}" in ${ctx.niche}. Visual, conceptual, no text or words.`;
+        const inlineUrl = await generateInlineImage(
+          inlinePrompt,
+          postSlug,
+          imgIdx + 1,
+          website.id,
+          keyword,
+          ctx.niche,
+        );
+
+        // Find the end of this section (next H2 or end of content) and insert image after first paragraph
+        const sectionStart = h2Matches[sectionIdx].index;
+        const nextH2 = h2Matches[sectionIdx + 1]?.index ?? finalContent.length;
+        const sectionContent = finalContent.slice(sectionStart, nextH2);
+        // Insert after the first paragraph break in this section
+        const firstParaBreak = sectionContent.indexOf("\n\n", sectionContent.indexOf("\n") + 1);
+        if (firstParaBreak > 0) {
+          const insertPos = sectionStart + firstParaBreak;
+          const imgAlt = `${sectionHeading} - ${keyword}`;
+          const imgMarkdown = `\n\n![${imgAlt}](${inlineUrl})\n`;
+          finalContent = finalContent.slice(0, insertPos) + imgMarkdown + finalContent.slice(insertPos);
+          // Shift subsequent H2 match indices to account for inserted text
+          const shift = imgMarkdown.length;
+          for (let j = sectionIdx + 1; j < h2Matches.length; j++) {
+            h2Matches[j].index += shift;
+          }
+          console.log(`[content-gen] Inline image ${imgIdx + 1} inserted after "${sectionHeading}"`);
+        }
+      } catch (err) {
+        console.warn(`[content-gen] Inline image ${imgIdx + 1} failed:`, err instanceof Error ? err.message : err);
+      }
     }
   } else if (includeImages) {
     const reason = !process.env.GOOGLE_AI_API_KEY

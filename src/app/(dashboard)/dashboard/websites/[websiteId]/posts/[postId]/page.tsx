@@ -1121,6 +1121,42 @@ export default function PostEditorPage() {
                   </div>
                 </CardContent>
               </Card>
+
+              {/* ── Inline Images (extracted from content) ── */}
+              {(() => {
+                const inlineImages = (post.content || "").match(/!\[([^\]]*)\]\(([^)]+)\)/g) || [];
+                if (inlineImages.length === 0) return null;
+                const parsed = inlineImages.map((m: string) => {
+                  const match = m.match(/!\[([^\]]*)\]\(([^)]+)\)/);
+                  return match ? { alt: match[1], url: match[2] } : null;
+                }).filter(Boolean) as { alt: string; url: string }[];
+                return (
+                  <Card>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4" />
+                        Inline Images ({parsed.length})
+                      </CardTitle>
+                      <p className="text-xs text-muted-foreground">Images embedded within the article content</p>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 gap-3">
+                        {parsed.map((img, i) => (
+                          <div key={i} className="space-y-1">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={img.url}
+                              alt={img.alt || `Inline image ${i + 1}`}
+                              className="w-full rounded-md aspect-video object-cover border"
+                            />
+                            <p className="text-[10px] text-muted-foreground truncate">{img.alt || `Image ${i + 1}`}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })()}
             </TabsContent>
 
             {/* ── Social Tab ── */}
