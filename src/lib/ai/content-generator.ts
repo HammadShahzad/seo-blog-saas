@@ -262,7 +262,7 @@ async function generateWithContinuation(
   sysPrompt: string,
   options: { temperature: number; maxTokens: number },
   label = "generation",
-  maxContinuations = 3
+  maxContinuations = 5
 ): Promise<{ text: string; truncated: boolean; finishReason: string; outputTokens: number; promptTokens: number }> {
   const result = await generateTextWithMeta(prompt, sysPrompt, options);
   let accumulated = result.text;
@@ -372,7 +372,7 @@ export async function generateBlogPost(
   const draftTokensForLength: Record<string, number> = {
     SHORT: 8192,
     MEDIUM: 16384,
-    LONG: 16384,
+    LONG: 20480,
     PILLAR: 24576,
   };
   const draftTokens = draftTokensForLength[contentLength] || draftTokensForLength.MEDIUM;
@@ -581,7 +581,7 @@ CRITICAL: Write the COMPLETE article with ALL sections from the outline. Do NOT 
     const wordsPerSection = Math.ceil(parseInt(targetWords.split("-")[1] || "2000") / contentSections.length);
 
     // Generate the intro (hook + key takeaways + TOC)
-    const introResult = await generateTextWithMeta(
+    const introResult = await generateWithContinuation(
       `Write the opening for a blog post about "${keyword}" for ${ctx.brandName}.
 ${brandContext}
 
@@ -594,7 +594,8 @@ Write from an expert perspective. Use active voice. Do NOT use em-dashes.
 Do NOT write any of the main sections yet. STOP after the Table of Contents.
 Output only Markdown.`,
       systemPrompt,
-      { temperature: 0.8, maxTokens: 2048 }
+      { temperature: 0.8, maxTokens: 3072 },
+      "intro-section"
     );
     sectionParts.push(introResult.text.trim());
     console.log(`[content-gen] Intro: ${countWords(introResult.text)} words`);
@@ -603,7 +604,7 @@ Output only Markdown.`,
     for (let i = 0; i < contentSections.length; i++) {
       const section = contentSections[i];
       const isLast = i === contentSections.length - 1;
-      const sectionResult = await generateTextWithMeta(
+      const sectionResult = await generateWithContinuation(
         `Write section ${i + 1} of a blog post about "${keyword}" for ${ctx.brandName}.
 
 ## ${section.heading}
@@ -625,7 +626,8 @@ ${isComparisonArticle && i === 0 ? "- Include a markdown comparison table in thi
 
 Output ONLY this section in Markdown. Start with ## ${section.heading}`,
         systemPrompt,
-        { temperature: 0.8, maxTokens: 2048 }
+        { temperature: 0.8, maxTokens: 4096 },
+        `section-${i + 1}`
       );
       sectionParts.push(sectionResult.text.trim());
       console.log(`[content-gen] Section ${i + 1} "${section.heading}": ${countWords(sectionResult.text)} words`);
@@ -633,7 +635,7 @@ Output ONLY this section in Markdown. Start with ## ${section.heading}`,
 
     // Generate FAQ if needed
     if (includeFAQ) {
-      const faqResult = await generateTextWithMeta(
+      const faqResult = await generateWithContinuation(
         `Write a FAQ section for a blog post about "${keyword}" for ${ctx.brandName}.
 
 Write 4-5 frequently asked questions with detailed answers (2-3 sentences each).
@@ -644,7 +646,8 @@ Answer here.
 
 Output ONLY the FAQ section in Markdown.`,
         systemPrompt,
-        { temperature: 0.7, maxTokens: 1024 }
+        { temperature: 0.7, maxTokens: 2048 },
+        "faq-section"
       );
       sectionParts.push(faqResult.text.trim());
     }
@@ -723,7 +726,7 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
   console.log(`[content-gen] Tone polish: ${toneWords} words (draft was ${draftWords}), missing=${toneMissing.length}, cutoff=${toneCutOff}`);
 
   let toneToUse: string;
-  if (toneCutOff || toneWords < draftWords * 0.5 || toneMissing.length > draftMissing.length) {
+  if (toneCutOff || toneWords < draftWords * 0.75 || toneMissing.length > draftMissing.length) {
     console.warn(`[content-gen] Tone degraded after continuation attempts. Falling back to draft.`);
     toneToUse = cleanDraft;
   } else {
@@ -797,7 +800,13 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
   const seoWords = countWords(cleanSeo);
   const seoMissing = findMissingSections(cleanSeo, contentSections);
   const toneToUseMissing = findMissingSections(toneToUse, contentSections);
-  const seoCutOff = isCutOff(cleanSeo);
+  // Treat SEO output as cut off if it shrank to less than 75% of the input — the model
+  // stopped early but happened to end on a clean sentence, so isCutOff() would miss it.
+  const seoShrank = seoWords < toneToUseWords * 0.75;
+  const seoCutOff = isCutOff(cleanSeo) || seoShrank;
+  if (seoShrank) {
+    console.warn(`[content-gen] SEO rewrite shrank significantly: ${seoWords} words vs ${toneToUseWords} input — treating as cut off`);
+  }
   console.log(`[content-gen] SEO optimize: ${seoWords} words, missing=${seoMissing.length}, cutoff=${seoCutOff}`);
 
   // Pick the most complete version — prefer SEO, fall back to tone, then draft
