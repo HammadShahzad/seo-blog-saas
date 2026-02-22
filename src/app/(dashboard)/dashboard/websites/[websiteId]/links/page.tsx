@@ -14,14 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import {
   Link2,
   Plus,
@@ -58,71 +51,6 @@ interface StepStatus {
   pagesFound: number;
 }
 
-// Loading dialog — shown as a modal overlay, impossible to miss
-function AiGeneratingDialog({ open }: { open: boolean }) {
-  const [stepIdx, setStepIdx] = useState(0);
-  const steps = [
-    { icon: Globe, label: "Crawling your website…", detail: "Fetching homepage and sitemap directly" },
-    { icon: Globe, label: "Discovering pages & sections…", detail: "Scanning links, features, pricing, blog…" },
-    { icon: Sparkles, label: "Mapping keywords to URLs…", detail: "AI is creating link pairs" },
-    { icon: Sparkles, label: "Filtering & ranking links…", detail: "Removing duplicates, validating URLs" },
-    { icon: Sparkles, label: "Almost done…", detail: "Finalizing your internal link pairs" },
-  ];
-
-  useEffect(() => {
-    if (!open) { setStepIdx(0); return; }
-    const t = setInterval(() => setStepIdx((i) => (i + 1) % steps.length), 3000);
-    return () => clearInterval(t);
-  }, [open, steps.length]);
-
-  const current = steps[stepIdx];
-  const Icon = current.icon;
-
-  return (
-    <Dialog open={open}>
-      <DialogContent
-        className="max-w-sm text-center"
-        onInteractOutside={(e) => e.preventDefault()}
-        showCloseButton={false}
-      >
-        <DialogHeader>
-          <DialogTitle className="flex flex-col items-center gap-4 pt-2">
-            <div className="relative flex items-center justify-center">
-              <span className="absolute inline-flex h-16 w-16 rounded-full bg-primary/20 animate-ping" />
-              <span className="relative flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 ring-2 ring-primary/30">
-                <Icon className="h-6 w-6 text-primary animate-pulse" />
-              </span>
-            </div>
-            <span className="text-base font-semibold">{current.label}</span>
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground mt-1">
-            {current.detail}
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Step dots */}
-        <div className="flex items-center justify-center gap-2 py-2">
-          {steps.map((_, i) => (
-            <span
-              key={i}
-              className={`inline-block rounded-full transition-all duration-500 ${
-                i === stepIdx
-                  ? "w-5 h-1.5 bg-primary"
-                  : "w-1.5 h-1.5 bg-muted-foreground/30"
-              }`}
-            />
-          ))}
-        </div>
-
-        <p className="text-xs text-muted-foreground pb-2">
-          This usually takes 15–30 seconds
-        </p>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// Result dialog after API responds — shows what happened before review
 function ResultStatusBanner({ steps }: { steps: StepStatus }) {
   const allGood = steps.crawl === "ok" && steps.ai === "ok";
   const aiOnly = steps.crawl !== "ok" && steps.ai === "ok";
@@ -195,7 +123,28 @@ export default function InternalLinksPage() {
   const [stepStatus, setStepStatus] = useState<StepStatus | null>(null);
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
   const [isSavingSuggestions, setIsSavingSuggestions] = useState(false);
-  const [showReviewDialog, setShowReviewDialog] = useState(false);
+
+  const { addJob, updateJob, removeJob, getJob } = useGlobalJobs();
+  const linksJobId = `links-gen-${websiteId}`;
+
+  // Restore suggestions from global job context on mount (survives navigation)
+  useEffect(() => {
+    const restore = () => {
+      const job = getJob(linksJobId);
+      if (job?.status === "done" && job.resultData?.suggestions?.length) {
+        setSuggestions(job.resultData.suggestions);
+        setSelectedSuggestions(new Set(job.resultData.suggestions.map((_: SuggestedLink, i: number) => i)));
+        if (job.resultData.steps) setStepStatus(job.resultData.steps);
+      }
+      if (job?.status === "running") {
+        setIsGenerating(true);
+      }
+    };
+    restore();
+    const t = setTimeout(restore, 600);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchLinks = useCallback(async () => {
     try {
@@ -243,6 +192,8 @@ export default function InternalLinksPage() {
       if (res.ok) {
         toast.success("Link removed");
         setLinks((prev) => prev.filter((l) => l.id !== linkId));
+      } else {
+        toast.error("Failed to delete");
       }
     } catch {
       toast.error("Failed to delete");
@@ -251,14 +202,15 @@ export default function InternalLinksPage() {
     }
   };
 
-  const { addJob: addGlobalJob, updateJob: updateGlobalJob } = useGlobalJobs();
-  const linksJobId = `links-gen-${websiteId}`;
+  const generateSteps = ["crawling", "analyzing", "generating"];
 
   const handleAutoGenerate = async () => {
     setIsGenerating(true);
+    setSuggestions([]);
+    setSelectedSuggestions(new Set());
     setStepStatus(null);
 
-    addGlobalJob({
+    addJob({
       id: linksJobId,
       type: "links",
       label: "Internal link suggestions",
@@ -267,38 +219,39 @@ export default function InternalLinksPage() {
       status: "running",
       progress: 10,
       currentStep: "crawling",
-      steps: ["crawling", "analyzing", "generating"],
+      steps: generateSteps,
     });
 
     try {
-      updateGlobalJob(linksJobId, { progress: 30, currentStep: "analyzing" });
+      updateJob(linksJobId, { progress: 30, currentStep: "analyzing" });
       const res = await fetch(`/api/websites/${websiteId}/links/suggest`, { method: "POST" });
-      updateGlobalJob(linksJobId, { progress: 80, currentStep: "generating" });
+      updateJob(linksJobId, { progress: 80, currentStep: "generating" });
       const data = await res.json();
 
       if (!res.ok) {
         toast.error(data.error || "Failed to generate suggestions");
-        updateGlobalJob(linksJobId, { status: "failed", error: data.error || "Generation failed" });
+        updateJob(linksJobId, { status: "failed", error: data.error || "Generation failed" });
         return;
       }
 
       setStepStatus(data.steps ?? null);
 
-      if (!data.suggestions?.length) {
-        setSuggestions([]);
-        setSelectedSuggestions(new Set());
-        setShowReviewDialog(true);
-        updateGlobalJob(linksJobId, { status: "done", progress: 100 });
-        return;
-      }
+      const fetched: SuggestedLink[] = data.suggestions || [];
+      setSuggestions(fetched);
+      setSelectedSuggestions(new Set(fetched.map((_: SuggestedLink, i: number) => i)));
 
-      setSuggestions(data.suggestions);
-      setSelectedSuggestions(new Set(data.suggestions.map((_: SuggestedLink, i: number) => i)));
-      setShowReviewDialog(true);
-      updateGlobalJob(linksJobId, { status: "done", progress: 100 });
+      updateJob(linksJobId, {
+        status: "done",
+        progress: 100,
+        resultData: { suggestions: fetched, steps: data.steps },
+      });
+
+      if (fetched.length === 0) {
+        toast.warning("No new link pairs found — try adding pages to your website first");
+      }
     } catch {
       toast.error("Network error — please try again");
-      updateGlobalJob(linksJobId, { status: "failed", error: "Network error" });
+      updateJob(linksJobId, { status: "failed", error: "Network error" });
     } finally {
       setIsGenerating(false);
     }
@@ -331,10 +284,36 @@ export default function InternalLinksPage() {
     }
 
     await fetchLinks();
-    setShowReviewDialog(false);
     setSuggestions([]);
+    setSelectedSuggestions(new Set());
+    removeJob(linksJobId);
     setIsSavingSuggestions(false);
     toast.success(skipped > 0 ? `Saved ${saved} link pairs (${skipped} skipped)` : `Added ${saved} internal link pairs`);
+  };
+
+  const handleDismissSuggestions = () => {
+    setSuggestions([]);
+    setSelectedSuggestions(new Set());
+    setStepStatus(null);
+    removeJob(linksJobId);
+  };
+
+  const handleRemoveSuggestion = (idx: number) => {
+    const remaining = suggestions.filter((_, i) => i !== idx);
+    setSuggestions(remaining);
+    setSelectedSuggestions((prev) => {
+      const next = new Set<number>();
+      for (const v of prev) {
+        if (v < idx) next.add(v);
+        else if (v > idx) next.add(v - 1);
+      }
+      return next;
+    });
+    if (remaining.length === 0) {
+      removeJob(linksJobId);
+    } else {
+      updateJob(linksJobId, { resultData: { suggestions: remaining, steps: stepStatus } });
+    }
   };
 
   const filtered = links.filter(
@@ -353,8 +332,108 @@ export default function InternalLinksPage() {
 
   return (
     <div className="space-y-6">
-      {/* Loading Dialog — modal, impossible to miss */}
-      <AiGeneratingDialog open={isGenerating} />
+      {/* Inline AI Suggestions panel (non-blocking — like keywords page) */}
+      {(isGenerating || suggestions.length > 0) && (
+        <Card className={isGenerating ? "border-blue-200 bg-blue-50" : "border-primary/20 bg-primary/5"}>
+          <CardHeader className="pb-2 pt-4 px-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base flex items-center gap-2">
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                ) : (
+                  <Sparkles className="h-4 w-4 text-primary" />
+                )}
+                {isGenerating
+                  ? "Generating internal link suggestions…"
+                  : `AI Suggestions — ${suggestions.length} link pairs`}
+              </CardTitle>
+              {!isGenerating && suggestions.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" className="text-xs h-7"
+                    onClick={() => {
+                      if (selectedSuggestions.size === suggestions.length)
+                        setSelectedSuggestions(new Set());
+                      else
+                        setSelectedSuggestions(new Set(suggestions.map((_, i) => i)));
+                    }}>
+                    {selectedSuggestions.size === suggestions.length ? "Deselect All" : "Select All"}
+                  </Button>
+                  <Button size="sm" className="h-7 text-xs"
+                    disabled={isSavingSuggestions || selectedSuggestions.size === 0}
+                    onClick={handleSaveSuggestions}>
+                    {isSavingSuggestions
+                      ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                      : <Plus className="mr-1.5 h-3 w-3" />}
+                    Save {selectedSuggestions.size} to Links
+                  </Button>
+                  <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-muted-foreground"
+                    title="Dismiss suggestions"
+                    onClick={handleDismissSuggestions}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            {isGenerating && (
+              <>
+                <Progress value={50} className="h-1 mt-2" />
+                <div className="flex items-center gap-1 mt-1">
+                  {generateSteps.map((s) => {
+                    const labels: Record<string, string> = { crawling: "Crawling", analyzing: "Analyzing", generating: "Generating" };
+                    return (
+                      <span key={s} className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] bg-blue-100 text-blue-800">
+                        <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                        {labels[s]}
+                      </span>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </CardHeader>
+
+          {!isGenerating && suggestions.length > 0 && (
+            <CardContent className="px-4 pb-4 pt-0">
+              {stepStatus && <div className="mb-3"><ResultStatusBanner steps={stepStatus} /></div>}
+              <div className="grid gap-2 sm:grid-cols-2">
+                {suggestions.map((s, i) => (
+                  <div
+                    key={`${s.keyword}-${s.url}`}
+                    onClick={() => toggleSuggestion(i)}
+                    className={`flex items-start gap-2.5 p-3 rounded-lg border cursor-pointer transition-all ${
+                      selectedSuggestions.has(i)
+                        ? "border-primary bg-primary/5"
+                        : "border-border bg-background hover:bg-muted/40"
+                    }`}
+                  >
+                    <Checkbox checked={selectedSuggestions.has(i)} className="mt-0.5 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <Badge variant="outline" className="font-mono text-xs">{s.keyword}</Badge>
+                        <span className="text-muted-foreground text-xs">→</span>
+                        <a href={s.url} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline truncate max-w-[240px] flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}>
+                          {s.url.replace(/^https?:\/\//, "")}
+                          <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                        </a>
+                      </div>
+                      {s.reason && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{s.reason}</p>}
+                    </div>
+                    <button
+                      className="shrink-0 p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
+                      onClick={(e) => { e.stopPropagation(); handleRemoveSuggestion(i); }}
+                      title="Remove suggestion"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+      )}
 
       {/* Header */}
       <div className="flex items-start justify-between">
@@ -486,96 +565,6 @@ export default function InternalLinksPage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Review Dialog */}
-      <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
-        <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              AI-Generated Internal Links
-            </DialogTitle>
-            <DialogDescription>
-              {suggestions.length > 0
-                ? `${suggestions.length} link pairs ready. Deselect any you don't want, then save.`
-                : "The AI couldn't generate suggestions — see details below."}
-            </DialogDescription>
-          </DialogHeader>
-
-          {/* Status banner — always shown so user knows what happened */}
-          {stepStatus && <ResultStatusBanner steps={stepStatus} />}
-
-          {suggestions.length > 0 && (
-            <>
-              <div className="flex items-center gap-3 px-1">
-                <Button variant="ghost" size="sm" className="gap-1.5 h-7 text-xs"
-                  onClick={() => setSelectedSuggestions(new Set(suggestions.map((_, i) => i)))}>
-                  <CheckCheck className="h-3.5 w-3.5" />
-                  Select all
-                </Button>
-                <Button variant="ghost" size="sm" className="gap-1.5 h-7 text-xs"
-                  onClick={() => setSelectedSuggestions(new Set())}>
-                  <X className="h-3.5 w-3.5" />
-                  Deselect all
-                </Button>
-                <span className="text-xs text-muted-foreground ml-auto">{selectedSuggestions.size} selected</span>
-              </div>
-
-              <Separator />
-
-              <div className="overflow-y-auto flex-1 space-y-1 pr-1">
-                {suggestions.map((s, i) => (
-                  <div key={i}
-                    className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-colors ${
-                      selectedSuggestions.has(i)
-                        ? "bg-primary/5 border-primary/20"
-                        : "border-transparent hover:bg-muted/50"
-                    }`}
-                    onClick={() => toggleSuggestion(i)}
-                  >
-                    <Checkbox
-                      checked={selectedSuggestions.has(i)}
-                      onCheckedChange={() => toggleSuggestion(i)}
-                      onClick={(e) => e.stopPropagation()}
-                      className="mt-0.5 shrink-0"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="font-mono text-xs">{s.keyword}</Badge>
-                        <span className="text-muted-foreground text-xs">→</span>
-                        <a href={s.url} target="_blank" rel="noopener noreferrer"
-                          className="text-xs text-primary hover:underline truncate max-w-[280px] flex items-center gap-1"
-                          onClick={(e) => e.stopPropagation()}>
-                          {s.url}
-                          <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                        </a>
-                      </div>
-                      {s.reason && <p className="text-xs text-muted-foreground mt-1">{s.reason}</p>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          <Separator />
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReviewDialog(false)}>
-              {suggestions.length === 0 ? "Close" : "Cancel"}
-            </Button>
-            {suggestions.length > 0 && (
-              <Button onClick={handleSaveSuggestions}
-                disabled={isSavingSuggestions || selectedSuggestions.size === 0} className="gap-2">
-                {isSavingSuggestions
-                  ? <Loader2 className="h-4 w-4 animate-spin" />
-                  : <Plus className="h-4 w-4" />}
-                Save {selectedSuggestions.size} link{selectedSuggestions.size !== 1 ? "s" : ""}
-              </Button>
-            )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
