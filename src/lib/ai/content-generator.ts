@@ -197,22 +197,42 @@ function countWords(text: string): number {
 
 /**
  * Detect and strip repeated/looped content.
- * If a large block of text appears more than once, keep only the first occurrence.
+ * Strategy 1: repeated H2 heading (most reliable — AI loops back to the top).
+ * Strategy 2: exact large-chunk match (original fallback).
+ * Strategy 3: orphaned "## " at end of content (truncated mid-heading — strip it).
  */
 function deduplicateContent(text: string): string {
   const lines = text.split("\n");
   if (lines.length < 10) return text;
 
-  // Find repeated blocks: check if the second half mirrors the first half
-  const fullText = text.trim();
-  const halfLen = Math.floor(fullText.length / 2);
+  // Strategy 1: detect the first H2 heading that appears a second time
+  const seenH2s = new Map<string, number>(); // normalised heading -> line index
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^## (.+)$/);
+    if (!m) continue;
+    const heading = m[1].trim().toLowerCase();
+    if (seenH2s.has(heading)) {
+      console.log(`[content-gen] Duplicate H2 "${m[1]}" at line ${i} — truncating loop`);
+      return lines.slice(0, i).join("\n").trimEnd();
+    }
+    seenH2s.set(heading, i);
+  }
 
-  // Try to find the largest repeating prefix
+  // Strategy 3: orphaned heading stub ("## " or "## \n") at very end — strip it
+  const trimmed = text.trimEnd();
+  const stubMatch = trimmed.match(/([\s\S]*?)\n##\s*$/);
+  if (stubMatch) {
+    console.log(`[content-gen] Stripped orphaned heading stub at end`);
+    return stubMatch[1].trimEnd();
+  }
+
+  // Strategy 2: exact large-chunk match
+  const fullText = text.trim();
   for (let chunkSize = Math.floor(fullText.length * 0.3); chunkSize >= 200; chunkSize -= 50) {
     const firstChunk = fullText.slice(0, chunkSize).trim();
     const secondOccurrence = fullText.indexOf(firstChunk, chunkSize - 50);
     if (secondOccurrence > 0 && secondOccurrence < fullText.length * 0.7) {
-      console.log(`[content-gen] Detected duplicate content at position ${secondOccurrence}, trimming`);
+      console.log(`[content-gen] Detected duplicate chunk at position ${secondOccurrence}, trimming`);
       return fullText.slice(0, secondOccurrence).trim();
     }
   }
@@ -536,7 +556,10 @@ Output ONLY the FAQ section in Markdown.`,
     const stitchedWords = countWords(stitchedDraft);
     console.log(`[content-gen] Section-by-section total: ${stitchedWords} words`);
 
-    if (stitchedWords > draftWords) {
+    // Always prefer the stitched version when section-by-section was triggered due to
+    // missing sections — a complete shorter article beats a truncated longer one.
+    // Only skip if stitching produced almost nothing (< 200 words, something went wrong).
+    if (stitchedWords >= 200) {
       cleanDraft = stitchedDraft;
       draftWords = stitchedWords;
     }
