@@ -78,7 +78,8 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const validated = createWebsiteSchema.parse(body);
+    const { ctaText, ctaUrl, writingStyle, ...rest } = body;
+    const validated = createWebsiteSchema.parse(rest);
 
     // Generate subdomain from domain
     const subdomain = validated.domain
@@ -103,12 +104,15 @@ export async function POST(req: Request) {
       },
     });
 
-    // Create default blog settings
+    const validStyles = ["informative", "conversational", "technical", "storytelling", "persuasive", "humorous"];
     await prisma.blogSettings.create({
       data: {
         websiteId: website.id,
         autoPublish: false,
         postsPerWeek: 3,
+        ...(ctaText && typeof ctaText === "string" ? { ctaText: ctaText.trim() } : {}),
+        ...(ctaUrl && typeof ctaUrl === "string" ? { ctaUrl: ctaUrl.trim() } : {}),
+        ...(writingStyle && validStyles.includes(writingStyle) ? { writingStyle } : {}),
       },
     });
 

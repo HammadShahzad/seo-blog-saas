@@ -1,5 +1,4 @@
 "use client";
-// New website onboarding flow
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -15,6 +14,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   ArrowLeft,
   ArrowRight,
@@ -42,12 +48,70 @@ const STEPS = [
   { id: 3, title: "Content Strategy", icon: Target },
 ];
 
+interface AIRawData {
+  brandName: string;
+  brandUrl: string;
+  primaryColor: string[];
+  niche: string[];
+  description: string[];
+  targetAudience: string[];
+  tone: string[];
+  uniqueValueProp: string[];
+  competitors: string[];
+  keyProducts: string[];
+  targetLocation: string;
+  suggestedCtaText: string[];
+  suggestedCtaUrl: string;
+  suggestedWritingStyle: string[];
+}
+
+// ── Inline option picker ────────────────────────────────────────
+function OptionPicker({
+  options,
+  selectedIndex,
+  onSelect,
+  isTextarea = false,
+}: {
+  options: string[];
+  selectedIndex: number;
+  onSelect: (index: number) => void;
+  isTextarea?: boolean;
+}) {
+  if (!options || options.length === 0) return null;
+  return (
+    <div className="space-y-1.5">
+      {options.map((opt, i) => (
+        <button
+          key={i}
+          type="button"
+          onClick={() => onSelect(i)}
+          className={`w-full text-left px-3 py-2 rounded-md text-sm border transition-all ${
+            selectedIndex === i
+              ? "bg-violet-50 border-violet-300 text-violet-900 ring-1 ring-violet-200"
+              : "bg-muted/30 border-transparent hover:bg-muted/60 text-muted-foreground"
+          } ${isTextarea ? "leading-relaxed" : ""}`}
+        >
+          {opt}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const VALID_WRITING_STYLES = ["informative", "conversational", "technical", "storytelling", "persuasive", "humorous"];
+
 export default function NewWebsitePage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalyzed, setAiAnalyzed] = useState(false);
+
+  // Full raw AI response (for 3-option pickers)
+  const [aiRawData, setAiRawData] = useState<AIRawData | null>(null);
+  // Which option index is selected per field
+  const [aiSelections, setAiSelections] = useState<Record<string, number>>({});
+
   const [formData, setFormData] = useState({
     name: "",
     domain: "",
@@ -62,6 +126,10 @@ export default function NewWebsitePage() {
     competitors: [] as string[],
     keyProducts: [] as string[],
     targetLocation: "",
+    // Content & AI (saved to BlogSettings on creation)
+    ctaText: "",
+    ctaUrl: "",
+    writingStyle: "informative",
   });
 
   const [competitorInput, setCompetitorInput] = useState("");
@@ -69,6 +137,15 @@ export default function NewWebsitePage() {
 
   const updateField = (field: string, value: string | string[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  // Pick an AI option for a given field
+  const selectAiOption = (aiKey: string, formKey: string, index: number) => {
+    if (!aiRawData) return;
+    const options = (aiRawData as unknown as Record<string, unknown>)[aiKey];
+    if (!Array.isArray(options)) return;
+    setAiSelections((prev) => ({ ...prev, [aiKey]: index }));
+    updateField(formKey, options[index] as string);
   };
 
   const addChip = (field: "competitors" | "keyProducts", input: string, setInput: (v: string) => void) => {
@@ -85,38 +162,56 @@ export default function NewWebsitePage() {
 
   const canProceedStep1 = formData.name.trim() && formData.domain.trim();
 
+  const applyAIData = (data: AIRawData, prevName: string, prevDomain: string, prevColor: string, prevTone: string) => {
+    const pick = (val: unknown, fallback: string) =>
+      Array.isArray(val) ? (val[0] as string) || fallback : (val as string) || fallback;
+
+    const rawStyle = Array.isArray(data.suggestedWritingStyle)
+      ? data.suggestedWritingStyle[0]?.toLowerCase() || "informative"
+      : "informative";
+    const writingStyle = VALID_WRITING_STYLES.includes(rawStyle) ? rawStyle : "informative";
+
+    // Store raw data and reset selections to option 0
+    setAiRawData(data);
+    const selections: Record<string, number> = {};
+    for (const key of ["niche", "description", "targetAudience", "tone", "uniqueValueProp", "primaryColor", "suggestedCtaText", "suggestedWritingStyle"]) {
+      selections[key] = 0;
+    }
+    setAiSelections(selections);
+
+    setFormData((prev) => ({
+      ...prev,
+      brandName: pick(data.brandName, prevName),
+      brandUrl: pick(data.brandUrl, `https://${prevDomain}`),
+      primaryColor: pick(data.primaryColor, prevColor),
+      niche: pick(data.niche, ""),
+      description: pick(data.description, ""),
+      targetAudience: pick(data.targetAudience, ""),
+      tone: pick(data.tone, prevTone),
+      uniqueValueProp: pick(data.uniqueValueProp, ""),
+      competitors: Array.isArray(data.competitors) ? data.competitors : [],
+      keyProducts: Array.isArray(data.keyProducts) ? data.keyProducts : [],
+      targetLocation: pick(data.targetLocation, ""),
+      ctaText: pick(data.suggestedCtaText, ""),
+      ctaUrl: data.suggestedCtaUrl || "",
+      writingStyle,
+    }));
+  };
+
   const handleAnalyzeAndNext = async () => {
     setIsAnalyzing(true);
     try {
       const res = await fetch("/api/websites/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.name,
-          domain: formData.domain,
-        }),
+        body: JSON.stringify({ name: formData.name, domain: formData.domain }),
       });
 
       if (res.ok) {
-        const data = await res.json();
-        const pick = (val: unknown, fallback: string) =>
-          Array.isArray(val) ? (val[0] as string) || fallback : (val as string) || fallback;
-        setFormData((prev) => ({
-          ...prev,
-          brandName: pick(data.brandName, prev.name),
-          brandUrl: pick(data.brandUrl, `https://${prev.domain}`),
-          primaryColor: pick(data.primaryColor, prev.primaryColor),
-          niche: pick(data.niche, ""),
-          description: pick(data.description, ""),
-          targetAudience: pick(data.targetAudience, ""),
-          tone: pick(data.tone, prev.tone),
-          uniqueValueProp: pick(data.uniqueValueProp, ""),
-          competitors: Array.isArray(data.competitors) ? data.competitors : [],
-          keyProducts: Array.isArray(data.keyProducts) ? data.keyProducts : [],
-          targetLocation: pick(data.targetLocation, ""),
-        }));
+        const data = await res.json() as AIRawData;
+        applyAIData(data, formData.name, formData.domain, formData.primaryColor, formData.tone);
         setAiAnalyzed(true);
-        toast.success("AI analyzed your website — review and confirm below");
+        toast.success("AI analyzed your website — pick your preferred options below");
       } else {
         toast.error("Could not analyze website, please fill in manually");
         setFormData((prev) => ({
@@ -140,32 +235,14 @@ export default function NewWebsitePage() {
       const res = await fetch("/api/websites/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: formData.name,
-          domain: formData.domain,
-        }),
+        body: JSON.stringify({ name: formData.name, domain: formData.domain }),
       });
 
       if (res.ok) {
-        const data = await res.json();
-        const pick = (val: unknown, fallback: string) =>
-          Array.isArray(val) ? (val[0] as string) || fallback : (val as string) || fallback;
-        setFormData((prev) => ({
-          ...prev,
-          brandName: pick(data.brandName, prev.name),
-          brandUrl: pick(data.brandUrl, `https://${prev.domain}`),
-          primaryColor: pick(data.primaryColor, prev.primaryColor),
-          niche: pick(data.niche, ""),
-          description: pick(data.description, ""),
-          targetAudience: pick(data.targetAudience, ""),
-          tone: pick(data.tone, prev.tone),
-          uniqueValueProp: pick(data.uniqueValueProp, ""),
-          competitors: Array.isArray(data.competitors) ? data.competitors : [],
-          keyProducts: Array.isArray(data.keyProducts) ? data.keyProducts : [],
-          targetLocation: pick(data.targetLocation, ""),
-        }));
+        const data = await res.json() as AIRawData;
+        applyAIData(data, formData.name, formData.domain, formData.primaryColor, formData.tone);
         setAiAnalyzed(true);
-        toast.success("Re-analyzed successfully");
+        toast.success("Re-analyzed — pick your preferred options");
       }
     } catch {
       toast.error("Re-analysis failed");
@@ -175,8 +252,7 @@ export default function NewWebsitePage() {
   };
 
   const canProceedStep2 = formData.brandName && formData.brandUrl;
-  const canProceedStep3 =
-    formData.niche && formData.description && formData.targetAudience;
+  const canProceedStep3 = formData.niche && formData.description && formData.targetAudience;
 
   const handleSubmit = async () => {
     setIsLoading(true);
@@ -243,7 +319,7 @@ export default function NewWebsitePage() {
         ))}
       </div>
 
-      {/* Step 1: Basic Info */}
+      {/* ── STEP 1: Basic Info ── */}
       {step === 1 && (
         <>
           <Card>
@@ -286,8 +362,7 @@ export default function NewWebsitePage() {
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-primary/5 border border-primary/10">
                   <Sparkles className="h-4 w-4 text-primary shrink-0" />
                   <p className="text-sm text-muted-foreground">
-                    AI will automatically research your website and fill in brand
-                    details and content strategy
+                    AI will research your website and give you 3 options for each field to choose from
                   </p>
                 </div>
               )}
@@ -300,7 +375,7 @@ export default function NewWebsitePage() {
         </>
       )}
 
-      {/* Step 2: Brand Details (AI-filled, editable) */}
+      {/* ── STEP 2: Brand Details ── */}
       {step === 2 && (
         <Card>
           <CardHeader>
@@ -309,10 +384,7 @@ export default function NewWebsitePage() {
                 <CardTitle className="flex items-center gap-2">
                   Brand Details
                   {aiAnalyzed && !isAnalyzing && (
-                    <Badge
-                      variant="secondary"
-                      className="text-xs gap-1 bg-green-50 text-green-700 border-green-200"
-                    >
+                    <Badge variant="secondary" className="text-xs gap-1 bg-green-50 text-green-700 border-green-200">
                       <CheckCircle2 className="h-3 w-3" />
                       AI filled
                     </Badge>
@@ -327,7 +399,9 @@ export default function NewWebsitePage() {
                 <CardDescription>
                   {isAnalyzing
                     ? "Researching your website with AI…"
-                    : "Review and adjust the AI-generated brand details"}
+                    : aiAnalyzed
+                      ? "Pick your preferred option for each field, or edit freely"
+                      : "Review and adjust the brand details"}
                 </CardDescription>
               </div>
               {!isAnalyzing && (
@@ -368,26 +442,60 @@ export default function NewWebsitePage() {
                   />
                 </div>
 
+                {/* Brand Color — show 3 swatches when AI analyzed */}
                 <div className="space-y-2">
                   <Label htmlFor="primaryColor">Brand Color</Label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="color"
-                      id="primaryColor"
-                      value={formData.primaryColor}
-                      onChange={(e) =>
-                        updateField("primaryColor", e.target.value)
-                      }
-                      className="h-10 w-10 rounded border cursor-pointer"
-                    />
-                    <Input
-                      value={formData.primaryColor}
-                      onChange={(e) =>
-                        updateField("primaryColor", e.target.value)
-                      }
-                      className="w-32"
-                    />
-                  </div>
+                  {aiRawData?.primaryColor && aiRawData.primaryColor.length > 1 ? (
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        {aiRawData.primaryColor.map((color, i) => (
+                          <button
+                            key={i}
+                            type="button"
+                            onClick={() => selectAiOption("primaryColor", "primaryColor", i)}
+                            className={`h-10 w-10 rounded-lg border-2 transition-all ${
+                              aiSelections.primaryColor === i
+                                ? "border-violet-500 scale-110 ring-2 ring-violet-200"
+                                : "border-transparent hover:scale-105"
+                            }`}
+                            style={{ backgroundColor: color }}
+                            title={color}
+                          />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={formData.primaryColor}
+                          onChange={(e) => {
+                            updateField("primaryColor", e.target.value);
+                            setAiSelections((p) => ({ ...p, primaryColor: -1 }));
+                          }}
+                          className="h-8 w-8 rounded border cursor-pointer"
+                        />
+                        <Input
+                          value={formData.primaryColor}
+                          onChange={(e) => updateField("primaryColor", e.target.value)}
+                          className="w-32"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="color"
+                        id="primaryColor"
+                        value={formData.primaryColor}
+                        onChange={(e) => updateField("primaryColor", e.target.value)}
+                        className="h-10 w-10 rounded border cursor-pointer"
+                      />
+                      <Input
+                        value={formData.primaryColor}
+                        onChange={(e) => updateField("primaryColor", e.target.value)}
+                        className="w-32"
+                      />
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -395,7 +503,7 @@ export default function NewWebsitePage() {
         </Card>
       )}
 
-      {/* Step 3: Content Strategy (AI-filled, editable) */}
+      {/* ── STEP 3: Content Strategy ── */}
       {step === 3 && (
         <div className="space-y-4">
           <Card>
@@ -403,10 +511,7 @@ export default function NewWebsitePage() {
               <CardTitle className="flex items-center gap-2">
                 Content Strategy
                 {aiAnalyzed && (
-                  <Badge
-                    variant="secondary"
-                    className="text-xs gap-1 bg-green-50 text-green-700 border-green-200"
-                  >
+                  <Badge variant="secondary" className="text-xs gap-1 bg-green-50 text-green-700 border-green-200">
                     <CheckCircle2 className="h-3 w-3" />
                     AI filled
                   </Badge>
@@ -414,50 +519,131 @@ export default function NewWebsitePage() {
                 <Sparkles className="h-4 w-4 text-primary" />
               </CardTitle>
               <CardDescription>
-                Review and fine-tune your AI-generated content strategy
+                {aiAnalyzed
+                  ? "Click any option to select it, or edit the field directly"
+                  : "Fill in your content strategy details"}
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
+
+              {/* Niche */}
               <div className="space-y-2">
-                <Label htmlFor="niche">Niche / Industry</Label>
-                <Input
-                  id="niche"
-                  placeholder="e.g., invoicing software for small businesses"
-                  value={formData.niche}
-                  onChange={(e) => updateField("niche", e.target.value)}
-                />
+                <Label>Niche / Industry</Label>
+                {aiRawData?.niche && aiRawData.niche.length > 1 ? (
+                  <>
+                    <OptionPicker
+                      options={aiRawData.niche}
+                      selectedIndex={aiSelections.niche ?? 0}
+                      onSelect={(i) => selectAiOption("niche", "niche", i)}
+                    />
+                    <Input
+                      placeholder="Or type your own…"
+                      value={formData.niche}
+                      onChange={(e) => {
+                        updateField("niche", e.target.value);
+                        setAiSelections((p) => ({ ...p, niche: -1 }));
+                      }}
+                      className="mt-1"
+                    />
+                  </>
+                ) : (
+                  <Input
+                    placeholder="e.g., invoicing software for small businesses"
+                    value={formData.niche}
+                    onChange={(e) => updateField("niche", e.target.value)}
+                  />
+                )}
               </div>
 
+              {/* Description */}
               <div className="space-y-2">
-                <Label htmlFor="description">Business Description</Label>
-                <Textarea
-                  id="description"
-                  placeholder="e.g., Cloud-based invoicing and accounting platform…"
-                  value={formData.description}
-                  onChange={(e) => updateField("description", e.target.value)}
-                  rows={3}
-                />
+                <Label>Business Description</Label>
+                {aiRawData?.description && aiRawData.description.length > 1 ? (
+                  <>
+                    <OptionPicker
+                      options={aiRawData.description}
+                      selectedIndex={aiSelections.description ?? 0}
+                      onSelect={(i) => selectAiOption("description", "description", i)}
+                      isTextarea
+                    />
+                    <Textarea
+                      placeholder="Or type your own…"
+                      value={formData.description}
+                      onChange={(e) => {
+                        updateField("description", e.target.value);
+                        setAiSelections((p) => ({ ...p, description: -1 }));
+                      }}
+                      rows={2}
+                      className="mt-1"
+                    />
+                  </>
+                ) : (
+                  <Textarea
+                    placeholder="e.g., Cloud-based invoicing and accounting platform…"
+                    value={formData.description}
+                    onChange={(e) => updateField("description", e.target.value)}
+                    rows={3}
+                  />
+                )}
               </div>
 
+              {/* Target Audience */}
               <div className="space-y-2">
-                <Label htmlFor="targetAudience">Target Audience</Label>
-                <Textarea
-                  id="targetAudience"
-                  placeholder="e.g., Freelancers, small business owners, accountants…"
-                  value={formData.targetAudience}
-                  onChange={(e) => updateField("targetAudience", e.target.value)}
-                  rows={2}
-                />
+                <Label>Target Audience</Label>
+                {aiRawData?.targetAudience && aiRawData.targetAudience.length > 1 ? (
+                  <>
+                    <OptionPicker
+                      options={aiRawData.targetAudience}
+                      selectedIndex={aiSelections.targetAudience ?? 0}
+                      onSelect={(i) => selectAiOption("targetAudience", "targetAudience", i)}
+                    />
+                    <Input
+                      placeholder="Or type your own…"
+                      value={formData.targetAudience}
+                      onChange={(e) => {
+                        updateField("targetAudience", e.target.value);
+                        setAiSelections((p) => ({ ...p, targetAudience: -1 }));
+                      }}
+                      className="mt-1"
+                    />
+                  </>
+                ) : (
+                  <Textarea
+                    placeholder="e.g., Freelancers, small business owners, accountants…"
+                    value={formData.targetAudience}
+                    onChange={(e) => updateField("targetAudience", e.target.value)}
+                    rows={2}
+                  />
+                )}
               </div>
 
+              {/* Tone */}
               <div className="space-y-2">
-                <Label htmlFor="tone">Writing Tone</Label>
-                <Input
-                  id="tone"
-                  placeholder="e.g., professional yet conversational"
-                  value={formData.tone}
-                  onChange={(e) => updateField("tone", e.target.value)}
-                />
+                <Label>Writing Tone</Label>
+                {aiRawData?.tone && aiRawData.tone.length > 1 ? (
+                  <>
+                    <OptionPicker
+                      options={aiRawData.tone}
+                      selectedIndex={aiSelections.tone ?? 0}
+                      onSelect={(i) => selectAiOption("tone", "tone", i)}
+                    />
+                    <Input
+                      placeholder="Or type your own…"
+                      value={formData.tone}
+                      onChange={(e) => {
+                        updateField("tone", e.target.value);
+                        setAiSelections((p) => ({ ...p, tone: -1 }));
+                      }}
+                      className="mt-1"
+                    />
+                  </>
+                ) : (
+                  <Input
+                    placeholder="e.g., professional yet conversational"
+                    value={formData.tone}
+                    onChange={(e) => updateField("tone", e.target.value)}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground">
                   The writing style AI should use for your content
                 </p>
@@ -465,7 +651,7 @@ export default function NewWebsitePage() {
             </CardContent>
           </Card>
 
-          {/* Brand Intelligence card */}
+          {/* Brand Intelligence */}
           <Card className="border-primary/20 bg-gradient-to-br from-primary/5 to-background">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
@@ -479,28 +665,49 @@ export default function NewWebsitePage() {
                 )}
               </CardTitle>
               <CardDescription>
-                The more context you give, the more targeted and differentiated your AI articles become
+                The more context you give, the more targeted your AI articles become
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+
+              {/* Unique Value Prop */}
               <div className="space-y-2">
-                <Label htmlFor="uniqueValueProp">Unique Value Proposition</Label>
-                <Textarea
-                  id="uniqueValueProp"
-                  placeholder="e.g., The only platform that generates, publishes, and internally links SEO articles automatically — zero manual work."
-                  value={formData.uniqueValueProp}
-                  onChange={(e) => updateField("uniqueValueProp", e.target.value)}
-                  rows={2}
-                />
+                <Label>Unique Value Proposition</Label>
+                {aiRawData?.uniqueValueProp && aiRawData.uniqueValueProp.length > 1 ? (
+                  <>
+                    <OptionPicker
+                      options={aiRawData.uniqueValueProp}
+                      selectedIndex={aiSelections.uniqueValueProp ?? 0}
+                      onSelect={(i) => selectAiOption("uniqueValueProp", "uniqueValueProp", i)}
+                      isTextarea
+                    />
+                    <Textarea
+                      placeholder="Or type your own…"
+                      value={formData.uniqueValueProp}
+                      onChange={(e) => {
+                        updateField("uniqueValueProp", e.target.value);
+                        setAiSelections((p) => ({ ...p, uniqueValueProp: -1 }));
+                      }}
+                      rows={2}
+                      className="mt-1"
+                    />
+                  </>
+                ) : (
+                  <Textarea
+                    placeholder="e.g., The only platform that generates, publishes, and internally links SEO articles automatically."
+                    value={formData.uniqueValueProp}
+                    onChange={(e) => updateField("uniqueValueProp", e.target.value)}
+                    rows={2}
+                  />
+                )}
                 <p className="text-xs text-muted-foreground">
                   What makes you different? AI uses this to write differentiating CTAs.
                 </p>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="targetLocation">Geographic Focus</Label>
+                <Label>Geographic Focus</Label>
                 <Input
-                  id="targetLocation"
                   placeholder="e.g., United States, Global, UK and Europe"
                   value={formData.targetLocation}
                   onChange={(e) => updateField("targetLocation", e.target.value)}
@@ -510,6 +717,7 @@ export default function NewWebsitePage() {
                 </p>
               </div>
 
+              {/* Key Products */}
               <div className="space-y-2">
                 <Label>Key Products / Features</Label>
                 <div className="flex gap-2">
@@ -543,6 +751,7 @@ export default function NewWebsitePage() {
                 )}
               </div>
 
+              {/* Competitors */}
               <div className="space-y-2">
                 <Label>Top Competitors</Label>
                 <div className="flex gap-2">
@@ -580,6 +789,123 @@ export default function NewWebsitePage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Content & AI Settings */}
+          <Card className="border-violet-200/60 bg-gradient-to-br from-violet-50/40 to-background">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-violet-600" />
+                Content &amp; AI Settings
+                {aiAnalyzed && (
+                  <Badge variant="secondary" className="text-xs gap-1 bg-green-50 text-green-700 border-green-200">
+                    <CheckCircle2 className="h-3 w-3" />
+                    AI suggested
+                  </Badge>
+                )}
+              </CardTitle>
+              <CardDescription>
+                Pre-configure how AI writes for you — editable anytime in Settings
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+
+              {/* Writing Style */}
+              <div className="space-y-2">
+                <Label>Writing Style</Label>
+                {aiRawData?.suggestedWritingStyle && aiRawData.suggestedWritingStyle.length > 1 ? (
+                  <>
+                    <OptionPicker
+                      options={aiRawData.suggestedWritingStyle}
+                      selectedIndex={aiSelections.suggestedWritingStyle ?? 0}
+                      onSelect={(i) => {
+                        if (!aiRawData) return;
+                        const raw = aiRawData.suggestedWritingStyle[i]?.toLowerCase() || "informative";
+                        const style = VALID_WRITING_STYLES.includes(raw) ? raw : "informative";
+                        setAiSelections((p) => ({ ...p, suggestedWritingStyle: i }));
+                        updateField("writingStyle", style);
+                      }}
+                    />
+                    <Select
+                      value={formData.writingStyle}
+                      onValueChange={(v) => {
+                        updateField("writingStyle", v);
+                        setAiSelections((p) => ({ ...p, suggestedWritingStyle: -1 }));
+                      }}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="informative">Informative</SelectItem>
+                        <SelectItem value="conversational">Conversational</SelectItem>
+                        <SelectItem value="technical">Technical</SelectItem>
+                        <SelectItem value="storytelling">Storytelling</SelectItem>
+                        <SelectItem value="persuasive">Persuasive</SelectItem>
+                        <SelectItem value="humorous">Humorous</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </>
+                ) : (
+                  <Select value={formData.writingStyle} onValueChange={(v) => updateField("writingStyle", v)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="informative">Informative</SelectItem>
+                      <SelectItem value="conversational">Conversational</SelectItem>
+                      <SelectItem value="technical">Technical</SelectItem>
+                      <SelectItem value="storytelling">Storytelling</SelectItem>
+                      <SelectItem value="persuasive">Persuasive</SelectItem>
+                      <SelectItem value="humorous">Humorous</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Applied to every article generated for this website.
+                </p>
+              </div>
+
+              {/* CTA Text */}
+              <div className="space-y-2">
+                <Label>Call-to-Action Text</Label>
+                {aiRawData?.suggestedCtaText && aiRawData.suggestedCtaText.length > 1 ? (
+                  <>
+                    <OptionPicker
+                      options={aiRawData.suggestedCtaText}
+                      selectedIndex={aiSelections.suggestedCtaText ?? 0}
+                      onSelect={(i) => selectAiOption("suggestedCtaText", "ctaText", i)}
+                    />
+                    <Input
+                      placeholder="Or type your own CTA…"
+                      value={formData.ctaText}
+                      onChange={(e) => {
+                        updateField("ctaText", e.target.value);
+                        setAiSelections((p) => ({ ...p, suggestedCtaText: -1 }));
+                      }}
+                      className="mt-1"
+                    />
+                  </>
+                ) : (
+                  <Input
+                    placeholder="e.g., Start your free trial"
+                    value={formData.ctaText}
+                    onChange={(e) => updateField("ctaText", e.target.value)}
+                  />
+                )}
+              </div>
+
+              {/* CTA URL */}
+              <div className="space-y-2">
+                <Label>Call-to-Action URL</Label>
+                <Input
+                  placeholder="e.g., https://yoursite.com/signup"
+                  value={formData.ctaUrl}
+                  onChange={(e) => updateField("ctaUrl", e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  AI places this CTA link in every article conclusion.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -607,7 +933,7 @@ export default function NewWebsitePage() {
             ) : (
               <>
                 <Sparkles className="mr-2 h-4 w-4" />
-                Analyze & Continue
+                Analyze &amp; Continue
               </>
             )}
           </Button>
@@ -679,7 +1005,6 @@ function AnalysisProgressCard({ domain }: { domain: string }) {
             const Icon = s.icon;
             const isDone = i < activeStep;
             const isCurrent = i === activeStep;
-            const isPending = i > activeStep;
 
             return (
               <div
