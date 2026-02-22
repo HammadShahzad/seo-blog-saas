@@ -262,24 +262,32 @@ async function generateWithContinuation(
   sysPrompt: string,
   options: { temperature: number; maxTokens: number },
   label = "generation",
-  maxContinuations = 5
+  maxContinuations = 5,
+  minWords = 0
 ): Promise<{ text: string; truncated: boolean; finishReason: string; outputTokens: number; promptTokens: number }> {
   const result = await generateTextWithMeta(prompt, sysPrompt, options);
   let accumulated = result.text;
 
-  if (!result.truncated && !isCutOff(accumulated)) {
+  const needsContinuation = () => {
+    if (result.truncated || isCutOff(accumulated)) return true;
+    if (minWords > 0 && countWords(accumulated) < minWords) return true;
+    return false;
+  };
+
+  if (!needsContinuation()) {
     return result;
   }
 
   for (let attempt = 1; attempt <= maxContinuations; attempt++) {
-    console.warn(`[content-gen] ${label} cut off — continuation attempt ${attempt}/${maxContinuations} (total words so far: ${accumulated.split(/\s+/).filter(Boolean).length})`);
+    const currentWords = countWords(accumulated);
+    const belowMin = minWords > 0 && currentWords < minWords;
+    console.warn(`[content-gen] ${label} incomplete — continuation ${attempt}/${maxContinuations} (${currentWords} words${belowMin ? `, need ${minWords}` : ""})`);
 
-    // Give the model enough tail context (~last 200 words) to continue seamlessly
     const contextTail = accumulated.slice(-1400);
 
     const contResult = await generateTextWithMeta(
       `A blog post was being written but the output was cut off. Continue writing from exactly where it stopped.
-
+${belowMin ? `\nThe article so far is only ${currentWords} words. It needs to be at least ${minWords} words. There is significant content still missing.\n` : ""}
 Here is the tail end of the article so far — do NOT repeat this content:
 ---
 ${contextTail}
@@ -304,9 +312,12 @@ Continue the article from the very next word. Maintain the same writing style, t
     }
 
     accumulated = accumulated.trimEnd() + "\n\n" + contText.slice(joinAt).trim();
-    console.log(`[content-gen] ${label} continuation ${attempt}: +${contResult.text.split(/\s+/).filter(Boolean).length} words, total now ${accumulated.split(/\s+/).filter(Boolean).length}`);
+    const totalNow = countWords(accumulated);
+    console.log(`[content-gen] ${label} continuation ${attempt}: +${countWords(contText)} words, total now ${totalNow}`);
 
-    if (!contResult.truncated && !isCutOff(accumulated)) break;
+    const stillTruncated = contResult.truncated || isCutOff(accumulated);
+    const stillBelowMin = minWords > 0 && totalNow < minWords;
+    if (!stillTruncated && !stillBelowMin) break;
   }
 
   return {
@@ -493,7 +504,7 @@ Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."
     ctx.competitors?.length ? `Context: ${ctx.brandName} competes with ${ctx.competitors.join(", ")} — don't mention competitors by name, but make ${ctx.brandName}'s approach clearly superior through specific examples.` : "",
   ].filter(Boolean).join("\n");
 
-  const draftResult = await generateTextWithMeta(
+  const draftResult = await generateWithContinuation(
     `Write a complete blog post about "${keyword}" for ${ctx.brandName}. Target length: ${targetWords} words, but your primary goal is to COMPLETE ALL ${cappedFullOutline.length} SECTIONS — never stop before the final section is finished.
 
 Title: ${outline.title}
@@ -544,7 +555,10 @@ ${includeFAQ ? "- FAQ section (4-5 questions with detailed answers)" : ""}
 Output ONLY the blog post content in Markdown. Do not include the title as an H1 — start with the hook paragraph.
 CRITICAL: Write the COMPLETE article with ALL sections from the outline. Do NOT stop after the Table of Contents.`,
     systemPrompt,
-    { temperature: 0.8, maxTokens: draftTokens }
+    { temperature: 0.8, maxTokens: draftTokens },
+    "draft",
+    5,
+    minExpectedWords
   );
 
   let cleanDraft = deduplicateContent(draftResult.text);
@@ -595,7 +609,9 @@ Do NOT write any of the main sections yet. STOP after the Table of Contents.
 Output only Markdown.`,
       systemPrompt,
       { temperature: 0.8, maxTokens: 3072 },
-      "intro-section"
+      "intro-section",
+      5,
+      150
     );
     sectionParts.push(introResult.text.trim());
     console.log(`[content-gen] Intro: ${countWords(introResult.text)} words`);
@@ -627,7 +643,9 @@ ${isComparisonArticle && i === 0 ? "- Include a markdown comparison table in thi
 Output ONLY this section in Markdown. Start with ## ${section.heading}`,
         systemPrompt,
         { temperature: 0.8, maxTokens: 4096 },
-        `section-${i + 1}`
+        `section-${i + 1}`,
+        5,
+        Math.floor(wordsPerSection * 0.75)
       );
       sectionParts.push(sectionResult.text.trim());
       console.log(`[content-gen] Section ${i + 1} "${section.heading}": ${countWords(sectionResult.text)} words`);
@@ -647,7 +665,9 @@ Answer here.
 Output ONLY the FAQ section in Markdown.`,
         systemPrompt,
         { temperature: 0.7, maxTokens: 2048 },
-        "faq-section"
+        "faq-section",
+        5,
+        200
       );
       sectionParts.push(faqResult.text.trim());
     }
@@ -715,7 +735,9 @@ Output ONLY the polished blog post in Markdown. Start directly with the content.
 CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early. Your output must be at LEAST ${draftWords} words.`,
     systemPrompt,
     { temperature: 0.65, maxTokens: rewriteTokens },
-    "tone-polish"
+    "tone-polish",
+    5,
+    Math.floor(draftWords * 0.75)
   );
 
   const cleanTone = deduplicateContent(toneResult.text);
@@ -793,7 +815,9 @@ Output ONLY the optimized blog post in Markdown format.
 CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early. The output MUST be at least ${toneToUseWords} words.`,
     systemPrompt,
     { temperature: 0.4, maxTokens: seoRewriteTokens },
-    "seo-optimize"
+    "seo-optimize",
+    5,
+    Math.floor(toneToUseWords * 0.75)
   );
 
   const cleanSeo = deduplicateContent(seoResult.text);
