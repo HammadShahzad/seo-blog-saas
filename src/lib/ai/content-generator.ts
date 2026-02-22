@@ -445,14 +445,20 @@ ${research.rawResearch.substring(0, 2500)}
 
 ## Outline Rules
 - H1 title: SEO-optimized (50-70 chars), includes keyword, reflects the winning angle
-- 5-7 H2 sections — at least 2 of them must directly address the identified content gaps above
+- STRICT section count based on target word count (${targetWords} words):
+  ${contentLength === "SHORT"  ? "• SHORT article → MAXIMUM 3 content H2 sections (each ~300 words)" : ""}
+  ${contentLength === "MEDIUM" ? "• MEDIUM article → MAXIMUM 5 content H2 sections (each ~400 words)" : ""}
+  ${contentLength === "LONG"   ? "• LONG article → MAXIMUM 7 content H2 sections (each ~450 words)" : ""}
+  ${contentLength === "PILLAR" ? "• PILLAR article → MAXIMUM 9 content H2 sections (each ~500 words)" : ""}
+  DO NOT exceed this section limit. Fewer, deeper sections beat many shallow ones.
+- At least 2 sections must directly address the content gaps identified above
 - Each section: 3-4 bullet points showing exactly what will be covered
 - Vary section types: how-to, comparison table, case study, data breakdown, common mistakes
-- Include a "Key Takeaways" box near the top
+- Include a "Key Takeaways" box near the top (does NOT count toward the section limit)
 ${isComparisonArticle ? `- ⚠️ MANDATORY COMPARISON TABLE: This is a comparison/listicle article ("${keyword}"). You MUST include a dedicated section in the outline (2nd or 3rd position) titled something like "Quick Comparison: [Options] at a Glance" or "Side-by-Side Comparison". This section's points must specify: a markdown table comparing all main options by key criteria (price, ease of use, best for, key features). THIS IS NON-NEGOTIABLE — do not skip the comparison table section.` : ""}
-${includeFAQ ? "- Include a FAQ section answering the questions competitors' articles ignore" : ""}
+${includeFAQ ? "- Include 1 FAQ section (does NOT count toward the section limit)" : ""}
 ${ctx.requiredSections?.length ? `- MUST include these sections: ${ctx.requiredSections.join(", ")}` : ""}
-- Conclusion: CTA for ${ctx.brandName}${ctx.uniqueValueProp ? ` built around: "${ctx.uniqueValueProp}"` : ""}
+- Conclusion: CTA for ${ctx.brandName}${ctx.uniqueValueProp ? ` built around: "${ctx.uniqueValueProp}"` : ""} (does NOT count toward the section limit)
 - "uniqueAngle" field: the specific take that makes this article clearly better than the top 5 results
 
 Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."] }], "uniqueAngle": "..." }`,
@@ -462,10 +468,23 @@ Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."
   // ─── STEP 3: DRAFT ───────────────────────────────────────────────
   await progress("draft", "Writing full article draft...");
 
-  // Filter outline sections to only content sections (exclude Key Takeaways, TOC, FAQ)
-  const contentSections = outline.sections.filter(
-    (s) => !/^(key takeaways?|table of contents|faq|frequently asked)/i.test(s.heading)
-  );
+  // Filter outline sections to only content sections (exclude Key Takeaways, TOC, FAQ, Conclusion)
+  const nonContentPattern = /^(key takeaways?|table of contents|faq|frequently asked|conclusion)/i;
+  let contentSections = outline.sections.filter(s => !nonContentPattern.test(s.heading));
+
+  // Hard-cap section count to match word budget — the AI often ignores the instruction
+  const maxContentSections: Record<string, number> = {
+    SHORT: 3, MEDIUM: 5, LONG: 7, PILLAR: 9,
+  };
+  const sectionCap = maxContentSections[contentLength] ?? 5;
+  if (contentSections.length > sectionCap) {
+    console.warn(`[content-gen] Outline had ${contentSections.length} content sections — capping to ${sectionCap} for ${contentLength} article`);
+    contentSections = contentSections.slice(0, sectionCap);
+  }
+
+  // Put the non-content sections (FAQ, Conclusion) back at the end of the full outline for rendering
+  const nonContentSections = outline.sections.filter(s => nonContentPattern.test(s.heading));
+  const cappedFullOutline = [...contentSections, ...nonContentSections];
 
   const brandContext = [
     ctx.targetLocation ? `Geographic context: Write for a ${ctx.targetLocation} audience — use relevant pricing, tools, and examples.` : "",
@@ -475,14 +494,14 @@ Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."
   ].filter(Boolean).join("\n");
 
   const draftResult = await generateTextWithMeta(
-    `Write a complete, ${targetWords}-word blog post about "${keyword}" for ${ctx.brandName}.
+    `Write a complete blog post about "${keyword}" for ${ctx.brandName}. Target length: ${targetWords} words, but your primary goal is to COMPLETE ALL ${cappedFullOutline.length} SECTIONS — never stop before the final section is finished.
 
 Title: ${outline.title}
 Unique angle: ${outline.uniqueAngle}
 ${brandContext}
 
-Outline to follow:
-${outline.sections.map((s) => `## ${s.heading}\n${s.points.map((p) => `- ${p}`).join("\n")}`).join("\n\n")}
+Outline to follow (${cappedFullOutline.length} sections — you MUST write ALL of them):
+${cappedFullOutline.map((s) => `## ${s.heading}\n${s.points.map((p) => `- ${p}`).join("\n")}`).join("\n\n")}
 
 ## Content Gaps to Fill (what competitors miss — cover these thoroughly)
 ${research.contentGaps.slice(0, 5).map((g, i) => `${i + 1}. ${g}`).join("\n")}
