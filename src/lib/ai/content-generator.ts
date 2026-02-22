@@ -989,14 +989,13 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
     "You are an SEO specialist and social media expert. Return valid JSON only."
   );
 
-  // ─── STEP 7: IMAGE GENERATION (sequential, one at a time) ───────
+  // ─── STEP 7: IMAGE GENERATION ────────────────────────────────────
   let featuredImageUrl: string | undefined;
   let featuredImageAlt = metadata.featuredImageAlt || keyword;
   const postSlug = metadata.slug || slugify(outline.title);
 
   if (includeImages && process.env.GOOGLE_AI_API_KEY) {
     await progress("image", "Generating featured image…");
-    // 1. Featured image — Gemini crafts a creative prompt, Imagen renders it
     try {
       const featPrompt = `Create an image that directly represents the concept of "${keyword}" for a ${ctx.niche} business. The image should clearly relate to "${outline.title}". No text, words, letters, or watermarks.`;
       featuredImageUrl = await generateBlogImage(
@@ -1009,13 +1008,21 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
         "fast",
       );
       featuredImageAlt = metadata.featuredImageAlt || `${keyword} - ${outline.title}`;
+      console.log(`[content-gen] Featured image generated: ${featuredImageUrl}`);
     } catch (err) {
-      console.error("Featured image generation failed after retries:", err);
+      const reason = err instanceof Error ? err.message : String(err);
+      console.error(`[content-gen] Featured image generation failed: ${reason}`);
+      // Don't block post creation — image can be generated manually from the post editor
+      // The reason is preserved in the return value so the job can surface it
+      featuredImageUrl = undefined;
+      (options as Record<string, unknown>)._imageError = reason;
     }
-
-    // Only 1 image per post (featured) — uses fast model for batch jobs.
   } else if (includeImages) {
-    await progress("image", "Skipping image generation (API key not configured)…");
+    const reason = !process.env.GOOGLE_AI_API_KEY
+      ? "GOOGLE_AI_API_KEY not configured"
+      : "B2 storage not configured";
+    console.warn(`[content-gen] Skipping image generation: ${reason}`);
+    (options as Record<string, unknown>)._imageError = reason;
   }
 
   // ─── FINAL: ASSEMBLE ─────────────────────────────────────────────

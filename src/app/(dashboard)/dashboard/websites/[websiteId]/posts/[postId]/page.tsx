@@ -545,6 +545,26 @@ export default function PostEditorPage() {
 
   return (
     <div className="space-y-4">
+      {/* ── No image banner ──────────────────────────────────────────────── */}
+      {!isNew && !post.featuredImage && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm">
+          <div className="flex items-center gap-2">
+            <ImageIcon className="h-4 w-4 shrink-0" />
+            <span className="font-medium">No featured image.</span>
+            <span className="text-amber-700">Auto-generation failed or was skipped during post creation.</span>
+          </div>
+          <Button size="sm" variant="outline"
+            className="shrink-0 h-7 text-xs border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800"
+            disabled={isRegeneratingImage}
+            onClick={() => handleRegenerateImage()}>
+            {isRegeneratingImage
+              ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+              : <Sparkles className="mr-1.5 h-3 w-3" />}
+            Generate Now
+          </Button>
+        </div>
+      )}
+
       {/* ── Top Bar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         {/* Left: back + title + status */}
@@ -1052,21 +1072,26 @@ export default function PostEditorPage() {
                       )}
                     </div>
                   ) : (
-                    <div className={`w-full aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center text-muted-foreground gap-2 ${isRegeneratingImage ? "border-primary/50 bg-primary/5" : ""}`}>
+                    <div className={`w-full aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 ${isRegeneratingImage ? "border-primary/50 bg-primary/5 text-primary" : "border-amber-300 bg-amber-50 text-amber-700 cursor-pointer hover:bg-amber-100 transition-colors"}`}
+                      onClick={() => !isRegeneratingImage && !isNew && handleRegenerateImage()}>
                       {isRegeneratingImage
-                        ? <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-xs">Generating…</p></>
-                        : <><ImageIcon className="h-6 w-6" /><p className="text-xs">No image yet</p></>}
+                        ? <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-xs font-medium">Generating…</p></>
+                        : <>
+                            <Sparkles className="h-6 w-6" />
+                            <p className="text-xs font-semibold">No featured image</p>
+                            {!isNew && <p className="text-xs opacity-75">Click to generate with AI</p>}
+                          </>}
                     </div>
                   )}
 
                   {!isNew && (
                     <div className="space-y-2">
-                      <Button size="sm" className="w-full" variant="outline"
+                      <Button size="sm" className="w-full" variant={post.featuredImage ? "outline" : "default"}
                         onClick={() => handleRegenerateImage()} disabled={isRegeneratingImage}>
                         {isRegeneratingImage
                           ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
                           : <Sparkles className="mr-2 h-3.5 w-3.5" />}
-                        {post.featuredImage ? "Regenerate with AI" : "Generate with AI"}
+                        {post.featuredImage ? "Regenerate with AI" : "Generate Featured Image"}
                       </Button>
                       <div className="flex gap-1.5">
                         <input type="text" placeholder="Custom prompt (optional)…"

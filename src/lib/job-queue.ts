@@ -9,6 +9,7 @@ import { generateBlogPost, ProgressCallback } from "./ai/content-generator";
 import type { JobType } from "@prisma/client";
 import { runPublishHook } from "./on-publish";
 import { calculateContentScore } from "./seo-scorer";
+import { generateBlogImage } from "./storage/image-generator";
 
 export interface JobInput {
   keywordId: string;
@@ -219,6 +220,37 @@ export async function processJob(jobId: string): Promise<void> {
         blogPostId: blogPost.id,
       },
     }).catch(() => {});
+
+    // If image generation failed inside generateBlogPost, retry it here independently
+    // so a failed image never blocks the whole job or leaves the post silently imageless.
+    if (!generated.featuredImageUrl && (input.includeImages ?? true) && process.env.GOOGLE_AI_API_KEY) {
+      console.log(`[job-queue] Image was not generated during post creation — retrying image separately for post ${blogPost.id}`);
+      try {
+        const imgPrompt = `Create an image that directly represents "${input.keyword}" for a ${website.niche || "business"} brand. No text, words, or watermarks.`;
+        const imageUrl = await generateBlogImage(
+          imgPrompt,
+          blogPost.slug,
+          input.websiteId,
+          undefined,
+          input.keyword,
+          website.niche || "business",
+          "fast",
+        );
+        await prisma.blogPost.update({
+          where: { id: blogPost.id },
+          data: { featuredImage: imageUrl },
+        });
+        console.log(`[job-queue] Retry image succeeded: ${imageUrl}`);
+      } catch (imgErr) {
+        const imgErrMsg = imgErr instanceof Error ? imgErr.message : String(imgErr);
+        console.error(`[job-queue] Image retry also failed: ${imgErrMsg}`);
+        // Mark post so the UI shows a "Generate Image" prompt
+        await prisma.blogPost.update({
+          where: { id: blogPost.id },
+          data: { generationSteps: { completed: true, imageError: imgErrMsg } },
+        }).catch(() => {});
+      }
+    }
 
     // Mark job complete
     await prisma.generationJob.update({
