@@ -349,13 +349,13 @@ export default function NewWebsitePage() {
                 <Label htmlFor="domain">Domain</Label>
                 <Input
                   id="domain"
-                  placeholder="e.g., invoicecave.com"
+                  placeholder="e.g., example.com or https://example.com/page"
                   value={formData.domain}
                   onChange={(e) => updateField("domain", e.target.value)}
                   disabled={isAnalyzing}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Your website&apos;s domain name (without https://)
+                  Domain or full URL — we&apos;ll extract the hostname automatically
                 </p>
               </div>
 

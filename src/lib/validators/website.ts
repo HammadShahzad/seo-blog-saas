@@ -5,7 +5,14 @@ export const createWebsiteSchema = z.object({
   domain: z
     .string()
     .min(1, "Domain is required")
-    .transform((v) => v.trim().replace(/^https?:\/\//i, "").replace(/\/$/, "").toLowerCase())
+    .transform((v) => {
+      let s = v.trim().toLowerCase();
+      s = s.replace(/^https?:\/\//i, ""); // strip protocol
+      s = s.split("/")[0];                 // strip any path (/marrakech/, etc.)
+      s = s.split("?")[0];                 // strip query string
+      s = s.replace(/\/$/, "");            // strip trailing slash
+      return s;
+    })
     .refine(
       (v) => /^([a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/.test(v),
       "Enter a valid domain (e.g., example.com or www.example.com)"
