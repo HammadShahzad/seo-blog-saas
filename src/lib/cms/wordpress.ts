@@ -325,9 +325,18 @@ export function markdownToHtml(markdown: string): string {
 
   const rawHtml = md.parse(withoutToc) as string;
 
+  // Style tables with inline CSS for CMS compatibility (WordPress, Ghost, Webflow, Shopify)
   const html = rawHtml.replace(
     /<table[\s\S]*?<\/table>/g,
-    (table) => `<div style="overflow-x:auto;margin:1.5em 0">${table}</div>`
+    (table) => {
+      const styled = table
+        .replace(/<table/g, '<table style="width:100%;border-collapse:collapse;margin:1.5em 0;font-size:0.95em"')
+        .replace(/<thead/g, '<thead style="background:#f8f9fa"')
+        .replace(/<th(?=[>\s])/g, '<th style="border:1px solid #dee2e6;padding:10px 14px;text-align:left;font-weight:600;background:#f1f3f5"')
+        .replace(/<td(?=[>\s])/g, '<td style="border:1px solid #dee2e6;padding:10px 14px"')
+        .replace(/<tr(?=[>\s])/g, '<tr style="border-bottom:1px solid #dee2e6"');
+      return `<div style="overflow-x:auto;margin:1.5em 0">${styled}</div>`;
+    }
   );
 
   return html;

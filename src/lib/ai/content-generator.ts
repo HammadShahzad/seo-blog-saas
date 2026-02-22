@@ -856,6 +856,7 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
     internalLinkBlock = "\n\n## Internal Links (use each URL AT MOST ONCE — no duplicate links):\n" +
       consolidatedLinks.map((l) => `   - "${l.anchor}" → ${l.url}`).join("\n");
   }
+  console.log(`[content-gen] Internal links available for SEO step: ${consolidatedLinks.length} (from internalLinks: ${ctx.internalLinks?.length ?? 0}, existingPosts: ${ctx.existingPosts?.length ?? 0})`);
 
   const toneToUseWords = countWords(toneToUse);
   const seoRewriteTokens = Math.max(16384, Math.ceil(toneToUseWords * 1.4 * 1.5));
@@ -946,6 +947,61 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
         return match ? `[${anchor.trim()}](${match.url})` : anchor.trim();
       }
     );
+  }
+
+  // If the winning version is NOT the SEO version but we have internal links,
+  // inject them directly into the content. The SEO step is the only one that
+  // adds links, so when tone/draft wins the ranking the content has zero links.
+  if (best.label !== "SEO" && consolidatedLinks.length > 0) {
+    console.log(`[content-gen] Best version is "${best.label}" — injecting ${consolidatedLinks.length} internal links post-hoc`);
+    const usedUrls = new Set<string>();
+    const lines = finalContent.split("\n");
+    const linkedLines = new Set<number>();
+
+    for (const link of consolidatedLinks) {
+      if (usedUrls.size >= Math.min(consolidatedLinks.length, 15)) break;
+      const normalizedUrl = link.url.replace(/\/$/, "").toLowerCase();
+      if (usedUrls.has(normalizedUrl)) continue;
+
+      const anchorWords = link.anchor.toLowerCase().split(/\s+/);
+      const anchorPattern = anchorWords.length >= 2
+        ? new RegExp(`\\b(${anchorWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+(?:\\w+\\s+){0,2}")})\\b`, "i")
+        : null;
+
+      for (let i = 0; i < lines.length; i++) {
+        if (linkedLines.has(i)) continue;
+        const line = lines[i];
+        // Skip headings, TOC entries, images, code blocks, and lines that already have links
+        if (/^(#{1,6}\s|[-*]\s+\[|!\[|```|<|\|)/.test(line.trim())) continue;
+        if (/\[[^\]]+\]\([^)]+\)/.test(line)) continue;
+        if (line.trim().length < 20) continue;
+
+        // Try exact keyword match first
+        const exactIdx = line.toLowerCase().indexOf(link.anchor.toLowerCase());
+        if (exactIdx !== -1) {
+          const original = line.slice(exactIdx, exactIdx + link.anchor.length);
+          lines[i] = line.slice(0, exactIdx) + `[${original}](${link.url})` + line.slice(exactIdx + link.anchor.length);
+          usedUrls.add(normalizedUrl);
+          linkedLines.add(i);
+          break;
+        }
+
+        // Try partial/fuzzy match for multi-word anchors
+        if (anchorPattern) {
+          const match = line.match(anchorPattern);
+          if (match && match.index !== undefined) {
+            const original = match[0];
+            lines[i] = line.slice(0, match.index) + `[${original}](${link.url})` + line.slice(match.index + original.length);
+            usedUrls.add(normalizedUrl);
+            linkedLines.add(i);
+            break;
+          }
+        }
+      }
+    }
+
+    finalContent = lines.join("\n");
+    console.log(`[content-gen] Post-hoc linking injected ${usedUrls.size} internal links`);
   }
 
   // Post-process: strip hallucinated links (URLs not in the provided list)
