@@ -290,12 +290,12 @@ export async function generateBlogPost(
   };
   const targetWords = wordTargets[contentLength] || wordTargets.MEDIUM;
 
-  // Token budget: generous enough for the model to finish, but capped per-step
+  // Token budget: generous enough for the model to finish every section
   const draftTokensForLength: Record<string, number> = {
-    SHORT: 4096,
-    MEDIUM: 8192,
+    SHORT: 8192,
+    MEDIUM: 16384,
     LONG: 16384,
-    PILLAR: 16384,
+    PILLAR: 24576,
   };
   const draftTokens = draftTokensForLength[contentLength] || draftTokensForLength.MEDIUM;
 
@@ -565,12 +565,16 @@ Output ONLY the FAQ section in Markdown.`,
     }
   }
 
+  // Build the definitive section list from the outline for completeness checks later
+  const requiredH2s = contentSections.map(s => s.heading);
+  console.log(`[content-gen] Required H2s (${requiredH2s.length}): ${requiredH2s.join(" | ")}`);
+
   // ─── STEP 4: CRITIQUE + TONE POLISH ─────────────────────────────
   await progress("tone", "Polishing voice — removing generic patterns...");
 
   // Scale rewrite tokens based on actual draft size (1.5x the estimated input tokens)
   const estimatedDraftTokens = Math.ceil(draftWords * 1.4);
-  const rewriteTokens = Math.max(8192, Math.ceil(estimatedDraftTokens * 1.5));
+  const rewriteTokens = Math.max(16384, Math.ceil(estimatedDraftTokens * 1.5));
 
   const toneResult = await generateTextWithMeta(
     `You are a senior editor at a sharp, opinionated media publication. Your job is to take a decent blog draft and make it genuinely great — the kind of article someone shares because it's actually useful AND enjoyable to read.
@@ -615,12 +619,20 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
 
   const cleanTone = deduplicateContent(toneResult.text);
   const toneWords = countWords(cleanTone);
-  console.log(`[content-gen] Tone polish: ${toneWords} words (draft was ${draftWords}), finishReason: ${toneResult.finishReason}, tokens: ${toneResult.outputTokens}/${rewriteTokens}`);
+  const toneMissing = findMissingSections(cleanTone, contentSections);
+  const draftMissing = findMissingSections(cleanDraft, contentSections);
+  console.log(`[content-gen] Tone polish: ${toneWords} words (draft was ${draftWords}), finishReason: ${toneResult.finishReason}, tokens: ${toneResult.outputTokens}/${rewriteTokens}, missing sections: ${toneMissing.length} (draft missing: ${draftMissing.length})`);
 
-  // If tone was truncated (MAX_TOKENS) or lost too much content, fall back to draft
-  const toneToUse = (!toneResult.truncated && toneWords >= draftWords * 0.7) ? cleanTone : cleanDraft;
-  if (toneResult.truncated || toneWords < draftWords * 0.7) {
-    console.warn(`[content-gen] Tone step lost content or truncated. Using draft instead. (truncated=${toneResult.truncated}, toneWords=${toneWords})`);
+  // Pick tone only if it did NOT lose sections compared to the draft
+  let toneToUse: string;
+  if (toneResult.truncated || toneWords < draftWords * 0.5) {
+    console.warn(`[content-gen] Tone step truncated or lost >50% content. Using draft.`);
+    toneToUse = cleanDraft;
+  } else if (toneMissing.length > draftMissing.length) {
+    console.warn(`[content-gen] Tone step dropped sections: ${toneMissing.join(", ")}. Using draft.`);
+    toneToUse = cleanDraft;
+  } else {
+    toneToUse = cleanTone;
   }
 
   // ─── STEP 5: SEO OPTIMIZATION ────────────────────────────────────
@@ -654,7 +666,7 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
   }
 
   const toneToUseWords = countWords(toneToUse);
-  const seoRewriteTokens = Math.max(8192, Math.ceil(toneToUseWords * 1.4 * 1.5));
+  const seoRewriteTokens = Math.max(16384, Math.ceil(toneToUseWords * 1.4 * 1.5));
 
   const seoResult = await generateTextWithMeta(
     `You are an SEO expert. Optimize the following blog post for the keyword "${keyword}" while retaining the same writing style and tone.
@@ -694,22 +706,29 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
 
   const cleanSeo = deduplicateContent(seoResult.text);
   const seoWords = countWords(cleanSeo);
-  console.log(`[content-gen] SEO optimize: ${seoWords} words, finishReason: ${seoResult.finishReason}, tokens: ${seoResult.outputTokens}/${seoRewriteTokens}`);
+  const seoMissing = findMissingSections(cleanSeo, contentSections);
+  const toneToUseMissing = findMissingSections(toneToUse, contentSections);
+  console.log(`[content-gen] SEO optimize: ${seoWords} words, finishReason: ${seoResult.finishReason}, tokens: ${seoResult.outputTokens}/${seoRewriteTokens}, missing sections: ${seoMissing.length} (input missing: ${toneToUseMissing.length})`);
 
-  // Safety: pick the longest non-truncated version
-  let bestVersion = cleanSeo;
-  let bestLabel = "SEO";
-  if (seoResult.truncated || seoWords < toneToUseWords * 0.6) {
-    console.warn(`[content-gen] SEO step ${seoResult.truncated ? "was truncated" : "lost content"}: ${seoWords} vs ${toneToUseWords} words. Using tone version.`);
-    bestVersion = toneToUse;
-    bestLabel = "tone";
+  // Pick the most complete version: prefer SEO > tone > draft, but never pick one
+  // that lost sections compared to its input.
+  type Candidate = { label: string; content: string; words: number; missing: number };
+  const candidates: Candidate[] = [
+    { label: "SEO", content: cleanSeo, words: seoWords, missing: seoMissing.length },
+    { label: "tone", content: toneToUse, words: toneToUseWords, missing: toneToUseMissing.length },
+    { label: "draft", content: cleanDraft, words: draftWords, missing: draftMissing.length },
+  ];
+
+  // Sort: fewest missing sections first, then most words
+  candidates.sort((a, b) => a.missing - b.missing || b.words - a.words);
+  const best = candidates[0];
+  console.log(`[content-gen] Candidate ranking: ${candidates.map(c => `${c.label}(${c.words}w, ${c.missing} missing)`).join(" > ")}`);
+  console.log(`[content-gen] Final version: ${best.label} (${best.words} words, ${best.missing} missing sections)`);
+  if (seoMissing.length > 0) {
+    console.warn(`[content-gen] SEO step missing: ${seoMissing.join(", ")}`);
   }
-  if (countWords(bestVersion) < draftWords * 0.5) {
-    console.warn(`[content-gen] All rewrites lost content. Falling back to draft: ${draftWords} words.`);
-    bestVersion = cleanDraft;
-    bestLabel = "draft";
-  }
-  console.log(`[content-gen] Final version: ${bestLabel} (${countWords(bestVersion)} words)`);
+
+  let bestVersion = best.content;
 
   // Post-process: replace leftover [INTERNAL_LINK: ...] placeholders
   let finalContent = bestVersion;
