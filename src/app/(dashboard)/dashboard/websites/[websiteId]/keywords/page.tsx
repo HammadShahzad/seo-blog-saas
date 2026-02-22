@@ -127,6 +127,7 @@ export default function KeywordsPage() {
 
   const { addJob, updateJob, removeJob, getJob } = useGlobalJobs();
   const suggestJobId = `kw-suggest-${websiteId}`;
+  const suggestAbortRef = useRef<AbortController | null>(null);
 
   // Restore suggestions from DB-backed global context on mount
   useEffect(() => {
@@ -227,6 +228,10 @@ export default function KeywordsPage() {
   const suggestSteps = ["analyzing", "generating", "filtering"];
 
   const handleGetSuggestions = async () => {
+    suggestAbortRef.current?.abort();
+    const controller = new AbortController();
+    suggestAbortRef.current = controller;
+
     setIsLoadingSuggestions(true);
     setSuggestions([]);
     setSelectedSuggestions(new Set());
@@ -255,6 +260,7 @@ export default function KeywordsPage() {
         body: JSON.stringify({
           seedKeyword: suggestSeedKeyword.trim() || undefined,
         }),
+        signal: controller.signal,
       });
       updateJob(suggestJobId, { progress: 80, currentStep: "filtering" });
       const data = await res.json();
@@ -262,7 +268,6 @@ export default function KeywordsPage() {
         const fetched: Suggestion[] = data.suggestions || [];
         setSuggestions(fetched);
         setSelectedSuggestions(new Set(fetched.map((s) => s.keyword)));
-        // Persist results in global context so they survive navigation
         updateJob(suggestJobId, {
           status: "done",
           progress: 100,
@@ -272,12 +277,22 @@ export default function KeywordsPage() {
         toast.error(data.error || "Failed to generate suggestions");
         updateJob(suggestJobId, { status: "failed", error: data.error || "Generation failed" });
       }
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        toast.info("Keyword suggestion cancelled");
+        removeJob(suggestJobId);
+        return;
+      }
       toast.error("Failed to generate suggestions");
       updateJob(suggestJobId, { status: "failed", error: "Network error" });
     } finally {
+      suggestAbortRef.current = null;
       setIsLoadingSuggestions(false);
     }
+  };
+
+  const handleCancelSuggestions = () => {
+    suggestAbortRef.current?.abort();
   };
 
   const handleAddSuggestions = async () => {
@@ -434,6 +449,11 @@ export default function KeywordsPage() {
                       </span>
                     );
                   })}
+                  <Button variant="ghost" size="sm" className="h-6 text-xs ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={handleCancelSuggestions}>
+                    <X className="h-3 w-3 mr-1" />
+                    Cancel
+                  </Button>
                 </div>
               </>
             )}

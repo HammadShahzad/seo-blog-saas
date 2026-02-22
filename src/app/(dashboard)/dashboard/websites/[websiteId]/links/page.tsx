@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import {
   Card,
@@ -126,6 +126,7 @@ export default function InternalLinksPage() {
 
   const { addJob, updateJob, removeJob, getJob } = useGlobalJobs();
   const linksJobId = `links-gen-${websiteId}`;
+  const linksAbortRef = useRef<AbortController | null>(null);
 
   // Restore suggestions from global job context on mount (survives navigation)
   useEffect(() => {
@@ -205,6 +206,10 @@ export default function InternalLinksPage() {
   const generateSteps = ["crawling", "analyzing", "generating"];
 
   const handleAutoGenerate = async () => {
+    linksAbortRef.current?.abort();
+    const controller = new AbortController();
+    linksAbortRef.current = controller;
+
     setIsGenerating(true);
     setSuggestions([]);
     setSelectedSuggestions(new Set());
@@ -224,7 +229,10 @@ export default function InternalLinksPage() {
 
     try {
       updateJob(linksJobId, { progress: 30, currentStep: "analyzing" });
-      const res = await fetch(`/api/websites/${websiteId}/links/suggest`, { method: "POST" });
+      const res = await fetch(`/api/websites/${websiteId}/links/suggest`, {
+        method: "POST",
+        signal: controller.signal,
+      });
       updateJob(linksJobId, { progress: 80, currentStep: "generating" });
       const data = await res.json();
 
@@ -249,12 +257,22 @@ export default function InternalLinksPage() {
       if (fetched.length === 0) {
         toast.warning("No new link pairs found — try adding pages to your website first");
       }
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        toast.info("Link generation cancelled");
+        removeJob(linksJobId);
+        return;
+      }
       toast.error("Network error — please try again");
       updateJob(linksJobId, { status: "failed", error: "Network error" });
     } finally {
+      linksAbortRef.current = null;
       setIsGenerating(false);
     }
+  };
+
+  const handleCancelGenerate = () => {
+    linksAbortRef.current?.abort();
   };
 
   const toggleSuggestion = (idx: number) => {
@@ -387,6 +405,11 @@ export default function InternalLinksPage() {
                       </span>
                     );
                   })}
+                  <Button variant="ghost" size="sm" className="h-6 text-xs ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={handleCancelGenerate}>
+                    <X className="h-3 w-3 mr-1" />
+                    Cancel
+                  </Button>
                 </div>
               </>
             )}

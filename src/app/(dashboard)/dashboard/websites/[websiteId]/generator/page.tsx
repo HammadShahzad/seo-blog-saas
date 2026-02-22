@@ -53,6 +53,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronUp,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -144,6 +145,7 @@ export default function GeneratorPage() {
   const [showClusterDialog, setShowClusterDialog] = useState(false);
   const [seedTopic, setSeedTopic] = useState("");
   const [isResearching, setIsResearching] = useState(false);
+  const researchAbortRef = useRef<AbortController | null>(null);
   const [clusterPreview, setClusterPreview] = useState<ClusterPreviewData | null>(null);
   const [selectedKeywords, setSelectedKeywords] = useState<Set<number>>(new Set());
   const [isSavingCluster, setIsSavingCluster] = useState(false);
@@ -366,6 +368,10 @@ export default function GeneratorPage() {
 
   const handleClusterResearch = async () => {
     if (!seedTopic.trim()) return;
+    researchAbortRef.current?.abort();
+    const controller = new AbortController();
+    researchAbortRef.current = controller;
+
     setIsResearching(true);
     setClusterPreview(null);
     try {
@@ -373,6 +379,7 @@ export default function GeneratorPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ preview: true, seedTopic: seedTopic.trim() }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         const err = await res.json();
@@ -381,13 +388,21 @@ export default function GeneratorPage() {
       }
       const data: ClusterPreviewData & { preview: boolean } = await res.json();
       setClusterPreview(data);
-      // Select all by default
       setSelectedKeywords(new Set(data.keywords.map((_, i) => i)));
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        toast.info("Research cancelled");
+        return;
+      }
       toast.error("Failed to research cluster");
     } finally {
+      researchAbortRef.current = null;
       setIsResearching(false);
     }
+  };
+
+  const handleCancelResearch = () => {
+    researchAbortRef.current?.abort();
   };
 
   const toggleKeyword = (idx: number) => {
@@ -777,6 +792,11 @@ export default function GeneratorPage() {
                       Crawling your website, analyzing competitors, generating keywords...
                     </p>
                   </div>
+                  <Button variant="ghost" size="sm" className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={handleCancelResearch}>
+                    <X className="h-3 w-3 mr-1" />
+                    Cancel
+                  </Button>
                 </div>
               )}
 

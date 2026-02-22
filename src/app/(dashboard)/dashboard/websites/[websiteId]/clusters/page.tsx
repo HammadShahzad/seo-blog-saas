@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import {
   Card,
@@ -223,6 +223,7 @@ export default function ClustersPage() {
   const { addJob, updateJob, removeJob, getJob } = useGlobalJobs();
   const clusterJobId = `cluster-gen-${websiteId}`;
   const clusterSteps = ["crawling", "analyzing", "generating", "saving"];
+  const clusterAbortRef = useRef<AbortController | null>(null);
 
   // Restore cluster suggestions from DB-backed global context on mount
   useEffect(() => {
@@ -243,6 +244,10 @@ export default function ClustersPage() {
   }, []);
 
   const handleAIGenerate = async () => {
+    clusterAbortRef.current?.abort();
+    const controller = new AbortController();
+    clusterAbortRef.current = controller;
+
     setIsGenerating(true);
     setStepStatus(null);
 
@@ -269,6 +274,7 @@ export default function ClustersPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ generate: true, seedTopic: seedTopic.trim() || undefined }),
+        signal: controller.signal,
       });
 
       updateJob(clusterJobId, { progress: 80, currentStep: "generating" });
@@ -292,18 +298,27 @@ export default function ClustersPage() {
 
       setSuggestions(data.suggestions);
       setSelectedSuggestions(new Set(data.suggestions.map((_: SuggestedCluster, i: number) => i)));
-      // Persist results so they survive navigation
       updateJob(clusterJobId, {
         status: "done",
         progress: 100,
         resultData: { suggestions: data.suggestions, stepStatus },
       });
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        toast.info("Cluster generation cancelled");
+        removeJob(clusterJobId);
+        return;
+      }
       toast.error("Network error — please try again");
       updateJob(clusterJobId, { status: "failed", error: "Network error" });
     } finally {
+      clusterAbortRef.current = null;
       setIsGenerating(false);
     }
+  };
+
+  const handleCancelGenerate = () => {
+    clusterAbortRef.current?.abort();
   };
 
   const handleSaveSuggestions = async () => {
@@ -508,6 +523,11 @@ export default function ClustersPage() {
                       </span>
                     );
                   })}
+                  <Button variant="ghost" size="sm" className="h-6 text-xs ml-auto text-red-600 hover:text-red-700 hover:bg-red-50"
+                    onClick={handleCancelGenerate}>
+                    <X className="h-3 w-3 mr-1" />
+                    Cancel
+                  </Button>
                 </div>
               </>
             )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -106,6 +106,7 @@ export default function NewWebsitePage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalyzed, setAiAnalyzed] = useState(false);
+  const analyzeAbortRef = useRef<AbortController | null>(null);
 
   // Full raw AI response (for 3-option pickers)
   const [aiRawData, setAiRawData] = useState<AIRawData | null>(null);
@@ -199,12 +200,17 @@ export default function NewWebsitePage() {
   };
 
   const handleAnalyzeAndNext = async () => {
+    analyzeAbortRef.current?.abort();
+    const controller = new AbortController();
+    analyzeAbortRef.current = controller;
+
     setIsAnalyzing(true);
     try {
       const res = await fetch("/api/websites/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: formData.name, domain: formData.domain }),
+        signal: controller.signal,
       });
 
       if (res.ok) {
@@ -220,15 +226,24 @@ export default function NewWebsitePage() {
           brandUrl: `https://${prev.domain}`,
         }));
       }
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        toast.info("Analysis cancelled");
+        return;
+      }
       toast.error("Analysis failed, please fill in manually");
     } finally {
+      analyzeAbortRef.current = null;
       setIsAnalyzing(false);
       setStep(2);
     }
   };
 
   const handleReAnalyze = async () => {
+    analyzeAbortRef.current?.abort();
+    const controller = new AbortController();
+    analyzeAbortRef.current = controller;
+
     setIsAnalyzing(true);
     setAiAnalyzed(false);
     try {
@@ -236,6 +251,7 @@ export default function NewWebsitePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: formData.name, domain: formData.domain }),
+        signal: controller.signal,
       });
 
       if (res.ok) {
@@ -244,11 +260,20 @@ export default function NewWebsitePage() {
         setAiAnalyzed(true);
         toast.success("Re-analyzed — pick your preferred options");
       }
-    } catch {
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        toast.info("Analysis cancelled");
+        return;
+      }
       toast.error("Re-analysis failed");
     } finally {
+      analyzeAbortRef.current = null;
       setIsAnalyzing(false);
     }
+  };
+
+  const handleCancelAnalyze = () => {
+    analyzeAbortRef.current?.abort();
   };
 
   const canProceedStep2 = formData.brandName && formData.brandUrl;
@@ -371,7 +396,7 @@ export default function NewWebsitePage() {
           </Card>
 
           {isAnalyzing && (
-            <AnalysisProgressCard domain={formData.domain} />
+            <AnalysisProgressCard domain={formData.domain} onCancel={handleCancelAnalyze} />
           )}
         </>
       )}
@@ -971,7 +996,7 @@ const ANALYSIS_STEPS = [
   { label: "Finalizing analysis", icon: Eye, duration: 2000 },
 ];
 
-function AnalysisProgressCard({ domain }: { domain: string }) {
+function AnalysisProgressCard({ domain, onCancel }: { domain: string; onCancel?: () => void }) {
   const [activeStep, setActiveStep] = useState(0);
 
   useEffect(() => {
@@ -1042,6 +1067,15 @@ function AnalysisProgressCard({ domain }: { domain: string }) {
             );
           })}
         </div>
+        {onCancel && (
+          <div className="mt-3 flex justify-end">
+            <Button variant="ghost" size="sm" className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+              onClick={onCancel}>
+              <X className="h-3 w-3 mr-1" />
+              Cancel Analysis
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
