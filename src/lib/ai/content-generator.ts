@@ -470,12 +470,22 @@ CRITICAL: Write the COMPLETE article with ALL sections from the outline. Do NOT 
     return longer.includes(shorter.slice(0, Math.floor(shorter.length * 0.7)));
   }
 
+  function isCutOff(content: string): boolean {
+    if (!content) return true;
+    const trimmed = content.trim();
+    if (trimmed.length === 0) return true;
+    const validEndings = [".", "!", "?", '"', "'", "”", "’", ")", "]", ">", "*", "`"];
+    const lastChar = trimmed.slice(-1);
+    return !validEndings.includes(lastChar);
+  }
+
   const missingSections = findMissingSections(cleanDraft, contentSections);
-  const draftTruncated = draftResult.truncated;
-  const needsRetry = draftWords < minExpectedWords || missingSections.length >= 2 || draftTruncated;
+  let draftTruncated = draftResult.truncated;
+  const draftCutOff = isCutOff(cleanDraft);
+  const needsRetry = draftWords < minExpectedWords || missingSections.length >= 2 || draftTruncated || draftCutOff;
 
   if (needsRetry) {
-    console.warn(`[content-gen] Draft incomplete: ${draftWords} words, ${missingSections.length} missing sections, truncated=${draftTruncated}`);
+    console.warn(`[content-gen] Draft incomplete: ${draftWords} words, ${missingSections.length} missing sections, truncated=${draftTruncated}, cutoff=${draftCutOff}`);
     if (missingSections.length > 0) console.warn(`[content-gen] Missing: ${missingSections.join(", ")}`);
     await progress("draft", "Draft was incomplete, rebuilding section by section...");
 
@@ -562,6 +572,7 @@ Output ONLY the FAQ section in Markdown.`,
     if (stitchedWords >= 200) {
       cleanDraft = stitchedDraft;
       draftWords = stitchedWords;
+      draftTruncated = false;
     }
   }
 
@@ -621,11 +632,12 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
   const toneWords = countWords(cleanTone);
   const toneMissing = findMissingSections(cleanTone, contentSections);
   const draftMissing = findMissingSections(cleanDraft, contentSections);
-  console.log(`[content-gen] Tone polish: ${toneWords} words (draft was ${draftWords}), finishReason: ${toneResult.finishReason}, tokens: ${toneResult.outputTokens}/${rewriteTokens}, missing sections: ${toneMissing.length} (draft missing: ${draftMissing.length})`);
+  const toneCutOff = isCutOff(cleanTone);
+  console.log(`[content-gen] Tone polish: ${toneWords} words (draft was ${draftWords}), finishReason: ${toneResult.finishReason}, tokens: ${toneResult.outputTokens}/${rewriteTokens}, missing sections: ${toneMissing.length} (draft missing: ${draftMissing.length}), cutoff=${toneCutOff}`);
 
   // Pick tone only if it did NOT lose sections compared to the draft
   let toneToUse: string;
-  if (toneResult.truncated || toneWords < draftWords * 0.5) {
+  if (toneResult.truncated || toneCutOff || toneWords < draftWords * 0.5) {
     console.warn(`[content-gen] Tone step truncated or lost >50% content. Using draft.`);
     toneToUse = cleanDraft;
   } else if (toneMissing.length > draftMissing.length) {
@@ -708,22 +720,30 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
   const seoWords = countWords(cleanSeo);
   const seoMissing = findMissingSections(cleanSeo, contentSections);
   const toneToUseMissing = findMissingSections(toneToUse, contentSections);
-  console.log(`[content-gen] SEO optimize: ${seoWords} words, finishReason: ${seoResult.finishReason}, tokens: ${seoResult.outputTokens}/${seoRewriteTokens}, missing sections: ${seoMissing.length} (input missing: ${toneToUseMissing.length})`);
+  const seoCutOff = isCutOff(cleanSeo);
+  console.log(`[content-gen] SEO optimize: ${seoWords} words, finishReason: ${seoResult.finishReason}, tokens: ${seoResult.outputTokens}/${seoRewriteTokens}, missing sections: ${seoMissing.length} (input missing: ${toneToUseMissing.length}), cutoff=${seoCutOff}`);
 
   // Pick the most complete version: prefer SEO > tone > draft, but never pick one
   // that lost sections compared to its input.
-  type Candidate = { label: string; content: string; words: number; missing: number };
+  type Candidate = { label: string; content: string; words: number; missing: number; cutoff: boolean };
   const candidates: Candidate[] = [
-    { label: "SEO", content: cleanSeo, words: seoWords, missing: seoMissing.length },
-    { label: "tone", content: toneToUse, words: toneToUseWords, missing: toneToUseMissing.length },
-    { label: "draft", content: cleanDraft, words: draftWords, missing: draftMissing.length },
+    { label: "SEO", content: cleanSeo, words: seoWords, missing: seoMissing.length, cutoff: seoResult.truncated || seoCutOff },
+    { label: "tone", content: toneToUse, words: toneToUseWords, missing: toneToUseMissing.length, cutoff: isCutOff(toneToUse) },
+    { label: "draft", content: cleanDraft, words: draftWords, missing: draftMissing.length, cutoff: draftTruncated || isCutOff(cleanDraft) },
   ];
 
-  // Sort: fewest missing sections first, then most words
-  candidates.sort((a, b) => a.missing - b.missing || b.words - a.words);
+  // Sort: 
+  // 1. Not cut off > cut off
+  // 2. Fewest missing sections first
+  // 3. Most words
+  candidates.sort((a, b) => {
+    if (a.cutoff !== b.cutoff) return a.cutoff ? 1 : -1;
+    return a.missing - b.missing || b.words - a.words;
+  });
+  
   const best = candidates[0];
-  console.log(`[content-gen] Candidate ranking: ${candidates.map(c => `${c.label}(${c.words}w, ${c.missing} missing)`).join(" > ")}`);
-  console.log(`[content-gen] Final version: ${best.label} (${best.words} words, ${best.missing} missing sections)`);
+  console.log(`[content-gen] Candidate ranking: ${candidates.map(c => `${c.label}(${c.words}w, ${c.missing} missing, cutoff=${c.cutoff})`).join(" > ")}`);
+  console.log(`[content-gen] Final version: ${best.label} (${best.words} words, ${best.missing} missing sections, cutoff=${best.cutoff})`);
   if (seoMissing.length > 0) {
     console.warn(`[content-gen] SEO step missing: ${seoMissing.join(", ")}`);
   }
