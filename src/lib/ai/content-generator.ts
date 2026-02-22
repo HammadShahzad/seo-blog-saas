@@ -580,173 +580,187 @@ Output ONLY the FAQ section in Markdown.`,
   const requiredH2s = contentSections.map(s => s.heading);
   console.log(`[content-gen] Required H2s (${requiredH2s.length}): ${requiredH2s.join(" | ")}`);
 
-  // ─── STEP 4: CRITIQUE + TONE POLISH ─────────────────────────────
+  // ─── Helper: split article text into blocks at every ## heading ───────────────
+  function splitIntoBlocks(content: string): string[] {
+    const blocks: string[] = [];
+    let current: string[] = [];
+    for (const line of content.split("\n")) {
+      if (line.match(/^## /) && current.length > 0) {
+        blocks.push(current.join("\n").trim());
+        current = [line];
+      } else {
+        current.push(line);
+      }
+    }
+    if (current.length > 0 && current.join("").trim().length > 0) {
+      blocks.push(current.join("\n").trim());
+    }
+    return blocks.filter(b => b.trim().length > 0);
+  }
+
+  // ─── STEP 4: TONE POLISH — section by section (parallel) ─────────────────────
   await progress("tone", "Polishing voice — removing generic patterns...");
 
-  // Scale rewrite tokens based on actual draft size (1.5x the estimated input tokens)
-  const estimatedDraftTokens = Math.ceil(draftWords * 1.4);
-  const rewriteTokens = Math.max(16384, Math.ceil(estimatedDraftTokens * 1.5));
+  const draftBlocks = splitIntoBlocks(cleanDraft);
+  console.log(`[content-gen] Tone pass: ${draftBlocks.length} blocks`);
 
-  const toneResult = await generateTextWithMeta(
-    `You are a senior editor at a sharp, opinionated media publication. Your job is to take a decent blog draft and make it genuinely great — the kind of article someone shares because it's actually useful AND enjoyable to read.
+  const FORBIDDEN_WORDS = `"delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "realm," "robust," "cutting-edge," "embark on a journey," "navigate the complexities," "unlock the power"`;
 
-Brand voice for ${ctx.brandName}: "${ctx.tone}"
+  const toneBlockResults = await Promise.all(
+    draftBlocks.map((block, i) => {
+      const isIntro = i === 0;
+      const blockWords = countWords(block);
+      const blockTokens = Math.max(1024, Math.ceil(blockWords * 1.4 * 1.5));
+      return generateTextWithMeta(
+        `Edit this ${isIntro ? "intro" : "section"} of a blog post about "${keyword}" for ${ctx.brandName}.
+
+Brand voice: "${ctx.tone}"
 Audience: ${ctx.targetAudience}
 
-## Your editing checklist (apply ALL of these):
+Rules (apply ALL):
+${isIntro ? `- If the opening paragraph sounds like every other article on this topic, rewrite it with a specific scene, question, or startling observation` : ""}
+- Rewrite any paragraph that opens with "It is important to...", "In today's...", "As a [profession]...", or "With the rise of..."
+- Remove all em-dashes (—) and replace with a comma or period
+- Remove: "Furthermore," "Moreover," "Additionally" — use natural transitions
+- Kill forbidden words: ${FORBIDDEN_WORDS}
+- Keep every paragraph under 80 words — split longer paragraphs
+- Add first-person expert observations where natural: "In my testing," "I've found," "From my experience"
+- Keep max 1 "Pro Tip:" label in this section; fold the rest into prose
+- Keep ALL headings EXACTLY as written
+- Keep all facts, data, statistics, tables, code blocks
+- Do NOT add or remove H2/H3 headings
 
-**Kill generic patterns:**
-- If the opening paragraph sounds like every other article on this topic, rewrite it with a specific scene, question, or startling observation that immediately pulls the reader in
-- Count the "Pro Tip:" labels. If there are more than 2, delete the weakest ones and fold those insights naturally into the surrounding prose
-- If any paragraph starts with "It is important to...", "In today's...", "As a [profession]...", or "With the rise of...", rewrite it completely
-- If any two sections have the same rhythm/structure, change one of them
+**Section to edit:**
+${block}
 
-**Add genuine personality:**
-- One well-placed pop culture reference, analogy, or moment of deadpan humor per 500 words (don't force it — only where it fits naturally)
-- Use relatable comparisons specific to ${ctx.targetAudience}
-- Where the draft states a generic opinion, replace it with a specific observation: "In my testing X happened" beats "experts say X is good"
-
-**Tighten language:**
-- Eliminate all em-dashes (—) — replace with commas or periods
-- No "Furthermore," "Moreover," "Additionally" — use normal transitions
-- No starting sentences with "So," or "Well,"
-- Kill every instance of: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "realm," "robust," "cutting-edge," "embark on a journey," "navigate the complexities," "unlock the power"
-- Keep every paragraph under 80 words. Split anything longer.
-
-**Preserve everything structural:**
-- Keep ALL headings exactly as written (character for character — the TOC depends on them matching)
-- Keep all facts, data, statistics, and internal links
-- Keep Markdown formatting, tables, code blocks, bullet lists
-- Do NOT add new H2 sections
-
-## Draft to edit (${draftWords} words — preserve this length):
-${cleanDraft}
-
-Output ONLY the polished blog post in Markdown. Start directly with the content.
-CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early or truncate. Your output must be at LEAST ${draftWords} words.`,
-    systemPrompt,
-    { temperature: 0.65, maxTokens: rewriteTokens }
+Output ONLY the edited section in Markdown. Start with the heading if present.`,
+        systemPrompt,
+        { temperature: 0.65, maxTokens: blockTokens }
+      );
+    })
   );
 
-  const cleanTone = deduplicateContent(toneResult.text);
+  const cleanTone = deduplicateContent(
+    toneBlockResults.map(r => r.text.trim()).join("\n\n")
+  );
   const toneWords = countWords(cleanTone);
   const toneMissing = findMissingSections(cleanTone, contentSections);
   const draftMissing = findMissingSections(cleanDraft, contentSections);
   const toneCutOff = isCutOff(cleanTone);
-  console.log(`[content-gen] Tone polish: ${toneWords} words (draft was ${draftWords}), finishReason: ${toneResult.finishReason}, tokens: ${toneResult.outputTokens}/${rewriteTokens}, missing sections: ${toneMissing.length} (draft missing: ${draftMissing.length}), cutoff=${toneCutOff}`);
+  const anyToneTruncated = toneBlockResults.some(r => r.truncated);
+  console.log(`[content-gen] Tone polish (${draftBlocks.length} blocks, parallel): ${toneWords} words (draft was ${draftWords}), anyTruncated=${anyToneTruncated}, missing=${toneMissing.length}, cutoff=${toneCutOff}`);
 
-  // Pick tone only if it did NOT lose sections compared to the draft
   let toneToUse: string;
-  if (toneResult.truncated || toneCutOff || toneWords < draftWords * 0.5) {
-    console.warn(`[content-gen] Tone step truncated or lost >50% content. Using draft.`);
-    toneToUse = cleanDraft;
-  } else if (toneMissing.length > draftMissing.length) {
-    console.warn(`[content-gen] Tone step dropped sections: ${toneMissing.join(", ")}. Using draft.`);
+  if (anyToneTruncated || toneCutOff || toneWords < draftWords * 0.5 || toneMissing.length > draftMissing.length) {
+    console.warn(`[content-gen] Tone step degraded (truncated=${anyToneTruncated}, cutoff=${toneCutOff}, missing=${toneMissing.length}). Falling back to draft.`);
     toneToUse = cleanDraft;
   } else {
     toneToUse = cleanTone;
   }
 
-  // ─── STEP 5: SEO OPTIMIZATION ────────────────────────────────────
+  // ─── STEP 5: SEO OPTIMIZATION — section by section (parallel) ────────────────
   await progress("seo", "Optimizing for SEO — keywords, links, structure...");
 
   // Build a single deduplicated internal link list (one entry per URL)
   const seenUrls = new Set<string>();
   const consolidatedLinks: { anchor: string; url: string }[] = [];
-
   if (ctx.internalLinks?.length) {
     for (const l of ctx.internalLinks) {
-      if (!seenUrls.has(l.url)) {
-        seenUrls.add(l.url);
-        consolidatedLinks.push({ anchor: l.keyword, url: l.url });
-      }
+      if (!seenUrls.has(l.url)) { seenUrls.add(l.url); consolidatedLinks.push({ anchor: l.keyword, url: l.url }); }
     }
   }
   if (ctx.existingPosts?.length) {
     for (const p of ctx.existingPosts) {
-      if (!seenUrls.has(p.url)) {
-        seenUrls.add(p.url);
-        consolidatedLinks.push({ anchor: p.focusKeyword || p.title, url: p.url });
+      if (!seenUrls.has(p.url)) { seenUrls.add(p.url); consolidatedLinks.push({ anchor: p.focusKeyword || p.title, url: p.url }); }
+    }
+  }
+
+  const toneToUseBlocks = splitIntoBlocks(toneToUse);
+  const totalBlocks = toneToUseBlocks.length;
+
+  // Distribute links across blocks (max 2 per block, spread evenly)
+  const linksPerBlock: Array<typeof consolidatedLinks> = Array.from({ length: totalBlocks }, () => []);
+  if (consolidatedLinks.length > 0) {
+    const maxLinks = Math.min(consolidatedLinks.length, 7);
+    let linkIdx = 0;
+    for (let b = 0; b < totalBlocks && linkIdx < maxLinks; b++) {
+      // Skip intro block for links (first block is intro/TOC, not ideal for mid-text links)
+      if (b === 0 && totalBlocks > 1) continue;
+      const linksForThisBlock = Math.ceil((maxLinks - linkIdx) / (totalBlocks - b));
+      for (let j = 0; j < linksForThisBlock && linkIdx < maxLinks; j++, linkIdx++) {
+        linksPerBlock[b].push(consolidatedLinks[linkIdx]);
       }
     }
   }
 
-  let internalLinkBlock = "";
-  if (consolidatedLinks.length) {
-    internalLinkBlock = "\n\n## Internal Links (use each URL AT MOST ONCE — no duplicate links):\n" +
-      consolidatedLinks.map((l) => `   - "${l.anchor}" → ${l.url}`).join("\n");
-  }
+  console.log(`[content-gen] SEO pass: ${totalBlocks} blocks, ${consolidatedLinks.length} links to distribute`);
 
-  const toneToUseWords = countWords(toneToUse);
-  const seoRewriteTokens = Math.max(16384, Math.ceil(toneToUseWords * 1.4 * 1.5));
+  const seoBlockResults = await Promise.all(
+    toneToUseBlocks.map((block, i) => {
+      const isFirst = i === 0;
+      const isLast = i === totalBlocks - 1;
+      const blockLinks = linksPerBlock[i];
+      const blockWords = countWords(block);
+      const blockTokens = Math.max(1024, Math.ceil(blockWords * 1.4 * 1.5));
 
-  const seoResult = await generateTextWithMeta(
-    `You are an SEO expert. Optimize the following blog post for the keyword "${keyword}" while retaining the same writing style and tone.
+      const linkInstructions = blockLinks.length > 0
+        ? `Add these internal links where they fit naturally (ONLY these exact URLs, no others):\n${blockLinks.map(l => `  - "${l.anchor}" → ${l.url}`).join("\n")}\nUse markdown: [anchor text](url)`
+        : "Do NOT add any links in this section.";
 
-## Rules:
-1. Use the exact keyword "${keyword}" in the first 100 words, at least one H2 heading, and the conclusion
-2. Naturally weave the primary keyword throughout (aim for 1-2% density — not stuffed, but present)
-3. Add related/LSI keywords naturally (synonyms, related terms people search for)
-4. Ensure proper heading hierarchy (H2, H3) — no heading level skips
-${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONLY use URLs from this exact list — do NOT invent or create any URLs that are not listed here.${internalLinkBlock}
-   RULES FOR INTERNAL LINKS:
-   - ONLY use URLs from the list above. If a URL is not in the list, do NOT use it.
-   - Do NOT hallucinate, guess, or create any URLs. Every link must match an entry above EXACTLY.
-   - Insert links where they fit naturally — aim for ${Math.min(consolidatedLinks.length, 7)} total.
-   - Each URL may appear AT MOST ONCE. NEVER link to the same URL twice.
-   - Use descriptive anchor text that matches the context.
-   - Use REAL markdown links only: [anchor text](url).` : `5. Do NOT add any internal links. There are no published posts to link to yet. Do NOT invent or hallucinate any URLs.`}
-6. Make sure the intro paragraph contains the keyword
-${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common questions (format as proper ## FAQ heading with ### for each question — this helps with Google's FAQ rich snippets)` : "7. Skip FAQ if not present"}
-8. CRITICAL: Every paragraph MUST be under 80 words (3-4 sentences max). Split any longer paragraph into two. This is a hard requirement for readability scoring.
-9. DO NOT stuff keywords — keep it natural
-10. Preserve the humor and conversational tone, do not make it robotic
-11a. REMOVE any remaining AI phrases: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "realm," "robust," "cutting-edge," "embark," "navigate the complexities," "unlock the power"
-11b. REMOVE all em-dash characters (—) and replace with commas or periods
-11c. Ensure first-person expert voice is present: "In my testing," "I've found," "From my experience"
-11. If there's a table of contents, ensure it matches the actual headings
-12. Keep the article length at ${targetWords} words
+      return generateTextWithMeta(
+        `Optimize this ${isFirst ? "intro" : "section"} for the SEO keyword "${keyword}".
 
-## Blog Post (${toneToUseWords} words — preserve this length):
-${toneToUse}
+Rules:
+${isFirst ? `- Use the exact keyword "${keyword}" in the first 50 words naturally` : `- Use the keyword naturally once or twice if it fits (not forced)`}
+- Add related LSI keywords/synonyms naturally
+- Ensure proper heading hierarchy (H2, H3) — no skips
+- ${linkInstructions}
+- Every paragraph MUST be under 80 words — split longer ones
+- Remove AI phrases: ${FORBIDDEN_WORDS}
+- Remove all em-dashes (—), replace with commas or periods
+- Keep first-person expert voice: "In my testing," "I've found"
+- Keep the heading EXACTLY as written
+${isFirst ? `- Ensure this intro flows into the article naturally and grabs attention` : ""}
+${isLast && includeFAQ ? `- If a FAQ section is present, ensure it has 4-5 questions with ### headings` : ""}
+- Keep all existing facts, data, and formatting
 
-Output ONLY the optimized blog post in Markdown format.
-CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early or truncate. The output MUST be at least ${toneToUseWords} words.`,
-    systemPrompt,
-    { temperature: 0.4, maxTokens: seoRewriteTokens }
+**Section:**
+${block}
+
+Output ONLY the optimized section in Markdown.`,
+        systemPrompt,
+        { temperature: 0.4, maxTokens: blockTokens }
+      );
+    })
   );
 
-  const cleanSeo = deduplicateContent(seoResult.text);
+  const cleanSeo = deduplicateContent(
+    seoBlockResults.map(r => r.text.trim()).join("\n\n")
+  );
   const seoWords = countWords(cleanSeo);
   const seoMissing = findMissingSections(cleanSeo, contentSections);
   const toneToUseMissing = findMissingSections(toneToUse, contentSections);
   const seoCutOff = isCutOff(cleanSeo);
-  console.log(`[content-gen] SEO optimize: ${seoWords} words, finishReason: ${seoResult.finishReason}, tokens: ${seoResult.outputTokens}/${seoRewriteTokens}, missing sections: ${seoMissing.length} (input missing: ${toneToUseMissing.length}), cutoff=${seoCutOff}`);
+  const anySeoTruncated = seoBlockResults.some(r => r.truncated);
+  console.log(`[content-gen] SEO optimize (${totalBlocks} blocks, parallel): ${seoWords} words, anyTruncated=${anySeoTruncated}, missing=${seoMissing.length}, cutoff=${seoCutOff}`);
 
-  // Pick the most complete version: prefer SEO > tone > draft, but never pick one
-  // that lost sections compared to its input.
+  // Pick the most complete version — prefer SEO, fall back to tone, then draft
   type Candidate = { label: string; content: string; words: number; missing: number; cutoff: boolean };
   const candidates: Candidate[] = [
-    { label: "SEO", content: cleanSeo, words: seoWords, missing: seoMissing.length, cutoff: seoResult.truncated || seoCutOff },
-    { label: "tone", content: toneToUse, words: toneToUseWords, missing: toneToUseMissing.length, cutoff: isCutOff(toneToUse) },
+    { label: "SEO", content: cleanSeo, words: seoWords, missing: seoMissing.length, cutoff: anySeoTruncated || seoCutOff },
+    { label: "tone", content: toneToUse, words: countWords(toneToUse), missing: toneToUseMissing.length, cutoff: isCutOff(toneToUse) },
     { label: "draft", content: cleanDraft, words: draftWords, missing: draftMissing.length, cutoff: draftTruncated || isCutOff(cleanDraft) },
   ];
 
-  // Sort: 
-  // 1. Not cut off > cut off
-  // 2. Fewest missing sections first
-  // 3. Most words
+  // Sort: complete > missing > cut-off; then most words
   candidates.sort((a, b) => {
     if (a.cutoff !== b.cutoff) return a.cutoff ? 1 : -1;
     return a.missing - b.missing || b.words - a.words;
   });
-  
+
   const best = candidates[0];
   console.log(`[content-gen] Candidate ranking: ${candidates.map(c => `${c.label}(${c.words}w, ${c.missing} missing, cutoff=${c.cutoff})`).join(" > ")}`);
-  console.log(`[content-gen] Final version: ${best.label} (${best.words} words, ${best.missing} missing sections, cutoff=${best.cutoff})`);
-  if (seoMissing.length > 0) {
-    console.warn(`[content-gen] SEO step missing: ${seoMissing.join(", ")}`);
-  }
+  console.log(`[content-gen] Final version: ${best.label} (${best.words} words, ${best.missing} missing, cutoff=${best.cutoff})`);
 
   let bestVersion = best.content;
 
