@@ -37,21 +37,6 @@ async function researchSeedTopic(
 ): Promise<string> {
   const { brandUrl, niche, brandName } = website;
 
-  let siteContext = "";
-  try {
-    const crawl = await crawlWebsite(brandUrl);
-    if (crawl.pages.length > 0) {
-      siteContext = "\n\nPages found on the website:\n" +
-        crawl.pages.slice(0, 30).map(p => `- ${p.title}: ${p.url}`).join("\n");
-    }
-  } catch {
-    // Non-fatal
-  }
-
-  let apiKey = process.env.PERPLEXITY_API_KEY;
-  if (!apiKey) return siteContext || `Topic: ${seedTopic} in the ${niche} space for ${brandName}.`;
-  apiKey = apiKey.replace(/\\n/g, "").trim();
-
   const competitorLine = website.competitors?.length
     ? `\nKnown competitors: ${website.competitors.join(", ")}. Analyze how they cover this topic.`
     : "";
@@ -62,23 +47,40 @@ async function researchSeedTopic(
     ? `\nPrimary market: ${website.targetLocation}.`
     : "";
 
-  try {
-    const res = await fetch("https://api.perplexity.ai/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "sonar-pro",
-        messages: [
-          {
-            role: "system",
-            content: `You are an SEO content strategist specializing in the ${niche} niche. Only provide research directly relevant to the ${niche} industry and ${brandName}'s target audience. Do not suggest off-topic or generic content.`,
-          },
-          {
-            role: "user",
-            content: `Research the topic "${seedTopic}" for a content cluster for ${brandName} (${brandUrl}), which is a ${niche} business.
+  // Run crawl and Perplexity research in parallel to save ~15-30s
+  const crawlPromise = crawlWebsite(brandUrl)
+    .then(crawl => {
+      if (crawl.pages.length > 0) {
+        return "\n\nPages found on the website:\n" +
+          crawl.pages.slice(0, 30).map(p => `- ${p.title}: ${p.url}`).join("\n");
+      }
+      return "";
+    })
+    .catch(() => "");
+
+  let apiKey = process.env.PERPLEXITY_API_KEY;
+  if (!apiKey) {
+    const siteContext = await crawlPromise;
+    return siteContext || `Topic: ${seedTopic} in the ${niche} space for ${brandName}.`;
+  }
+  apiKey = apiKey.replace(/\\n/g, "").trim();
+
+  const perplexityPromise = fetch("https://api.perplexity.ai/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "sonar-pro",
+      messages: [
+        {
+          role: "system",
+          content: `You are an SEO content strategist specializing in the ${niche} niche. Only provide research directly relevant to the ${niche} industry and ${brandName}'s target audience. Do not suggest off-topic or generic content.`,
+        },
+        {
+          role: "user",
+          content: `Research the topic "${seedTopic}" for a content cluster for ${brandName} (${brandUrl}), which is a ${niche} business.
 Target audience: ${website.targetAudience}${competitorLine}${productLine}${locationLine}
 
 IMPORTANT: All research must be specifically relevant to the ${niche} niche and ${brandName}'s audience. Do not suggest topics outside this niche.
@@ -91,21 +93,24 @@ I need:
 5. Content gaps — what are competitors missing about "${seedTopic}" in the ${niche} space?${website.competitors?.length ? `\n6. How do ${website.competitors.join(", ")} cover "${seedTopic}"? What angles do they miss?` : ""}
 
 Stay strictly within the ${niche} niche.`,
-          },
-        ],
-        max_tokens: 4000,
-        temperature: 0.1,
-      }),
-      signal: AbortSignal.timeout(30000),
-    });
+        },
+      ],
+      max_tokens: 4000,
+      temperature: 0.1,
+    }),
+    signal: AbortSignal.timeout(45000),
+  })
+    .then(async (res) => {
+      if (!res.ok) return "";
+      const data = await res.json();
+      return (data.choices?.[0]?.message?.content as string) || "";
+    })
+    .catch(() => "");
 
-    if (!res.ok) return siteContext || `Topic: ${seedTopic} for ${brandName} in ${niche}.`;
-    const data = await res.json();
-    const research = data.choices?.[0]?.message?.content || "";
-    return research + siteContext;
-  } catch {
-    return siteContext || `Topic: ${seedTopic} for ${brandName} in ${niche}.`;
-  }
+  const [siteContext, research] = await Promise.all([crawlPromise, perplexityPromise]);
+
+  if (research) return research + siteContext;
+  return siteContext || `Topic: ${seedTopic} for ${brandName} in ${niche}.`;
 }
 
 export interface PublishedPost {

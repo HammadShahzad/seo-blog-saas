@@ -3,7 +3,7 @@ import prisma from "@/lib/prisma";
 import { verifyWebsiteAccess, checkAiRateLimit } from "@/lib/api-helpers";
 import { generateClusterPreview, type ClusterKeyword } from "@/lib/ai/cluster-generator";
 
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 export async function GET(
   _req: Request,
