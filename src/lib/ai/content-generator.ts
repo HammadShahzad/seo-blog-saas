@@ -589,7 +589,11 @@ BANNED OPENING PATTERNS (never use these):
 **Structure:**
 - Open with the HOOK (story/scenario/question)
 - Key Takeaways / Quick Summary box (bulleted, 4-5 points)
-${includeTableOfContents ? "- Table of Contents (linking to H2 sections — MUST match the actual H2 headings EXACTLY, character for character)" : "- Do NOT include a Table of Contents"}
+${includeTableOfContents ? `- Table of Contents with CLICKABLE anchor links. Use this EXACT format:
+## Table of Contents
+- [First Section Heading](#first-section-heading)
+- [Second Section Heading](#second-section-heading)
+Each entry MUST be a markdown link with the heading text as anchor text and a #slug as the URL. The slug is the heading in lowercase with spaces replaced by hyphens and special characters removed.` : "- Do NOT include a Table of Contents"}
 - Main sections following the outline
 ${isComparisonArticle ? `- ⚠️ MANDATORY COMPARISON TABLE: You MUST include a markdown comparison table early in the article (before or right after the 2nd H2 section). Compare all the main options covered in this article. Example format:\n| Option | Best For | Price | Ease of Use | Key Feature |\n|--------|----------|-------|-------------|-------------|\n| ... | ... | ... | ... | ... |\nDo NOT skip the table. If you finish writing and there's no table, you have failed the assignment.` : ""}
 ${includeFAQ ? "- FAQ section (4-5 questions with detailed answers)" : ""}
@@ -673,7 +677,10 @@ ${brandContext}
 Include:
 1. A compelling 2-3 paragraph HOOK. NEVER start with "It is [time] on a [day]" or scene-setting. Instead open with: a shocking statistic, a contrarian claim, a rapid-fire question, or a 2-sentence case study result
 2. A "Key Takeaways" section with 4-5 bullet points summarizing the article
-${includeTableOfContents ? `3. A Table of Contents with these exact headings:\n${contentSections.map(s => `- ${s.heading}`).join("\n")}` : ""}
+${includeTableOfContents ? `3. A Table of Contents with CLICKABLE anchor links using this format:\n${contentSections.map(s => {
+  const slug = s.heading.toLowerCase().replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
+  return `- [${s.heading}](#${slug})`;
+}).join("\n")}` : ""}
 
 Write from an expert perspective. Use active voice. Do NOT use em-dashes.
 Do NOT write any of the main sections yet. STOP after the Table of Contents.
@@ -1006,29 +1013,65 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
     }
   );
 
-  // Post-process: fix TOC entries to match actual headings exactly
-  // Prevents "zing for Long-Tail AI Prompts" style truncation bugs
+  // Post-process: ensure TOC entries are proper clickable anchor links
   finalContent = (() => {
     const lines = finalContent.split("\n");
-    // Build a map of anchor → actual heading text from the real headings
-    const headingMap = new Map<string, string>();
+
+    // Build heading text → slug map from actual H2/H3 headings in the content
+    const headingToSlug = new Map<string, string>();
+    const slugToHeading = new Map<string, string>();
     for (const line of lines) {
       const h = line.match(/^(#{2,3})\s+(.+)$/);
       if (!h) continue;
       const text = h[2].trim();
       if (/^table of contents$/i.test(text)) continue;
-      const anchor = text.toLowerCase().replace(/[`*_[\]()]/g, "").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
-      headingMap.set(anchor, text);
+      const slug = text.toLowerCase().replace(/[`*_[\]()]/g, "").replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
+      headingToSlug.set(text.toLowerCase(), slug);
+      slugToHeading.set(slug, text);
     }
-    // Rewrite TOC link labels to match actual heading text
+
+    // Detect if we're inside a TOC section
+    let inToc = false;
     return lines.map((line) => {
+      if (/^#{1,3}\s+table of contents/i.test(line)) { inToc = true; return line; }
+      if (inToc && /^#{1,3}\s/.test(line) && !/table of contents/i.test(line)) { inToc = false; return line; }
+
+      if (!inToc) return line;
+
+      // Already a proper link — fix the label if needed
       const tocLink = line.match(/^(\s*-\s+\[)([^\]]+)(\]\(#)([^)]+)(\))/);
-      if (!tocLink) return line;
-      const anchor = tocLink[4];
-      const correctText = headingMap.get(anchor);
-      if (correctText && correctText !== tocLink[2]) {
-        return `${tocLink[1]}${correctText}${tocLink[3]}${anchor}${tocLink[5]}`;
+      if (tocLink) {
+        const slug = tocLink[4];
+        const correctText = slugToHeading.get(slug);
+        if (correctText && correctText !== tocLink[2]) {
+          return `${tocLink[1]}${correctText}${tocLink[3]}${slug}${tocLink[5]}`;
+        }
+        return line;
       }
+
+      // Plain text TOC entry (no link) — convert to anchor link
+      const plainEntry = line.match(/^(\s*[-*]\s+)(.+)$/);
+      if (plainEntry) {
+        const text = plainEntry[1];
+        const entryText = plainEntry[2].trim();
+        const entryLower = entryText.toLowerCase();
+        // Find the best matching heading
+        let bestSlug = "";
+        let bestHeading = entryText;
+        for (const [headingLower, slug] of headingToSlug) {
+          if (headingLower === entryLower || headingLower.includes(entryLower) || entryLower.includes(headingLower)) {
+            bestSlug = slug;
+            bestHeading = slugToHeading.get(slug) || entryText;
+            break;
+          }
+        }
+        if (!bestSlug) {
+          // Generate slug from entry text
+          bestSlug = entryText.toLowerCase().replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
+        }
+        return `${text}[${bestHeading}](#${bestSlug})`;
+      }
+
       return line;
     }).join("\n");
   })();
