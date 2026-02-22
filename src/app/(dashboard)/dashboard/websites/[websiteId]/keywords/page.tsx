@@ -329,7 +329,13 @@ export default function KeywordsPage() {
   const handleDelete = async (id: string) => {
     try {
       const res = await fetch(`/api/websites/${websiteId}/keywords/${id}`, { method: "DELETE" });
-      if (res.ok) { toast.success("Keyword deleted"); fetchKeywords(); }
+      if (res.ok) {
+        toast.success("Keyword deleted");
+        fetchKeywords();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || "Failed to delete keyword");
+      }
     } catch { toast.error("Failed to delete"); }
   };
 

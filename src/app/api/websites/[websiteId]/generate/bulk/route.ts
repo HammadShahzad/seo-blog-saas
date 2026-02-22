@@ -62,13 +62,13 @@ export async function POST(
     if (keywordIds && keywordIds.length > 0) {
       keywords = await prisma.blogKeyword.findMany({
         where: { id: { in: keywordIds }, websiteId, status: "PENDING" },
-        orderBy: { priority: "asc" },
+        orderBy: { priority: "desc" },
         take: Math.min(count, remaining, 10),
       });
     } else {
       keywords = await prisma.blogKeyword.findMany({
         where: { websiteId, status: "PENDING" },
-        orderBy: { priority: "asc" },
+        orderBy: { priority: "desc" },
         take: Math.min(count, remaining, 10),
       });
     }
