@@ -266,7 +266,8 @@ export default function NewWebsitePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        toast.error(data.error || "Failed to create website");
+        const msg = data.error || "Failed to create website";
+        toast.error(msg);
         return;
       }
 

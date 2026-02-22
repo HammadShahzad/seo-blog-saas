@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { createWebsiteSchema } from "@/lib/validators/website";
 import { fetchFavicon } from "@/lib/website-crawler";
+import { ZodError } from "zod";
 
 export async function GET() {
   try {
@@ -79,6 +80,13 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { ctaText, ctaUrl, writingStyle, ...rest } = body;
+
+    // Sanitize brandUrl: if it's just a protocol stub or empty, fall back to domain
+    if (!rest.brandUrl || /^https?:\/\/?$/.test(rest.brandUrl.trim())) {
+      const domain = typeof rest.domain === "string" ? rest.domain.replace(/^https?:\/\//i, "").replace(/\/$/, "") : "";
+      rest.brandUrl = domain ? `https://${domain}` : "";
+    }
+
     const validated = createWebsiteSchema.parse(rest);
 
     // Generate subdomain from domain
@@ -138,9 +146,13 @@ export async function POST(req: Request) {
 
     return NextResponse.json(website, { status: 201 });
   } catch (error: unknown) {
-    if (error instanceof Error && error.name === "ZodError") {
+    if (error instanceof ZodError) {
+      const first = error.issues[0];
+      const field = first?.path?.join(".") || "unknown";
+      const msg = first?.message || "Validation error";
+      console.error("Website validation error:", JSON.stringify(error.issues));
       return NextResponse.json(
-        { error: "Validation error", details: (error as unknown as { errors: unknown[] }).errors },
+        { error: `${field}: ${msg}`, details: error.issues },
         { status: 400 }
       );
     }
