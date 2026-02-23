@@ -140,6 +140,7 @@ export default function GeneratorPage() {
   const [includeTableOfContents, setIncludeTableOfContents] = useState(true);
   const [autoPublish, setAutoPublish] = useState(false);
   const [customDirection, setCustomDirection] = useState("");
+  const [selectedModel, setSelectedModel] = useState("gemini-3.1-pro-preview");
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cluster feature
@@ -152,6 +153,25 @@ export default function GeneratorPage() {
   const [selectedKeywords, setSelectedKeywords] = useState<Set<number>>(new Set());
   const [isSavingCluster, setIsSavingCluster] = useState(false);
   const [expandedCluster, setExpandedCluster] = useState<string | null>(null);
+
+  // Load saved model preference
+  useEffect(() => {
+    fetch(`/api/websites/${websiteId}/blog-settings`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.preferredModel) setSelectedModel(data.preferredModel);
+      })
+      .catch(() => {});
+  }, [websiteId]);
+
+  const handleModelChange = (model: string) => {
+    setSelectedModel(model);
+    fetch(`/api/websites/${websiteId}/blog-settings`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preferredModel: model }),
+    }).catch(() => {});
+  };
 
   /* ── Fetchers ────────────────────────────────────────────── */
 
@@ -732,22 +752,44 @@ export default function GeneratorPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">AI Models</CardTitle>
+              <CardTitle className="text-lg">AI Writing Model</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {[
-                { label: "Research", model: "Deep Research AI" },
-                { label: "Writing", model: "Advanced Language AI" },
-                { label: "Images", model: "AI Image Generation" },
-              ].map((m) => (
-                <div key={m.label} className="flex items-center justify-between p-2.5 rounded-lg border">
-                  <div>
-                    <p className="text-sm font-medium">{m.label}</p>
-                    <p className="text-xs text-muted-foreground">{m.model}</p>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Content Model</Label>
+                <Select value={selectedModel} onValueChange={handleModelChange}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gemini-3.1-pro-preview">
+                      <span className="flex items-center gap-2">Gemini 3.1 Pro</span>
+                    </SelectItem>
+                    <SelectItem value="claude-sonnet-4-20250514">
+                      <span className="flex items-center gap-2">Claude Sonnet 4</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {selectedModel.startsWith("claude-")
+                    ? "Anthropic Claude Sonnet — excellent for nuanced, human-like writing"
+                    : "Google Gemini Pro — fast, high-quality content generation"}
+                </p>
+              </div>
+              <div className="space-y-2">
+                {[
+                  { label: "Research", model: "Perplexity Sonar Pro" },
+                  { label: "Images", model: "Google Imagen" },
+                ].map((m) => (
+                  <div key={m.label} className="flex items-center justify-between p-2.5 rounded-lg border">
+                    <div>
+                      <p className="text-sm font-medium">{m.label}</p>
+                      <p className="text-xs text-muted-foreground">{m.model}</p>
+                    </div>
+                    <Badge variant="outline" className="text-xs">Active</Badge>
                   </div>
-                  <Badge variant="outline" className="text-xs">Active</Badge>
-                </div>
-              ))}
+                ))}
+              </div>
             </CardContent>
           </Card>
 

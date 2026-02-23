@@ -1,8 +1,9 @@
 /**
- * Gemini AI Client
- * Handles all Gemini API interactions for content generation
+ * AI Client — routes to Gemini or Claude based on model name.
+ * All content generation imports from this single file.
  */
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { claudeGenerateTextWithMeta, claudeGenerateText, claudeGenerateJSON } from "./claude";
 
 let _genAI: GoogleGenerativeAI | null = null;
 
@@ -21,6 +22,14 @@ const DEFAULT_MODEL = "gemini-3.1-pro-preview";
 let _modelOverride: string | null = null;
 export function setModelOverride(model: string | null) {
   _modelOverride = model;
+}
+
+function isClaudeModel(model: string): boolean {
+  return model.startsWith("claude-");
+}
+
+function resolveModel(options?: { model?: string }): string {
+  return options?.model || _modelOverride || DEFAULT_MODEL;
 }
 
 export interface GenerateTextResult {
@@ -45,8 +54,13 @@ export async function generateTextWithMeta(
   systemPrompt?: string,
   options?: { temperature?: number; maxTokens?: number; model?: string }
 ): Promise<GenerateTextResult> {
+  const modelName = resolveModel(options);
+
+  if (isClaudeModel(modelName)) {
+    return claudeGenerateTextWithMeta(prompt, systemPrompt, { ...options, model: modelName });
+  }
+
   const genAI = getGemini();
-  const modelName = options?.model || _modelOverride || DEFAULT_MODEL;
   const maxTokens = options?.maxTokens ?? 8192;
   const model = genAI.getGenerativeModel({
     model: modelName,
@@ -68,13 +82,13 @@ export async function generateTextWithMeta(
   const truncated = finishReason === "MAX_TOKENS";
 
   if (truncated) {
-    console.warn(`[gemini] ⚠️ Response truncated (MAX_TOKENS). Output: ${outputTokens}/${maxTokens} tokens, ~${text.split(/\s+/).length} words`);
+    console.warn(`[gemini] Response truncated (MAX_TOKENS). Output: ${outputTokens}/${maxTokens} tokens, ~${text.split(/\s+/).length} words`);
   }
   if (finishReason === "SAFETY") {
-    console.warn(`[gemini] ⚠️ Response blocked by safety filter. Output: ${text.length} chars`);
+    console.warn(`[gemini] Response blocked by safety filter. Output: ${text.length} chars`);
   }
   if (finishReason === "RECITATION") {
-    console.warn(`[gemini] ⚠️ Response blocked by recitation filter. Output: ${text.length} chars`);
+    console.warn(`[gemini] Response blocked by recitation filter. Output: ${text.length} chars`);
   }
 
   return { text, finishReason, promptTokens, outputTokens, truncated };
@@ -84,13 +98,18 @@ export async function generateJSON<T>(
   prompt: string,
   systemPrompt?: string
 ): Promise<T> {
+  const modelName = resolveModel();
+
+  if (isClaudeModel(modelName)) {
+    return claudeGenerateJSON<T>(prompt, systemPrompt);
+  }
+
   const text = await generateText(
     prompt + "\n\nRespond with valid JSON only. No markdown code blocks.",
     systemPrompt,
     { temperature: 0.3 }
   );
 
-  // Strip markdown code fences if present
   const cleaned = text
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
