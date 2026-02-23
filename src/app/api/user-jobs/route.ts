@@ -123,14 +123,11 @@ export async function PATCH(req: Request) {
   if (!id)
     return NextResponse.json({ error: "id required" }, { status: 400 });
 
-  const existing = await prisma.userJob.findFirst({
+  // Use updateMany so a missing row is a no-op (not a 404).
+  // This handles the race condition where updateJob() fires a PATCH before
+  // the addJob() POST has finished writing the row to the database.
+  const { count } = await prisma.userJob.updateMany({
     where: { id, userId: session.user.id },
-  });
-  if (!existing)
-    return NextResponse.json({ error: "Job not found" }, { status: 404 });
-
-  const updated = await prisma.userJob.update({
-    where: { id },
     data: {
       ...(patch.status !== undefined && { status: patch.status }),
       ...(patch.progress !== undefined && { progress: patch.progress }),
@@ -141,7 +138,9 @@ export async function PATCH(req: Request) {
     },
   });
 
-  return NextResponse.json(updated);
+  // Row not yet written (race condition) — silently succeed so the client
+  // never sees a 404. The POST will persist the initial state shortly after.
+  return NextResponse.json({ ok: true, updated: count });
 }
 
 export async function DELETE(req: Request) {
