@@ -752,43 +752,25 @@ export default function GeneratorPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">AI Writing Model</CardTitle>
+              <CardTitle className="text-lg">StackSerp AI Engine</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Content Model</Label>
+                <Label>Engine Version</Label>
                 <Select value={selectedModel} onValueChange={handleModelChange}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="gemini-3.1-pro-preview">
-                      <span className="flex items-center gap-2">Gemini 3.1 Pro</span>
-                    </SelectItem>
-                    <SelectItem value="claude-sonnet-4-20250514">
-                      <span className="flex items-center gap-2">Claude Sonnet 4</span>
-                    </SelectItem>
+                    <SelectItem value="gemini-3.1-pro-preview">StackSerp v1.0</SelectItem>
+                    <SelectItem value="claude-sonnet-4-20250514">StackSerp v2.0</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   {selectedModel.startsWith("claude-")
-                    ? "Anthropic Claude Sonnet — excellent for nuanced, human-like writing"
-                    : "Google Gemini Pro — fast, high-quality content generation"}
+                    ? "Latest engine with superior human-like writing and nuanced tone"
+                    : "Stable engine with fast, high-quality content generation"}
                 </p>
-              </div>
-              <div className="space-y-2">
-                {[
-                  { label: "Research", model: "Perplexity Sonar Pro" },
-                  { label: "Images", model: "Google Imagen" },
-                ].map((m) => (
-                  <div key={m.label} className="flex items-center justify-between p-2.5 rounded-lg border">
-                    <div>
-                      <p className="text-sm font-medium">{m.label}</p>
-                      <p className="text-xs text-muted-foreground">{m.model}</p>
-                    </div>
-                    <Badge variant="outline" className="text-xs">Active</Badge>
-                  </div>
-                ))}
               </div>
             </CardContent>
           </Card>
