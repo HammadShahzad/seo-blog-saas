@@ -72,7 +72,8 @@ function injectTOC(content: string): string {
   const newTOC = buildTOC(content);
 
   // Match existing TOC block: "## Table of Contents" through next H2 (exclusive)
-  const tocRegex = /^## Table of Contents\n[\s\S]*?(?=^## |\z)/im;
+  // Note: \z is not valid JS — use (?![\s\S]) for true end-of-string
+  const tocRegex = /^## Table of Contents\n[\s\S]*?(?=\n## |(?![\s\S]))/im;
   if (tocRegex.test(content)) {
     return content.replace(tocRegex, newTOC + "\n\n");
   }
@@ -255,10 +256,13 @@ Output ONLY the complete modified blog post in Markdown. Start directly with the
   fixed = fixLongParagraphs(fixed);
 
   // ── Step 4: Regenerate Table of Contents from final heading structure ────────
+  const beforeToc = fixed;
   const tocFixed = injectTOC(fixed);
+  let tocRegenerated = false;
   // Only use the TOC-injected version if it didn't mangle the content
   if (tocFixed.length > fixed.length * 0.9) {
     fixed = tocFixed;
+    tocRegenerated = fixed !== beforeToc;
   }
 
   const newWordCount = fixed.split(/\s+/).filter(Boolean).length;
@@ -279,7 +283,7 @@ Output ONLY the complete modified blog post in Markdown. Start directly with the
       addedH3s: issues.needsH3,
       expandedWords: issues.needsWords,
       addedLinks: issues.needsLinks,
-      tocRegenerated: true,
+      tocRegenerated,
     },
     // So the caller can see what's still not fixed
     remaining: {

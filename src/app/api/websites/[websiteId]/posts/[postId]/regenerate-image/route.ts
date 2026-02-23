@@ -107,6 +107,7 @@ export async function POST(req: Request, { params }: Params) {
       );
     }
 
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[regenerate-image] Unhandled error:", msg);
+    return NextResponse.json({ error: "Image generation failed. Please try again." }, { status: 500 });
   }
 }

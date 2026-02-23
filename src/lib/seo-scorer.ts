@@ -18,6 +18,34 @@ interface ScoreResult {
   breakdown: { factor: string; points: number; maxPoints: number; note: string }[];
 }
 
+/** Normalize text for fuzzy keyword matching: lowercase, strip apostrophes/dashes, collapse spaces */
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[''`]/g, "")
+    .replace(/[-–—]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Check if a keyword appears in text using:
+ * 1. Exact normalized substring match
+ * 2. Word-level match: ≥80% of keyword words appear in text (handles prepositions like "in", articles)
+ */
+function keywordInText(keyword: string, text: string): boolean {
+  if (!keyword) return false;
+  const kwNorm = normalize(keyword);
+  const textNorm = normalize(text);
+  if (textNorm.includes(kwNorm)) return true;
+  const kwWords = kwNorm.split(/\s+/).filter((w) => w.length > 2);
+  if (kwWords.length >= 3) {
+    const matched = kwWords.filter((w) => textNorm.includes(w)).length;
+    return matched >= Math.ceil(kwWords.length * 0.8);
+  }
+  return false;
+}
+
 export function calculateContentScore(input: ScoringInput): ScoreResult {
   const kw = input.focusKeyword?.toLowerCase() || "";
   const content = input.content.toLowerCase();
@@ -37,15 +65,15 @@ export function calculateContentScore(input: ScoringInput): ScoreResult {
   }
 
   // 2. Keyword in title (10 pts)
-  if (kw && input.title.toLowerCase().includes(kw)) {
+  if (kw && keywordInText(kw, input.title)) {
     add("Keyword in title", 10, 10, "Title contains focus keyword");
   } else {
     add("Keyword in title", 0, 10, "Title missing focus keyword");
   }
 
   // 3. Keyword in first 150 words (8 pts)
-  const first150 = words.slice(0, 150).join(" ").toLowerCase();
-  if (kw && first150.includes(kw)) {
+  const first150 = words.slice(0, 150).join(" ");
+  if (kw && keywordInText(kw, first150)) {
     add("Keyword in intro", 8, 8, "Focus keyword appears in first 150 words");
   } else {
     add("Keyword in intro", 0, 8, "Focus keyword not found in intro");
@@ -53,10 +81,13 @@ export function calculateContentScore(input: ScoringInput): ScoreResult {
 
   // 4. Keyword density 0.5-2.5% (8 pts)
   if (kw && wordCount > 0) {
-    const kwWords = kw.split(/\s+/).length;
-    const regex = new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-    const occurrences = (input.content.match(regex) || []).length;
-    const density = (occurrences * kwWords / wordCount) * 100;
+    const kwNorm = normalize(kw);
+    const contentNorm = normalize(input.content);
+    const kwWordCount = kwNorm.split(/\s+/).length;
+    const safeKw = kwNorm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(safeKw, "gi");
+    const occurrences = (contentNorm.match(regex) || []).length;
+    const density = (occurrences * kwWordCount / wordCount) * 100;
     if (density >= 0.5 && density <= 2.5) {
       add("Keyword density", 8, 8, `Density: ${density.toFixed(1)}% (ideal 0.5-2.5%)`);
     } else if (density > 0) {
@@ -135,8 +166,8 @@ export function calculateContentScore(input: ScoringInput): ScoreResult {
 
   // 11. Keyword in H2 headings (6 pts)
   if (kw) {
-    const h2s = content.match(/^##\s.+$/gm) || [];
-    const kwInH2 = h2s.some((h) => h.toLowerCase().includes(kw));
+    const h2s = input.content.match(/^##\s.+$/gm) || [];
+    const kwInH2 = h2s.some((h) => keywordInText(kw, h));
     if (kwInH2) {
       add("Keyword in headings", 6, 6, "Focus keyword found in H2");
     } else {
