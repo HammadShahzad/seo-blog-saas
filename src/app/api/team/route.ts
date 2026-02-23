@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions, clearTokenCache } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { PLANS } from "@/lib/stripe";
 
@@ -137,6 +137,8 @@ export async function POST(req: Request) {
         user: { select: { id: true, name: true, email: true, createdAt: true } },
       },
     });
+
+    clearTokenCache(invitedUser.id);
 
     return NextResponse.json(newMember, { status: 201 });
   } catch (error) {

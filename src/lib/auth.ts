@@ -18,6 +18,10 @@ function setCachedTokenData(userId: string, data: Record<string, unknown>) {
   TOKEN_CACHE.set(userId, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
+export function clearTokenCache(userId: string) {
+  TOKEN_CACHE.delete(userId);
+}
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -167,17 +171,29 @@ export const authOptions: NextAuthOptions = {
         if (cached) {
           Object.assign(token, cached);
         } else {
-          const [dbUser, membership] = await Promise.all([
+          const [dbUser, memberships] = await Promise.all([
             prisma.user.findUnique({
               where: { id: userId },
               select: { role: true },
             }),
-            prisma.organizationMember.findFirst({
+            prisma.organizationMember.findMany({
               where: { userId },
-              include: { organization: true },
-              orderBy: { createdAt: "asc" },
+              include: {
+                organization: {
+                  include: { _count: { select: { websites: true, members: true } } },
+                },
+              },
             }),
           ]);
+
+          // Pick the org with most websites, then most members, then most recent join
+          const membership = memberships.sort((a, b) => {
+            const wDiff = b.organization._count.websites - a.organization._count.websites;
+            if (wDiff !== 0) return wDiff;
+            const mDiff = b.organization._count.members - a.organization._count.members;
+            if (mDiff !== 0) return mDiff;
+            return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+          })[0] ?? null;
 
           const data: Record<string, unknown> = {};
 

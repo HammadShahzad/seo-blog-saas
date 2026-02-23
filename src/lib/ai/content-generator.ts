@@ -1110,28 +1110,61 @@ CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the en
     console.log(`[content-gen] Post-hoc linking injected ${usedUrls.size} internal links`);
   }
 
-  // Post-process: fix broken multi-line links (URL split across lines by AI)
-  // e.g. "[anchor](https://example.\ncom/path/)" → "[anchor](https://example.com/path/)"
+  // Post-process: fix broken multi-line links (URL split across 2+ lines by AI)
+  // e.g. "[anchor](https://example.\ncom/blog/some-\npath/)" → "[anchor](https://example.com/blog/some-path/)"
   finalContent = finalContent.replace(
-    /\[([^\]]+)\]\(([^)\s]*)\n\s*([^)\s]*\))/g,
-    (_, anchor: string, urlStart: string, urlEnd: string) => `[${anchor}](${urlStart}${urlEnd})`
+    /\[([^\]]+)\]\(([^)]*?)\)/g,
+    (full, anchor: string, url: string) => {
+      if (!url.includes("\n") && !url.includes("\r")) return full;
+      const cleaned = url.replace(/[\r\n]\s*/g, "");
+      return `[${anchor}](${cleaned})`;
+    }
   );
 
-  // Post-process: clean up ALL orphaned URL path fragments (com/path/) anywhere in the text.
-  // The AI sometimes generates links split across lines, leaving only "com/some-path/)" as text.
-  // Process each line — strip the fragment only if it's NOT inside a proper markdown link on that line.
-  finalContent = finalContent.split("\n").map((line) => {
-    // Temporarily mask all valid markdown links
-    const masks: string[] = [];
-    const masked = line.replace(/\[[^\]]+\]\([^)]+\)/g, (m) => {
-      masks.push(m);
-      return `__MDLINK${masks.length - 1}__`;
-    });
-    // Now strip orphaned com/path/) fragments from the unmasked text
-    const cleaned = masked.replace(/\s*\bcom\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\)/gi, "");
-    // Restore valid markdown links
-    return cleaned.replace(/__MDLINK(\d+)__/g, (_, i) => masks[parseInt(i)]);
-  }).join("\n");
+  // Post-process: reconstruct partial URLs inside markdown links where the AI
+  // dropped the protocol+domain (e.g. [text](com/path/) → [text](https://brand.com/path/))
+  if (ctx.brandUrl) {
+    try {
+      const parsedBrand = new URL(ctx.brandUrl);
+      const brandOrigin = parsedBrand.origin;
+      // Fix links starting with "com/" — the AI dropped "https://domain."
+      // e.g. (com/blog/path/) → (https://brand.com/blog/path/)
+      finalContent = finalContent.replace(
+        /\[([^\]]+)\]\(com\/([^)]*)\)/g,
+        (_, anchor: string, path: string) => `[${anchor}](${brandOrigin}/${path})`
+      );
+      // Fix links with just a relative path (no protocol, no domain)
+      // e.g. (blog/some-post/) or (contact-us/) → (https://brand.com/blog/some-post/)
+      finalContent = finalContent.replace(
+        /\[([^\]]+)\]\((?!https?:\/\/|#|mailto:|tel:|\/)([a-z][a-z0-9-]*(?:\/[a-z0-9._-]+)*\/?)\)/gi,
+        (full, anchor: string, path: string) => {
+          if (/\.(js|css|png|jpg|gif|svg|pdf|zip|md)$/i.test(path)) return full;
+          return `[${anchor}](${brandOrigin}/${path})`;
+        }
+      );
+    } catch { /* brandUrl not parseable */ }
+  }
+
+  // Reusable orphan fragment cleanup: masks valid markdown links, strips bare URL fragments
+  function cleanOrphanedUrlFragments(text: string): string {
+    return text.split("\n").map((line) => {
+      const masks: string[] = [];
+      const masked = line.replace(/\[[^\]]+\]\([^)]+\)/g, (m) => {
+        masks.push(m);
+        return `__MDLINK${masks.length - 1}__`;
+      });
+      // Strip orphaned com/path/) or com/path/ fragments (with or without trailing paren)
+      let cleaned = masked.replace(/\s*\bcom\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\)?/gi, "");
+      // Strip orphaned protocol stubs like "https://example." left from split URLs
+      cleaned = cleaned.replace(/\bhttps?:\/\/[a-z0-9.-]*\.\s*$/gi, "");
+      // Strip parenthesized partial URLs like "(com/path/)" as bare text
+      cleaned = cleaned.replace(/\(\s*com\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\s*\)/gi, "");
+      return cleaned.replace(/__MDLINK(\d+)__/g, (_, i) => masks[parseInt(i)]);
+    }).join("\n");
+  }
+
+  // Post-process: clean up orphaned URL path fragments (com/path/) anywhere in the text.
+  finalContent = cleanOrphanedUrlFragments(finalContent);
 
   // Clean orphaned "txt " fragments (from split "robots.txt" etc.)
   finalContent = finalContent.replace(
@@ -1147,6 +1180,9 @@ CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the en
   const allowedUrls = new Set<string>();
   for (const l of consolidatedLinks) {
     allowedUrls.add(l.url.replace(/\/$/, "").toLowerCase());
+  }
+  if (ctx.ctaUrl) {
+    allowedUrls.add(ctx.ctaUrl.replace(/\/$/, "").toLowerCase());
   }
   // Also allow TOC anchor links (#section-slug) and the brand URL
   const brandHost = ctx.brandUrl ? new URL(ctx.brandUrl).hostname : "";
@@ -1209,15 +1245,7 @@ CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the en
   );
 
   // Post-process (second pass): clean up orphaned URL fragments created by link stripping above
-  finalContent = finalContent.split("\n").map((line) => {
-    const masks: string[] = [];
-    const masked = line.replace(/\[[^\]]+\]\([^)]+\)/g, (m) => {
-      masks.push(m);
-      return `__MDLINK${masks.length - 1}__`;
-    });
-    const cleaned = masked.replace(/\s*\bcom\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\)/gi, "");
-    return cleaned.replace(/__MDLINK(\d+)__/g, (_, i) => masks[parseInt(i)]);
-  }).join("\n");
+  finalContent = cleanOrphanedUrlFragments(finalContent);
 
   // Clean up double spaces and space-before-punctuation left by fragment removal
   finalContent = finalContent.replace(/  +/g, " ");
@@ -1388,6 +1416,13 @@ CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the en
       return neutrals[count % neutrals.length];
     });
   }
+
+  // Final safety-net: one last pass to catch any bare com/path/ or (com/path/) text
+  // that survived all previous post-processing steps
+  finalContent = cleanOrphanedUrlFragments(finalContent);
+  finalContent = finalContent.replace(/  +/g, " ");
+  finalContent = finalContent.replace(/ ([.,;:!?])/g, "$1");
+  finalContent = finalContent.replace(/\n\s*\n\s*\n/g, "\n\n");
 
   // ─── STEP 6: METADATA ────────────────────────────────────────────
   await progress("metadata", "Generating SEO metadata, schema, and social captions...");
