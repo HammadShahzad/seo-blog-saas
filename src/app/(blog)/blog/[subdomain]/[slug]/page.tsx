@@ -289,28 +289,28 @@ export default async function PublicBlogPostPage({ params }: Props) {
         />
       )}
 
-      {/* Sticky Header */}
-      <nav className="border-b bg-white/80 backdrop-blur-sm sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <Link
-            href={`/blog/${subdomain}`}
-            className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            {website.brandName} Blog
-          </Link>
-          <a
-            href={website.brandUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            {website.domain} ↗
-          </a>
-        </div>
-      </nav>
+      <header className="sticky top-0 z-50">
+        <nav className="border-b bg-white/80 backdrop-blur-sm">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+            <Link
+              href={`/blog/${subdomain}`}
+              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              {website.brandName} Blog
+            </Link>
+            <a
+              href={website.brandUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {website.domain} ↗
+            </a>
+          </div>
+        </nav>
+      </header>
 
-      {/* Visual Breadcrumbs */}
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
         <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm text-muted-foreground">
           <a href={website.brandUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
@@ -331,6 +331,7 @@ export default async function PublicBlogPostPage({ params }: Props) {
         </nav>
       </div>
 
+      <main>
       {/* Article */}
       <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Category */}
@@ -575,7 +576,8 @@ export default async function PublicBlogPostPage({ params }: Props) {
         </section>
       )}
 
-      {/* Footer */}
+      </main>
+
       <footer className="border-t bg-slate-50 py-8">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-sm text-muted-foreground">
           <p>
