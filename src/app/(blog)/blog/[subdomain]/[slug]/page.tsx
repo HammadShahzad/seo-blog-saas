@@ -192,7 +192,13 @@ export default async function PublicBlogPostPage({ params }: Props) {
       /\[INTERNAL_LINK:\s*([^\]]+)\]\(([^)]*)\)/gi,
       (_match, anchor: string) => anchor.trim()
     )
-    .trim();
+    .trim()
+    // Fix broken multi-line TOC links (AI wraps long headings across lines)
+    .replace(/^(\s*[-*]\s+\[[^\]]*)\n\s*([^\n]*?\]\(#[^)]+\))/gm, "$1 $2")
+    // Remove orphaned link tail fragments like "text](#slug)" on their own line
+    .replace(/^\s*[^-*#\s][^\n]*\]\(#[^)]+\)\s*$/gm, "")
+    // Remove duplicate Table of Contents blocks (keep only the first)
+    .replace(/(## Table of Contents\n(?:\s*[-*]\s+.*\n)*)([\s\S]*?)(## Table of Contents\n(?:\s*[-*]\s+.*\n)*)/gi, "$1$2");
 
   // --- JSON-LD: Article Schema ---
   const articleJsonLd = {
