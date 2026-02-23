@@ -144,12 +144,12 @@ ${ctx.avoidTopics?.length ? `- Never mention: ${ctx.avoidTopics.join(", ")}` : "
 - Format: Markdown with proper H2/H3 hierarchy
 - Write for humans first, search engines second
 - Use active voice, clear language that delivers value to readers and search engines
-- Write SUBSTANTIAL paragraphs: 5-6 lines each. Not too short (no 1-2 sentence paragraphs), not too long. Each paragraph should develop a complete thought.
+- Write focused paragraphs: 3-5 sentences each. Each paragraph should develop a complete thought. No single-sentence paragraphs, but don't pad either.
 - Use bullet points and numbered lists where they genuinely help, not forced into every section
 - Add visual breaks: bold key phrases, use blockquotes for expert tips
 - Include comparison tables ONLY where they genuinely serve the reader (side-by-side comparisons, specs, pricing). Do not force tables.
 - Include related entities (people, places, tools, standards, organizations) naturally throughout the content to build semantic richness
-- COMPLETE the topic according to user search intent. If the content needs more words to fully cover the intent, exceed the word limit. Intent completion matters more than word count.
+- Cover the topic thoroughly but concisely. Stay within the target word count. Every sentence should earn its place.
 
 OPENING PARAGRAPH RULE:
 - NEVER start with "In this article we will guide you" or "In this guide we inform you" or any variation of announcing what the article covers
@@ -442,27 +442,26 @@ export async function generateBlogPost(
   };
 
   const wordTargets: Record<string, string> = {
-    SHORT: "800-1200",
-    MEDIUM: "1500-2500",
-    LONG: "2500-4000",
-    PILLAR: "4000-6000",
+    SHORT: "600-800",
+    MEDIUM: "1000-1500",
+    LONG: "1800-2500",
+    PILLAR: "2500-3500",
   };
   const targetWords = wordTargets[contentLength] || wordTargets.MEDIUM;
 
-  // Token budget: generous enough for the model to finish every section
   const draftTokensForLength: Record<string, number> = {
-    SHORT: 8192,
-    MEDIUM: 16384,
-    LONG: 20480,
-    PILLAR: 24576,
+    SHORT: 4096,
+    MEDIUM: 8192,
+    LONG: 12288,
+    PILLAR: 16384,
   };
   const draftTokens = draftTokensForLength[contentLength] || draftTokensForLength.MEDIUM;
 
   const minWordsForLength: Record<string, number> = {
-    SHORT: 600,
-    MEDIUM: 1200,
-    LONG: 2000,
-    PILLAR: 3000,
+    SHORT: 450,
+    MEDIUM: 800,
+    LONG: 1400,
+    PILLAR: 2000,
   };
   const minExpectedWords = minWordsForLength[contentLength] || minWordsForLength.MEDIUM;
 
@@ -527,10 +526,10 @@ ${research.rawResearch.substring(0, 2500)}
 ## Outline Rules
 - H1 title: MUST contain the EXACT focus keyword "${keyword}" (or very close variant). SEO-optimized (50-70 chars), reflects the winning angle. If you cannot fit the exact keyword, use as many of its words as possible in the title.
 - STRICT section count based on target word count (${targetWords} words):
-  ${contentLength === "SHORT"  ? "• SHORT article → MAXIMUM 3 content H2 sections (each ~300 words)" : ""}
-  ${contentLength === "MEDIUM" ? "• MEDIUM article → MAXIMUM 5 content H2 sections (each ~400 words)" : ""}
-  ${contentLength === "LONG"   ? "• LONG article → MAXIMUM 7 content H2 sections (each ~450 words)" : ""}
-  ${contentLength === "PILLAR" ? "• PILLAR article → MAXIMUM 9 content H2 sections (each ~500 words)" : ""}
+  ${contentLength === "SHORT"  ? "• SHORT article → MAXIMUM 3 content H2 sections (each ~200-250 words)" : ""}
+  ${contentLength === "MEDIUM" ? "• MEDIUM article → MAXIMUM 4 content H2 sections (each ~300 words)" : ""}
+  ${contentLength === "LONG"   ? "• LONG article → MAXIMUM 6 content H2 sections (each ~350 words)" : ""}
+  ${contentLength === "PILLAR" ? "• PILLAR article → MAXIMUM 8 content H2 sections (each ~400 words)" : ""}
   DO NOT exceed this section limit. Fewer, deeper sections beat many shallow ones.
 - At least 2 sections must directly address the content gaps identified above
 - Each section: 3-4 bullet points showing exactly what will be covered
@@ -573,7 +572,7 @@ Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."
 
   // Hard-cap section count to match word budget — the AI often ignores the instruction
   const maxContentSections: Record<string, number> = {
-    SHORT: 3, MEDIUM: 5, LONG: 7, PILLAR: 9,
+    SHORT: 3, MEDIUM: 4, LONG: 6, PILLAR: 8,
   };
   const sectionCap = maxContentSections[contentLength] ?? 5;
   if (contentSections.length > sectionCap) {
@@ -595,7 +594,7 @@ Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."
   const customDirection = options.customDirection;
 
   const draftResult = await generateWithContinuation(
-    `Write a complete blog post about "${keyword}" for ${ctx.brandName}. Target length: ${targetWords} words minimum, but COMPLETE the topic according to user search intent. If more words are needed to fully cover the intent, exceed the target. Intent completion matters more than word count.
+    `Write a complete blog post about "${keyword}" for ${ctx.brandName}. Target length: ${targetWords} words. Be concise and value-dense. Every paragraph should earn its place.
 
 Title: ${outline.title}
 Unique angle: ${outline.uniqueAngle}
@@ -670,14 +669,14 @@ ${(() => {
 })()}
 
 **Content rules:**
-- Write ${targetWords} words MINIMUM. If the topic needs more words to be fully covered, write more. Complete the search intent thoroughly.
+- Write ${targetWords} words. Stay within the target range. Be concise, not padded.
 - Every section must have a DIFFERENT internal structure: mix of prose, bullet lists, numbered steps, comparison tables (only where genuinely useful), code snippets (if relevant), or callout boxes
 - Include real statistics and data from the research with context
 - Include related entities naturally (tools, standards, organizations, people, places relevant to the topic) to build semantic richness
 - Use the keyword "${keyword}" naturally — in first 100 words, one H2, and in the final section
 - Write from an EXPERT perspective using the personality above. Vary your expert voice phrases: "In my testing," "I've found," "From my experience," "What I noticed," "After running this for 6 months," "The data surprised me," "Here's what nobody mentions"
 - EXPERT CALLOUTS: use at most 2 total "Pro Tip:" callouts in the ENTIRE article. Make them count — share something non-obvious that only someone with real experience would know. DO NOT add a "Pro Tip" in every section.
-- Write SUBSTANTIAL paragraphs with 5-6 lines each. Each paragraph should develop a complete thought. Not too short, not too long.
+- Write focused paragraphs of 3-5 sentences. Each paragraph should develop a complete thought without padding.
 - Use active voice, concrete examples, and specific numbers. Clear language that provides genuine value.
 - Zero grammar mistakes. Write clean, polished prose.
 - NEVER use: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "landscape" (metaphorical), "realm," "robust," "cutting-edge," "embark on a journey," "navigating the complexities," "unlock the power"
@@ -768,7 +767,7 @@ Context: This is a ${ctx.niche} article for ${ctx.targetAudience}.
 ${brandContext}
 
 Rules:
-- Write ${wordsPerSection}-${wordsPerSection + 100} words for this section
+- Write roughly ${wordsPerSection} words for this section. Be concise.
 - Start with the H2 heading: ## ${section.heading}
 - Use a mix of prose, bullet lists, and data
 - Write from expert perspective with first-person insights
@@ -864,7 +863,7 @@ Audience: ${ctx.targetAudience}
 - No "Furthermore," "Moreover," "Additionally" — use normal transitions
 - No starting sentences with "So," or "Well,"
 - Kill every instance of: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "realm," "robust," "cutting-edge," "embark on a journey," "navigate the complexities," "unlock the power"
-- Ensure paragraphs are substantial: 5-6 lines each. Merge overly short paragraphs (1-2 sentences) into fuller ones. Each paragraph should develop a complete thought.
+- Ensure paragraphs are focused: 3-5 sentences each. Merge single-sentence paragraphs. Cut filler and fluff.
 - Ensure zero grammar mistakes.
 
 **Kill conclusion patterns:**
@@ -877,11 +876,11 @@ Audience: ${ctx.targetAudience}
 - Keep Markdown formatting, tables, code blocks, bullet lists
 - Do NOT add new H2 sections
 
-## Draft to edit (${draftWords} words — preserve this length):
+## Draft to edit (${draftWords} words):
 ${cleanDraft}
 
 Output ONLY the polished blog post in Markdown. Start directly with the content.
-CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early. Your output must be at LEAST ${draftWords} words.`,
+CRITICAL: Output the COMPLETE article with every section. Do NOT stop early or drop sections. If anything, tighten the prose to be more concise.`,
     systemPrompt,
     { temperature: 0.65, maxTokens: rewriteTokens },
     "tone-polish",
@@ -951,7 +950,7 @@ ${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONL
    - Use REAL markdown links only: [anchor text](url).` : `5. Do NOT add any internal links. There are no published posts to link to yet. Do NOT invent or hallucinate any URLs.`}
 6. Make sure the intro paragraph contains the keyword naturally
 ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common questions (format as proper ## FAQ heading with ### for each question — this helps with Google's FAQ rich snippets)` : "7. Skip FAQ if not present"}
-8. Paragraphs should be SUBSTANTIAL: 5-6 lines each, developing a complete thought. Do not make paragraphs too short (1-2 sentences) or too long (10+ lines).
+8. Paragraphs should be 3-5 sentences each, developing a complete thought. No single-sentence paragraphs, no walls of text.
 9. KEYWORD DENSITY RULES:
    - Use the exact primary keyword "${keyword}" only 3-5 times in the ENTIRE article (intro, one H2, conclusion, and 1-2 body mentions). NO MORE.
    - Use VARIATIONS and LSI keywords instead of repeating the exact phrase. Examples: synonyms, related terms, long-tail variations.
@@ -964,17 +963,17 @@ ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common quest
 11d. FIRST-PERSON LIMIT: Use "I" or "my" phrases (e.g. "I've found", "From my experience") MAX 3-4 times total, each with DIFFERENT phrasing. Demonstrate expertise through data, process details, and specific technical knowledge instead.
 11e. TONE: Do NOT use fear-based or aggressive language toward competitors. Replace "terrifying," "dangerous," "scare tactic" with factual, standards-based language. Elevate your approach rather than attacking alternatives.
 12. If there's a table of contents, ensure it matches the actual headings
-13. Keep the article length at ${targetWords} words minimum. If more is needed to cover the intent, exceed the target.
+13. Keep the article length within the ${targetWords} word range. Do not pad or inflate.
 14. READABILITY: Include bullet lists or numbered lists where they genuinely help. Use bold text for key terms. Add blockquotes for expert tips.
 15. ENDING: Do NOT add "Final Thoughts", "Conclusion", "Wrapping Up" or any concluding section heading. The article should end naturally.
 16. ENTITIES: Ensure related entities (tools, standards, organizations, people, places) are naturally present for semantic richness.
 
-## Blog Post (${toneToUseWords} words — preserve this length):
+## Blog Post (${toneToUseWords} words):
 ${toneToUse}
 
 Output ONLY the optimized blog post in Markdown format.
-CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early. The output MUST be at least ${toneToUseWords} words.
-CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the end, STOP. Do NOT start over from the beginning.`,
+CRITICAL: Output the COMPLETE article with all sections. Do NOT stop early or drop sections. Tighten prose where possible.
+CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the end, STOP.`,
     systemPrompt,
     { temperature: 0.4, maxTokens: seoRewriteTokens },
     "seo-optimize",
@@ -1331,7 +1330,7 @@ CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the en
         const trimmed = block.trim();
         if (/^(#{1,6}\s|[-*]\s|\d+\.\s|!\[|```|<|\||\*\*Pro Tip|>)/.test(trimmed)) return [block];
         const words = trimmed.split(/\s+/);
-        if (words.length <= 80) return [block];
+        if (words.length <= 60) return [block];
         const sentences = trimmed.match(/[^.!?]+[.!?]+(?:\s|$)/g);
         if (!sentences || sentences.length < 2) return [block];
         const chunks: string[] = [];
@@ -1339,7 +1338,7 @@ CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the en
         let currentWordCount = 0;
         for (const sentence of sentences) {
           const sentenceWords = sentence.trim().split(/\s+/).length;
-          if (currentWordCount + sentenceWords > 70 && current.length > 0) {
+          if (currentWordCount + sentenceWords > 50 && current.length > 0) {
             chunks.push(current.join("").trim());
             current = [];
             currentWordCount = 0;

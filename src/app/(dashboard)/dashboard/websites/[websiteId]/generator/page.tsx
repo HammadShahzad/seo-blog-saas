@@ -694,10 +694,10 @@ export default function GeneratorPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SHORT">Short (800-1200 words)</SelectItem>
-                    <SelectItem value="MEDIUM">Medium (1500-2500 words)</SelectItem>
-                    <SelectItem value="LONG">Long (2500-4000 words)</SelectItem>
-                    <SelectItem value="PILLAR">Pillar (4000-6000 words)</SelectItem>
+                    <SelectItem value="SHORT">Short (600-800 words)</SelectItem>
+                    <SelectItem value="MEDIUM">Medium (1000-1500 words)</SelectItem>
+                    <SelectItem value="LONG">Long (1800-2500 words)</SelectItem>
+                    <SelectItem value="PILLAR">Pillar (2500-3500 words)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

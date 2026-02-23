@@ -181,8 +181,8 @@ ${research.substring(0, 4000)}${existingSection}${publishedSection}${exclusionSe
 ${productInstruction}
 
 ## OUTPUT STRUCTURE:
-- Pillar: ONE broad keyword about "${seedTopic}" (2500-4000 words, 4-6 words long)
-- Supporting: 8-12 specific long-tail variations (1200-2000 words each, 5-8 words long)
+- Pillar: ONE broad keyword about "${seedTopic}" (1800-2500 words, 4-6 words long)
+- Supporting: 8-12 specific long-tail variations (1000-1500 words each, 5-8 words long)
 - Each keyword targets a UNIQUE angle: different vehicle part, different problem, different user scenario, or different buying stage
 - Mix search intents: ~60% informational, ~25% commercial, ~15% transactional
 - For each keyword, write a short "description" explaining the UNIQUE angle this post would cover that no existing post already handles
@@ -196,14 +196,14 @@ Return valid JSON only:
       "keyword": "exact keyword phrase (4-7 words)",
       "role": "pillar",
       "searchIntent": "informational",
-      "suggestedWordCount": 3000,
+      "suggestedWordCount": 2000,
       "description": "what this article covers and why it doesn't overlap with existing posts"
     },
     {
       "keyword": "specific long-tail keyword about ${seedTopic} (5-8 words)",
       "role": "supporting",
       "searchIntent": "informational",
-      "suggestedWordCount": 1500,
+      "suggestedWordCount": 1200,
       "description": "the unique angle and gap this fills"
     }
   ]
