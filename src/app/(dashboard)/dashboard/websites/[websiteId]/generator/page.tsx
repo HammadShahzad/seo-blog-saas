@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -138,6 +139,7 @@ export default function GeneratorPage() {
   const [includeFAQ, setIncludeFAQ] = useState(true);
   const [includeTableOfContents, setIncludeTableOfContents] = useState(true);
   const [autoPublish, setAutoPublish] = useState(false);
+  const [customDirection, setCustomDirection] = useState("");
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   // Cluster feature
@@ -345,6 +347,7 @@ export default function GeneratorPage() {
           includeFAQ,
           includeTableOfContents,
           autoPublish,
+          customDirection: customDirection.trim() || undefined,
         }),
       });
 
@@ -677,6 +680,20 @@ export default function GeneratorPage() {
                     <SelectItem value="PILLAR">Pillar (4000-6000 words)</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Custom Direction <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                <Textarea
+                  placeholder="Guide the blog's opening and direction, e.g. 'Start by addressing why home care for elderly parents is becoming the top choice over nursing homes in 2026...'"
+                  value={customDirection}
+                  onChange={(e) => setCustomDirection(e.target.value)}
+                  rows={3}
+                  className="text-sm resize-none"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Tell the AI where to take the blog. This text guides the opening and overall angle.
+                </p>
               </div>
 
               <div className="flex items-center justify-between">

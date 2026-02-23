@@ -56,6 +56,7 @@ export async function POST(
       includeFAQ = true,
       includeTableOfContents = true,
       autoPublish = false,
+      customDirection,
     } = body;
 
     let keyword;
@@ -100,6 +101,7 @@ export async function POST(
       includeFAQ,
       includeTableOfContents,
       autoPublish,
+      customDirection: typeof customDirection === "string" ? customDirection.trim() : undefined,
     });
 
     // Notify the Droplet worker to pick up the job (fire-and-forget)

@@ -20,6 +20,7 @@ export interface JobInput {
   includeFAQ?: boolean;
   includeTableOfContents?: boolean;
   autoPublish?: boolean;
+  customDirection?: string;
 }
 
 /**
@@ -156,6 +157,7 @@ export async function processJob(jobId: string): Promise<void> {
         onProgress,
         existingPosts: postLinks,
         internalLinks: allInternalLinks,
+        customDirection: input.customDirection,
       }
     );
 

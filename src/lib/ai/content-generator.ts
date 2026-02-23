@@ -137,20 +137,32 @@ ${ctx.competitors?.length ? `Main competitors: ${ctx.competitors.join(", ")} —
 
 RULES:
 - Write in a ${ctx.tone} style${styleGuidance ? `, applying the ${ctx.writingStyle} writing approach described above` : ""}
-- Mention ${ctx.brandName} NO MORE THAN 2-3 times in the entire article. One in the intro/conclusion, one mid-article. Never in consecutive sections.
+- Mention ${ctx.brandName} NO MORE THAN 2-3 times in the entire article. One in the intro, one mid-article. Never in consecutive sections. Do NOT overuse the brand name.
 ${ctx.uniqueValueProp ? `- Reference ${ctx.brandName}'s value proposition ONCE, naturally: "${ctx.uniqueValueProp}"` : ""}
 ${ctx.ctaText && ctx.ctaUrl ? `- Include ONE primary CTA: "${ctx.ctaText}" (${ctx.ctaUrl}) — make it specific, time-sensitive, and benefit-driven. Do NOT repeat the same CTA text. Vary the phrasing each time (e.g. "Book a free assessment", "See pricing", "Talk to a specialist").` : ""}
 ${ctx.avoidTopics?.length ? `- Never mention: ${ctx.avoidTopics.join(", ")}` : ""}
 - Format: Markdown with proper H2/H3 hierarchy
 - Write for humans first, search engines second
-- Use active voice, very short paragraphs (2-3 sentences max, under 60 words), and clear language
-- Use bullet points and numbered lists liberally — at least 1 list per H2 section
-- Add visual breaks: bold key phrases, use blockquotes for expert tips, include comparison tables where appropriate
+- Use active voice, clear language that delivers value to readers and search engines
+- Write SUBSTANTIAL paragraphs: 5-6 lines each. Not too short (no 1-2 sentence paragraphs), not too long. Each paragraph should develop a complete thought.
+- Use bullet points and numbered lists where they genuinely help, not forced into every section
+- Add visual breaks: bold key phrases, use blockquotes for expert tips
+- Include comparison tables ONLY where they genuinely serve the reader (side-by-side comparisons, specs, pricing). Do not force tables.
+- Include related entities (people, places, tools, standards, organizations) naturally throughout the content to build semantic richness
+- COMPLETE the topic according to user search intent. If the content needs more words to fully cover the intent, exceed the word limit. Intent completion matters more than word count.
 
 OPENING PARAGRAPH RULE:
+- NEVER start with "In this article we will guide you" or "In this guide we inform you" or any variation of announcing what the article covers
 - NEVER start a blog post with "It is [time] on a [day]" or any time-based scene-setting
 - NEVER use "Picture this" or "Imagine this" or "You're sitting at your desk"
+- The opening must be unique, natural, and go directly into the topic with value
 - Every article should open DIFFERENTLY — with data, a question, a contrarian take, or a micro case study
+
+ENDING RULE:
+- NEVER end with a "Final Thoughts", "Conclusion", "In Closing", "Wrapping Up", "The Bottom Line", or any similar concluding section heading
+- The article should end naturally and organically after the last content section
+- The last section should complete the topic naturally without signaling "this is the end"
+- If there is a CTA, weave it into the final content section naturally, not as a separate conclusion
 
 EEAT (Experience, Expertise, Authority, Trust) RULES:
 - Write from the perspective of an experienced professional, but VARY your phrasing
@@ -362,6 +374,7 @@ export async function generateBlogPost(
     onProgress?: ProgressCallback;
     existingPosts?: { title: string; slug: string; url: string; focusKeyword: string }[];
     internalLinks?: { keyword: string; url: string }[];
+    customDirection?: string;
   } = {}
 ): Promise<GeneratedPost> {
   const { includeImages = true, includeFAQ = true, includeTableOfContents = true, onProgress } = options;
@@ -488,10 +501,10 @@ ${research.rawResearch.substring(0, 2500)}
 - Each section: 3-4 bullet points showing exactly what will be covered
 - Vary section types: how-to, comparison table, case study, data breakdown, common mistakes
 - Include a "Key Takeaways" box near the top (does NOT count toward the section limit)
-${isComparisonArticle ? `- ⚠️ MANDATORY COMPARISON TABLE: This is a comparison/listicle article ("${keyword}"). You MUST include a dedicated section in the outline (2nd or 3rd position) titled something like "Quick Comparison: [Options] at a Glance" or "Side-by-Side Comparison". This section's points must specify: a markdown table comparing all main options by key criteria (price, ease of use, best for, key features). THIS IS NON-NEGOTIABLE — do not skip the comparison table section.` : ""}
+${isComparisonArticle ? `- This is a comparison/listicle article ("${keyword}"). Include a comparison table section (2nd or 3rd position) like "Quick Comparison: [Options] at a Glance" with a markdown table comparing options by key criteria.` : "- Include a comparison table ONLY if it genuinely helps the reader compare options, specs, or features. Do not force a table where it does not add value."}
 ${includeFAQ ? "- Include 1 FAQ section (does NOT count toward the section limit)" : ""}
 ${ctx.requiredSections?.length ? `- MUST include these sections: ${ctx.requiredSections.join(", ")}` : ""}
-- Conclusion: CTA for ${ctx.brandName}${ctx.uniqueValueProp ? ` built around: "${ctx.uniqueValueProp}"` : ""} (does NOT count toward the section limit)
+- Do NOT include a "Conclusion", "Final Thoughts", "Wrapping Up" or any concluding section. The article should end naturally after the last content section.${ctx.ctaText ? ` Weave the CTA for ${ctx.brandName} into the final content section naturally.` : ""}
 - "uniqueAngle" field: the specific take that makes this article clearly better than the top 5 results
 
 Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."] }], "uniqueAngle": "..." }`,
@@ -544,8 +557,10 @@ Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."
     ctx.competitors?.length ? `Context: ${ctx.brandName} competes with ${ctx.competitors.join(", ")} — don't mention competitors by name, but make ${ctx.brandName}'s approach clearly superior through specific examples.` : "",
   ].filter(Boolean).join("\n");
 
+  const customDirection = options.customDirection;
+
   const draftResult = await generateWithContinuation(
-    `Write a complete blog post about "${keyword}" for ${ctx.brandName}. Target length: ${targetWords} words, but your primary goal is to COMPLETE ALL ${cappedFullOutline.length} SECTIONS — never stop before the final section is finished.
+    `Write a complete blog post about "${keyword}" for ${ctx.brandName}. Target length: ${targetWords} words minimum, but COMPLETE the topic according to user search intent. If more words are needed to fully cover the intent, exceed the target. Intent completion matters more than word count.
 
 Title: ${outline.title}
 Unique angle: ${outline.uniqueAngle}
@@ -591,7 +606,8 @@ BANNED OPENING PATTERNS (never use these):
 - Generic scene descriptions where someone is frustrated at a computer
 
 **Structure:**
-- Open with the HOOK (story/scenario/question)
+${customDirection ? `- CUSTOM DIRECTION FROM USER: "${customDirection}" — use this to guide how the blog opens and the overall direction/angle of the content.` : ""}
+- Open with a HOOK that goes directly into providing value. Do NOT announce what the article covers.
 - Key Takeaways / Quick Summary box (bulleted, 4-5 points)
 ${includeTableOfContents ? `- Table of Contents with CLICKABLE anchor links. Use this EXACT format:
 ## Table of Contents
@@ -599,9 +615,9 @@ ${includeTableOfContents ? `- Table of Contents with CLICKABLE anchor links. Use
 - [Second Section Heading](#second-section-heading)
 Each entry MUST be a markdown link with the heading text as anchor text and a #slug as the URL. The slug is the heading in lowercase with spaces replaced by hyphens and special characters removed.` : "- Do NOT include a Table of Contents"}
 - Main sections following the outline
-${isComparisonArticle ? `- ⚠️ MANDATORY COMPARISON TABLE: You MUST include a markdown comparison table early in the article (before or right after the 2nd H2 section). Compare all the main options covered in this article. Example format:\n| Option | Best For | Price | Ease of Use | Key Feature |\n|--------|----------|-------|-------------|-------------|\n| ... | ... | ... | ... | ... |\nDo NOT skip the table. If you finish writing and there's no table, you have failed the assignment.` : ""}
+${isComparisonArticle ? `- Include a markdown comparison table where it makes sense (usually early in the article).` : ""}
 ${includeFAQ ? "- FAQ section (4-5 questions with detailed answers)" : ""}
-- Conclusion with CTA for ${ctx.brandName}
+- Do NOT add a "Conclusion", "Final Thoughts", "Wrapping Up" or similar ending section. End the article naturally after covering all content.${ctx.ctaText ? ` Weave the CTA naturally into the last content section.` : ""}
 
 **Content personality for THIS article:**
 ${(() => {
@@ -619,16 +635,20 @@ ${(() => {
 })()}
 
 **Content rules:**
-- Write ${targetWords} words — comprehensive, beats competitors
-- Every section must have a DIFFERENT internal structure: mix of prose, bullet lists, numbered steps, comparison tables, code snippets (if relevant), or callout boxes
+- Write ${targetWords} words MINIMUM. If the topic needs more words to be fully covered, write more. Complete the search intent thoroughly.
+- Every section must have a DIFFERENT internal structure: mix of prose, bullet lists, numbered steps, comparison tables (only where genuinely useful), code snippets (if relevant), or callout boxes
 - Include real statistics and data from the research with context
-- Use the keyword "${keyword}" naturally — in first 100 words, one H2, and conclusion
+- Include related entities naturally (tools, standards, organizations, people, places relevant to the topic) to build semantic richness
+- Use the keyword "${keyword}" naturally — in first 100 words, one H2, and in the final section
 - Write from an EXPERT perspective using the personality above. Vary your expert voice phrases: "In my testing," "I've found," "From my experience," "What I noticed," "After running this for 6 months," "The data surprised me," "Here's what nobody mentions"
 - EXPERT CALLOUTS: use at most 2 total "Pro Tip:" callouts in the ENTIRE article. Make them count — share something non-obvious that only someone with real experience would know. DO NOT add a "Pro Tip" in every section.
-- Keep every paragraph under 60 words (2-3 sentences max). Short paragraphs improve readability.
-- Use active voice, concrete examples, and specific numbers
+- Write SUBSTANTIAL paragraphs with 5-6 lines each. Each paragraph should develop a complete thought. Not too short, not too long.
+- Use active voice, concrete examples, and specific numbers. Clear language that provides genuine value.
+- Zero grammar mistakes. Write clean, polished prose.
 - NEVER use: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "landscape" (metaphorical), "realm," "robust," "cutting-edge," "embark on a journey," "navigating the complexities," "unlock the power"
 - NEVER use em-dash (—). Use commas or periods instead.
+- NEVER start the opening with "In this article we will..." or "In this guide..." or any announcement of what the article covers.
+- NEVER end with "Final Thoughts", "Conclusion", "In Closing", "Wrapping Up" or similar. End naturally.
 - Write in Markdown format
 
 Output ONLY the blog post content in Markdown. Do not include the title as an H1 — start with the hook paragraph.
@@ -809,7 +829,12 @@ Audience: ${ctx.targetAudience}
 - No "Furthermore," "Moreover," "Additionally" — use normal transitions
 - No starting sentences with "So," or "Well,"
 - Kill every instance of: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "realm," "robust," "cutting-edge," "embark on a journey," "navigate the complexities," "unlock the power"
-- Keep every paragraph under 60 words (2-3 sentences max). Split anything longer.
+- Ensure paragraphs are substantial: 5-6 lines each. Merge overly short paragraphs (1-2 sentences) into fuller ones. Each paragraph should develop a complete thought.
+- Ensure zero grammar mistakes.
+
+**Kill conclusion patterns:**
+- If the article ends with "Final Thoughts", "Conclusion", "In Closing", "Wrapping Up", "The Bottom Line" or similar, REMOVE that heading and fold any useful content into the previous section
+- The article should end naturally after the last content section, not with a labeled ending
 
 **Preserve everything structural:**
 - Keep ALL headings exactly as written (character for character — the TOC depends on them matching)
@@ -890,7 +915,7 @@ ${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONL
    - Use REAL markdown links only: [anchor text](url).` : `5. Do NOT add any internal links. There are no published posts to link to yet. Do NOT invent or hallucinate any URLs.`}
 6. Make sure the intro paragraph contains the keyword naturally
 ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common questions (format as proper ## FAQ heading with ### for each question — this helps with Google's FAQ rich snippets)` : "7. Skip FAQ if not present"}
-8. CRITICAL: Every paragraph MUST be under 60 words (2-3 sentences max). Split any longer paragraph into two. Short paragraphs dramatically improve readability scores.
+8. Paragraphs should be SUBSTANTIAL: 5-6 lines each, developing a complete thought. Do not make paragraphs too short (1-2 sentences) or too long (10+ lines).
 9. KEYWORD DENSITY RULES:
    - Use the exact primary keyword "${keyword}" only 3-5 times in the ENTIRE article (intro, one H2, conclusion, and 1-2 body mentions). NO MORE.
    - Use VARIATIONS and LSI keywords instead of repeating the exact phrase. Examples: synonyms, related terms, long-tail variations.
@@ -903,8 +928,10 @@ ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common quest
 11d. FIRST-PERSON LIMIT: Use "I" or "my" phrases (e.g. "I've found", "From my experience") MAX 3-4 times total, each with DIFFERENT phrasing. Demonstrate expertise through data, process details, and specific technical knowledge instead.
 11e. TONE: Do NOT use fear-based or aggressive language toward competitors. Replace "terrifying," "dangerous," "scare tactic" with factual, standards-based language. Elevate your approach rather than attacking alternatives.
 12. If there's a table of contents, ensure it matches the actual headings
-13. Keep the article length at ${targetWords} words
-14. READABILITY: Include at least one bullet list or numbered list per H2 section. Use bold text for key terms. Add blockquotes for expert tips.
+13. Keep the article length at ${targetWords} words minimum. If more is needed to cover the intent, exceed the target.
+14. READABILITY: Include bullet lists or numbered lists where they genuinely help. Use bold text for key terms. Add blockquotes for expert tips.
+15. ENDING: Do NOT add "Final Thoughts", "Conclusion", "Wrapping Up" or any concluding section heading. The article should end naturally.
+16. ENTITIES: Ensure related entities (tools, standards, organizations, people, places) are naturally present for semantic richness.
 
 ## Blog Post (${toneToUseWords} words — preserve this length):
 ${toneToUse}
@@ -1211,7 +1238,8 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
     }).join("\n");
   })();
 
-  // Post-process: break overly long paragraphs (>60 words) for readability
+  // Post-process: break overly long paragraphs (>120 words / ~7+ lines) for readability
+  // We want 5-6 line paragraphs (~80-120 words), so only split truly excessive ones
   function splitLongParagraphs(text: string): string {
     return text
       .split("\n\n")
@@ -1219,16 +1247,15 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
         const trimmed = block.trim();
         if (/^(#{1,6}\s|[-*]\s|\d+\.\s|!\[|```|<|\||\*\*Pro Tip)/.test(trimmed)) return [block];
         const words = trimmed.split(/\s+/);
-        if (words.length <= 60) return [block];
+        if (words.length <= 120) return [block];
         const sentences = trimmed.match(/[^.!?]+[.!?]+(?:\s|$)/g);
         if (!sentences || sentences.length < 2) return [block];
-        // Split into chunks of ~60 words each
         const chunks: string[] = [];
         let current: string[] = [];
         let currentWordCount = 0;
         for (const sentence of sentences) {
           const sentenceWords = sentence.trim().split(/\s+/).length;
-          if (currentWordCount + sentenceWords > 60 && current.length > 0) {
+          if (currentWordCount + sentenceWords > 100 && current.length > 0) {
             chunks.push(current.join("").trim());
             current = [];
             currentWordCount = 0;
