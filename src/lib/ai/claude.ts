@@ -16,7 +16,7 @@ function getClient(): Anthropic {
   return _client;
 }
 
-const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-20250514";
+const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6";
 
 export async function claudeGenerateTextWithMeta(
   prompt: string,

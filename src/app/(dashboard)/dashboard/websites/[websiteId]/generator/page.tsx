@@ -763,7 +763,7 @@ export default function GeneratorPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="gemini-3.1-pro-preview">StackSerp v1.0</SelectItem>
-                    <SelectItem value="claude-sonnet-4-20250514">StackSerp v2.0</SelectItem>
+                    <SelectItem value="claude-sonnet-4-6">StackSerp v2.0</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
