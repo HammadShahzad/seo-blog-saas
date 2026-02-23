@@ -226,7 +226,7 @@ function deduplicateContent(text: string): string {
   if (lines.length < 10) return text;
 
   // Strategy 1: detect the first H2 heading that appears a second time
-  const seenH2s = new Map<string, number>(); // normalised heading -> line index
+  const seenH2s = new Map<string, number>();
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(/^## (.+)$/);
     if (!m) continue;
@@ -238,7 +238,42 @@ function deduplicateContent(text: string): string {
     seenH2s.set(heading, i);
   }
 
-  // Strategy 2: orphaned heading stub ("## " or "## \n") at very end — strip it
+  // Strategy 2: detect full-content repetition (opening paragraph repeated later)
+  // Grab the first substantial paragraph (>80 chars, not a heading/list/image)
+  const paragraphs = text.split(/\n\n+/);
+  let firstParagraph = "";
+  for (const p of paragraphs) {
+    const t = p.trim();
+    if (t.length > 80 && !/^(#{1,6}\s|[-*]\s|\d+\.\s|!\[|```|<|\|)/.test(t)) {
+      firstParagraph = t.slice(0, 200).toLowerCase().replace(/\s+/g, " ");
+      break;
+    }
+  }
+  if (firstParagraph) {
+    const normalized = text.replace(/\s+/g, " ").toLowerCase();
+    const firstIdx = normalized.indexOf(firstParagraph);
+    if (firstIdx >= 0) {
+      const secondIdx = normalized.indexOf(firstParagraph, firstIdx + firstParagraph.length);
+      if (secondIdx > 0) {
+        const charPos = secondIdx;
+        let cumLen = 0;
+        const blocks = text.split(/\n\n+/);
+        const keepBlocks: string[] = [];
+        for (const block of blocks) {
+          const blockNorm = block.replace(/\s+/g, " ").toLowerCase();
+          if (cumLen >= charPos - 50) break;
+          keepBlocks.push(block);
+          cumLen += blockNorm.length + 2;
+        }
+        if (keepBlocks.length > 0 && keepBlocks.length < blocks.length) {
+          console.log(`[content-gen] Full-content repetition detected at ~char ${secondIdx} — truncating`);
+          return keepBlocks.join("\n\n").trimEnd();
+        }
+      }
+    }
+  }
+
+  // Strategy 3: orphaned heading stub ("## " or "## \n") at very end — strip it
   const trimmed = text.trimEnd();
   const stubMatch = trimmed.match(/([\s\S]*?)\n##\s*$/);
   if (stubMatch) {
@@ -907,7 +942,8 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
 ${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONLY use URLs from this exact list — do NOT invent or create any URLs that are not listed here.${internalLinkBlock}
    RULES FOR INTERNAL LINKS:
    - ONLY use URLs from the list above. If a URL is not in the list, do NOT use it.
-   - Do NOT hallucinate, guess, or create any URLs. Every link must match an entry above EXACTLY.
+   - Do NOT hallucinate, guess, or create any URLs. Every link must match an entry above EXACTLY, character for character.
+   - NEVER write partial URLs like "com/path/" — always use the FULL URL starting with https://.
    - Use AS MANY links from the list as possible — aim for at least ${Math.min(consolidatedLinks.length, 15)} internal links total. More internal links = better SEO.
    - Each URL may appear up to 2 times if needed (with different anchor text in different contexts).
    - Spread links throughout ALL sections — every H2 section should contain at least 1-2 internal links where relevant.
@@ -937,7 +973,8 @@ ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common quest
 ${toneToUse}
 
 Output ONLY the optimized blog post in Markdown format.
-CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early. The output MUST be at least ${toneToUseWords} words.`,
+CRITICAL: Output the COMPLETE article — every section, every table, every paragraph. Do NOT stop early. The output MUST be at least ${toneToUseWords} words.
+CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the end, STOP. Do NOT start over from the beginning.`,
     systemPrompt,
     { temperature: 0.4, maxTokens: seoRewriteTokens },
     "seo-optimize",
@@ -1073,6 +1110,32 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
     finalContent = lines.join("\n");
     console.log(`[content-gen] Post-hoc linking injected ${usedUrls.size} internal links`);
   }
+
+  // Post-process: fix broken multi-line links (URL split across lines by AI)
+  // e.g. "[anchor](https://example.\ncom/path/)" → "[anchor](https://example.com/path/)"
+  finalContent = finalContent.replace(
+    /\[([^\]]+)\]\(([^)\s]*)\n\s*([^)\s]*\))/g,
+    (_, anchor: string, urlStart: string, urlEnd: string) => `[${anchor}](${urlStart}${urlEnd})`
+  );
+
+  // Post-process: clean up orphaned URL fragments left by broken links
+  // e.g. lines like "com/case-studies/) that document..." where the [anchor](domain part was on previous line
+  finalContent = finalContent.replace(
+    /(?:^|\n)\s*com\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\)\s*/gim,
+    "\n"
+  );
+
+  // Also clean inline orphaned fragments: "some text. com/path/) more text"
+  finalContent = finalContent.replace(
+    /\.\s+com\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\)/gi,
+    "."
+  );
+
+  // Clean orphaned "txt " fragments (from split "robots.txt" etc.)
+  finalContent = finalContent.replace(
+    /(?:^|\n)\s*txt\s+(?=based|blocking|file)/gim,
+    "\nrobots.txt "
+  );
 
   // Post-process: strip hallucinated links (URLs not in the provided list)
   const allowedUrls = new Set<string>();
@@ -1238,16 +1301,15 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
     }).join("\n");
   })();
 
-  // Post-process: break overly long paragraphs (>120 words / ~7+ lines) for readability
-  // We want 5-6 line paragraphs (~80-120 words), so only split truly excessive ones
+  // Post-process: break overly long paragraphs (>80 words / ~5-6 lines) for readability
   function splitLongParagraphs(text: string): string {
     return text
       .split("\n\n")
       .flatMap((block) => {
         const trimmed = block.trim();
-        if (/^(#{1,6}\s|[-*]\s|\d+\.\s|!\[|```|<|\||\*\*Pro Tip)/.test(trimmed)) return [block];
+        if (/^(#{1,6}\s|[-*]\s|\d+\.\s|!\[|```|<|\||\*\*Pro Tip|>)/.test(trimmed)) return [block];
         const words = trimmed.split(/\s+/);
-        if (words.length <= 120) return [block];
+        if (words.length <= 80) return [block];
         const sentences = trimmed.match(/[^.!?]+[.!?]+(?:\s|$)/g);
         if (!sentences || sentences.length < 2) return [block];
         const chunks: string[] = [];
@@ -1255,7 +1317,7 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
         let currentWordCount = 0;
         for (const sentence of sentences) {
           const sentenceWords = sentence.trim().split(/\s+/).length;
-          if (currentWordCount + sentenceWords > 100 && current.length > 0) {
+          if (currentWordCount + sentenceWords > 70 && current.length > 0) {
             chunks.push(current.join("").trim());
             current = [];
             currentWordCount = 0;
