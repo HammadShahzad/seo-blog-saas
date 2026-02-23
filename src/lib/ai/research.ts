@@ -47,7 +47,9 @@ export async function researchKeyword(
     websiteContext.tone ? `Brand tone: ${websiteContext.tone}` : "",
   ].filter(Boolean).join("\n");
 
-  const prompt = `Research this topic for an SEO blog post that will OUTRANK the current top results: "${keyword}".
+  const currentYear = new Date().getFullYear();
+
+  const prompt = `Research this topic for an SEO blog post that will OUTRANK the current top results: "${keyword}". The current year is ${currentYear}.
 
 ${brandContext}
 
@@ -63,7 +65,7 @@ For each one:
 Based on your analysis of the top-ranking content, list:
 - 5-8 specific subtopics or questions that NONE of the top articles cover well
 - 3-5 specific questions people ask (Reddit, Quora, Google PAA) that current articles ignore
-- Any outdated information in existing articles that we can update with 2025-2026 data
+- Any outdated information in existing articles that we can update with ${currentYear} data
 
 ## PART 3 — WINNING ANGLE
 What single, specific angle would make our article clearly better than everything that ranks now?
@@ -72,7 +74,7 @@ Look for: contrarian takes, more specific use cases, more recent data, underserv
 ## PART 4 — FACTUAL AMMUNITION
 - 5-8 statistics with sources (numbers, percentages, study citations)
 - 3-5 real-world examples, case studies, or named tools/companies to cite
-- Any expert quotes or studies from 2024-2026${websiteContext.competitors?.length ? `\n\n## PART 5 — NAMED COMPETITOR BLOGS\nSpecifically check how ${websiteContext.competitors.join(", ")} cover "${keyword}" on their own blogs.\nWhat do they write about it? What do they deliberately avoid? What angle can we take that beats them?` : ""}`;
+- Any expert quotes or studies from ${currentYear - 1}-${currentYear}${websiteContext.competitors?.length ? `\n\n## PART 5 — NAMED COMPETITOR BLOGS\nSpecifically check how ${websiteContext.competitors.join(", ")} cover "${keyword}" on their own blogs.\nWhat do they write about it? What do they deliberately avoid? What angle can we take that beats them?` : ""}`;
 
   try {
     const response = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -86,7 +88,7 @@ Look for: contrarian takes, more specific use cases, more recent data, underserv
         messages: [
           {
             role: "system",
-            content: "You are an SEO content researcher and competitor analyst. Provide comprehensive research with sources, statistics, competitor insights, and content gap analysis. Focus on actionable data that helps create content that outranks existing articles.",
+            content: `You are an SEO content researcher and competitor analyst. The current year is ${currentYear}. Provide comprehensive research with sources, statistics, competitor insights, and content gap analysis. Prioritize ${currentYear} data and sources. Focus on actionable data that helps create content that outranks existing articles.`,
           },
           { role: "user", content: prompt },
         ],

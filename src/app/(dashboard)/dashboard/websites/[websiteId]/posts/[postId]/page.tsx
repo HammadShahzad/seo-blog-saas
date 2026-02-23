@@ -2,92 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Separator } from "@/components/ui/separator";
-import {
-  ArrowLeft,
-  Save,
-  Send,
   Loader2,
   FileText,
   BarChart3,
   Tags,
-  Plug,
-  CheckCircle2,
-  ExternalLink,
-  RefreshCw,
-  Sparkles,
-  Wand2,
-  ChevronDown,
-  ChevronUp,
-  ClipboardPaste,
-  CalendarClock,
-  X,
-  Globe,
-  Download,
 } from "lucide-react";
-// Lucide's Image component conflicts with Next.js <img>; alias to avoid naming clash
 import { Image as ImageIcon } from "lucide-react";
-import Link from "next/link";
 import { toast } from "sonner";
 import { MarkdownEditor } from "@/components/editor/markdown-editor";
-import { SEOScore } from "@/components/editor/seo-score";
-
-interface Post {
-  id: string;
-  title: string;
-  slug: string;
-  content: string;
-  excerpt: string;
-  metaTitle: string;
-  metaDescription: string;
-  focusKeyword: string;
-  secondaryKeywords: string[];
-  featuredImage: string | null;
-  featuredImageAlt: string | null;
-  tags: string[];
-  category: string | null;
-  status: string;
-  scheduledAt: string | null;
-  wordCount: number | null;
-  readingTime: number | null;
-  socialCaptions: { twitter?: string; linkedin?: string } | null;
-  externalUrl: string | null;
-}
-
-const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secondary" | "outline"; className?: string }> = {
-  DRAFT:     { label: "Draft",     variant: "secondary" },
-  REVIEW:    { label: "Review",    variant: "outline" },
-  SCHEDULED: { label: "Scheduled", variant: "outline", className: "border-blue-400 text-blue-700 bg-blue-50" },
-  PUBLISHED: { label: "Published", variant: "default" },
-  ARCHIVED:  { label: "Archived",  variant: "secondary" },
-};
+import { type Post, STATUS_CONFIG } from "@/components/post-editor/types";
+import { EditorHeader } from "@/components/post-editor/editor-header";
+import { AIWritingAssistant } from "@/components/post-editor/ai-writing-assistant";
+import { SEOMetaTabs } from "@/components/post-editor/seo-meta-tabs";
+import { ImageSocialTabs } from "@/components/post-editor/image-social-tabs";
 
 export default function PostEditorPage() {
   const params = useParams();
@@ -104,26 +34,10 @@ export default function PostEditorPage() {
   const [isLoading, setIsLoading] = useState(!isNew);
   const [isSaving, setIsSaving] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
-  const [isPushingToCMS, setIsPushingToCMS] = useState(false);
-  const [cmsResult, setCmsResult] = useState<{
-    type: "wp" | "shopify" | null;
-    viewUrl?: string;
-    editUrl?: string;
-  } | null>(null);
   const [isRegeneratingImage, setIsRegeneratingImage] = useState(false);
   const [isFixingSEO, setIsFixingSEO] = useState(false);
-  const [showScheduler, setShowScheduler] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [isScheduling, setIsScheduling] = useState(false);
-  const [showAIPanel, setShowAIPanel] = useState(false);
-  const [aiText, setAiText] = useState("");
-  const [aiAction, setAiAction] = useState<"rewrite" | "expand" | "shorten" | "improve" | "custom">("improve");
-  const [aiCustomPrompt, setAiCustomPrompt] = useState("");
-  const [aiResult, setAiResult] = useState("");
-  const [isRewriting, setIsRewriting] = useState(false);
   const [imagePromptInput, setImagePromptInput] = useState("");
   const [imageCacheBust, setImageCacheBust] = useState<number>(Date.now());
-  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
   const [regeneratingInlineIdx, setRegeneratingInlineIdx] = useState<number | null>(null);
   const [inlinePrompts, setInlinePrompts] = useState<Record<number, string>>({});
   const [tagInput, setTagInput] = useState("");
@@ -190,7 +104,6 @@ export default function PostEditorPage() {
     return null;
   })();
 
-  // ─── Single core save function — all saves go through here ───────────────
   const savePost = async (statusOverride?: string): Promise<{ ok: boolean; saved?: Post }> => {
     if (!post.title?.trim() || !post.content?.trim()) {
       toast.error("Title and content are required");
@@ -216,7 +129,6 @@ export default function PostEditorPage() {
     return { ok: true, saved: await res.json() };
   };
 
-  // Run SEO auto-fix in background after any save (non-blocking)
   const runSEOFix = (savedPostId: string) => {
     setIsFixingSEO(true);
     const contentAtSave = post.content;
@@ -273,116 +185,6 @@ export default function PostEditorPage() {
       }
     } finally {
       setIsPublishing(false);
-    }
-  };
-
-  const handleSchedule = async () => {
-    if (!scheduleDate) { toast.error("Please pick a date and time"); return; }
-    const scheduledAt = new Date(scheduleDate);
-    if (scheduledAt <= new Date()) { toast.error("Scheduled time must be in the future"); return; }
-    if (!post.title?.trim() || !post.content?.trim()) {
-      toast.error("Title and content are required");
-      return;
-    }
-    setIsScheduling(true);
-    try {
-      const res = await fetch(`/api/websites/${websiteId}/posts/${postId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...post, wordCount, readingTime,
-          status: "SCHEDULED",
-          scheduledAt: scheduledAt.toISOString(),
-        }),
-      });
-      if (!res.ok) throw new Error("Failed to schedule");
-      const saved = await res.json();
-      setPost((p) => ({ ...p, status: saved.status, scheduledAt: saved.scheduledAt }));
-      setShowScheduler(false);
-      toast.success(`Scheduled for ${scheduledAt.toLocaleString()}`);
-    } catch {
-      toast.error("Failed to schedule post");
-    } finally {
-      setIsScheduling(false);
-    }
-  };
-
-  const handleUnschedule = async () => {
-    try {
-      const res = await fetch(`/api/websites/${websiteId}/posts/${postId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "DRAFT", scheduledAt: null }),
-      });
-      if (res.ok) {
-        setPost((p) => ({ ...p, status: "DRAFT", scheduledAt: null }));
-        setShowScheduler(false);
-        toast.success("Schedule removed — post is now a Draft");
-      }
-    } catch { toast.error("Failed to unschedule"); }
-  };
-
-  const handlePushToWordPress = async (status: "draft" | "publish") => {
-    if (isNew) { toast.error("Save the post first"); return; }
-    setIsPushingToCMS(true);
-    setCmsResult(null);
-    try {
-      const res = await fetch(`/api/websites/${websiteId}/wordpress/push`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, status }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCmsResult({ type: "wp", viewUrl: data.wpPostUrl, editUrl: data.wpEditUrl });
-        if (data.wpPostUrl) setPost((p) => ({ ...p, externalUrl: data.wpPostUrl }));
-        toast.success(`Pushed to WordPress as ${status}!`);
-      } else {
-        toast.error(data.error || "Failed to push to WordPress");
-      }
-    } catch { toast.error("Failed to push to WordPress"); }
-    finally { setIsPushingToCMS(false); }
-  };
-
-  const handlePushToShopify = async (status: "draft" | "published") => {
-    if (isNew) { toast.error("Save the post first"); return; }
-    setIsPushingToCMS(true);
-    setCmsResult(null);
-    try {
-      const res = await fetch(`/api/websites/${websiteId}/shopify/push`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ postId, status }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setCmsResult({ type: "shopify", viewUrl: data.articleUrl, editUrl: data.adminUrl });
-        if (data.articleUrl) setPost((p) => ({ ...p, externalUrl: data.articleUrl }));
-        toast.success(`Pushed to Shopify as ${status}!`);
-      } else {
-        toast.error(data.error || "Failed to push to Shopify");
-      }
-    } catch { toast.error("Failed to push to Shopify"); }
-    finally { setIsPushingToCMS(false); }
-  };
-
-  const handleAIRewrite = async () => {
-    if (!aiText.trim()) { toast.error("Paste the text you want to rewrite"); return; }
-    setIsRewriting(true);
-    setAiResult("");
-    try {
-      const res = await fetch(`/api/websites/${websiteId}/ai-rewrite`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: aiText, action: aiAction, customPrompt: aiCustomPrompt }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Rewrite failed");
-      setAiResult(data.result);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : "Rewrite failed");
-    } finally {
-      setIsRewriting(false);
     }
   };
 
@@ -467,100 +269,7 @@ export default function PostEditorPage() {
 
   const removeTag = (tag: string) => updateField("tags", (post.tags || []).filter((t) => t !== tag));
 
-  const prefillScheduleDate = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    tomorrow.setHours(9, 0, 0, 0);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    setScheduleDate(
-      `${tomorrow.getFullYear()}-${pad(tomorrow.getMonth() + 1)}-${pad(tomorrow.getDate())}T${pad(tomorrow.getHours())}:${pad(tomorrow.getMinutes())}`
-    );
-  };
-
-  const handleDownloadPDF = async () => {
-    if (!post.content?.trim()) { toast.error("No content to export"); return; }
-    setIsDownloadingPDF(true);
-    try {
-      const { Marked } = await import("marked");
-      const md = new Marked({ gfm: true, breaks: false });
-      const htmlContent = md.parse(post.content) as string;
-
-      const slug = post.slug || post.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60) || "blog-post";
-      const safeTitle = (post.title || "Untitled").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-      // Open a clean popup window (no page CSS inheritance) and use browser native print-to-PDF.
-      // This avoids html2canvas entirely and its inability to handle lab()/oklch() color functions.
-      const printWindow = window.open("", "_blank", "width=900,height=700");
-      if (!printWindow) { toast.error("Please allow popups to download PDF"); setIsDownloadingPDF(false); return; }
-
-      printWindow.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <title>${safeTitle}</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html { background: #fff; }
-    body { padding: 48px 56px; font-family: Georgia, 'Times New Roman', serif; color: #1a1a1a; line-height: 1.75; font-size: 14px; background: #fff; }
-    .pdf-header { margin-bottom: 32px; padding-bottom: 24px; border-bottom: 2px solid #e5e5e5; }
-    .pdf-header h1 { font-size: 26px; margin: 0 0 10px; line-height: 1.3; color: #111; }
-    .pdf-meta { font-size: 12px; color: #777; margin-top: 6px; }
-    h2 { font-size: 20px; margin: 28px 0 10px; color: #111; border-bottom: 1px solid #eee; padding-bottom: 6px; page-break-after: avoid; }
-    h3 { font-size: 17px; margin: 20px 0 8px; color: #222; page-break-after: avoid; }
-    h4 { font-size: 15px; margin: 16px 0 6px; color: #333; }
-    p { margin: 0 0 12px; orphans: 3; widows: 3; }
-    ul, ol { margin: 0 0 12px; padding-left: 24px; }
-    li { margin-bottom: 5px; }
-    table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; page-break-inside: avoid; }
-    th { background: #f5f5f5; font-weight: 600; text-align: left; padding: 8px 12px; border: 1px solid #ddd; }
-    td { padding: 8px 12px; border: 1px solid #ddd; vertical-align: top; }
-    tr:nth-child(even) td { background: #fafafa; }
-    blockquote { margin: 16px 0; padding: 12px 20px; border-left: 4px solid #ccc; color: #555; background: #f9f9f9; }
-    code { background: #f3f3f3; padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: 'Courier New', monospace; }
-    pre { background: #f3f3f3; padding: 12px 16px; border-radius: 4px; overflow: auto; font-size: 12px; margin: 0 0 12px; }
-    a { color: #1d4ed8; }
-    img { max-width: 100%; height: auto; margin: 12px 0; border-radius: 4px; }
-    hr { border: none; border-top: 1px solid #e5e5e5; margin: 24px 0; }
-    @media print {
-      html, body { background: #fff !important; }
-      body { padding: 0; max-width: 100%; }
-      @page { margin: 20mm 20mm 20mm 20mm; size: A4; background: #fff; }
-      h2, h3 { page-break-after: avoid; }
-      table, figure { page-break-inside: avoid; }
-    }
-  </style>
-</head>
-<body>
-  <div class="pdf-header">
-    <h1>${safeTitle}</h1>
-    <div class="pdf-meta">
-      ${post.focusKeyword ? `Focus keyword: <strong>${post.focusKeyword.replace(/</g, "&lt;")}</strong>` : ""}
-      ${post.focusKeyword && post.wordCount ? " &nbsp;&middot;&nbsp; " : ""}
-      ${post.wordCount ? `${post.wordCount.toLocaleString()} words &middot; ${post.readingTime || Math.ceil(post.wordCount / 200)} min read` : ""}
-    </div>
-  </div>
-  ${htmlContent}
-  <script>
-    window.onload = function() {
-      document.title = ${JSON.stringify(slug)};
-      setTimeout(function() { window.print(); }, 400);
-    };
-  <\/script>
-</body>
-</html>`);
-      printWindow.document.close();
-
-      toast.success("Print dialog opened — choose 'Save as PDF'");
-    } catch (err) {
-      console.error("PDF download error:", err);
-      toast.error("Failed to generate PDF");
-    } finally {
-      setIsDownloadingPDF(false);
-    }
-  };
-
   const hasCMSIntegration = integrations.wp || integrations.shopify;
-
   const statusCfg = STATUS_CONFIG[post.status || "DRAFT"];
 
   if (isLoading) {
@@ -573,255 +282,28 @@ export default function PostEditorPage() {
 
   return (
     <div className="space-y-4">
-      {/* ── No image banner ──────────────────────────────────────────────── */}
-      {!isNew && !post.featuredImage && (
-        <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm">
-          <div className="flex items-center gap-2">
-            <ImageIcon className="h-4 w-4 shrink-0" />
-            <span className="font-medium">No featured image.</span>
-            <span className="text-amber-700">Auto-generation failed or was skipped during post creation.</span>
-          </div>
-          <Button size="sm" variant="outline"
-            className="shrink-0 h-7 text-xs border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-800"
-            disabled={isRegeneratingImage}
-            onClick={() => handleRegenerateImage()}>
-            {isRegeneratingImage
-              ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-              : <Sparkles className="mr-1.5 h-3 w-3" />}
-            Generate Now
-          </Button>
-        </div>
-      )}
+      <EditorHeader
+        isNew={isNew}
+        websiteId={websiteId}
+        postId={postId}
+        post={post}
+        statusCfg={statusCfg}
+        wordCount={wordCount}
+        readingTime={readingTime}
+        liveUrl={liveUrl}
+        isSaving={isSaving}
+        isPublishing={isPublishing}
+        isRegeneratingImage={isRegeneratingImage}
+        isFixingSEO={isFixingSEO}
+        hasCMSIntegration={hasCMSIntegration}
+        integrations={integrations}
+        onSave={handleSave}
+        onPublish={handlePublish}
+        onRegenerateImage={() => handleRegenerateImage()}
+        onPostUpdate={(updates) => setPost((p) => ({ ...p, ...updates }))}
+      />
 
-      {/* ── Top Bar ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center justify-between gap-4 flex-wrap">
-        {/* Left: back + title + status */}
-        <div className="flex items-center gap-3 min-w-0">
-          <Button asChild variant="ghost" size="icon" className="shrink-0">
-            <Link href={`/dashboard/websites/${websiteId}/posts`}>
-              <ArrowLeft className="h-4 w-4" />
-            </Link>
-          </Button>
-          <div className="min-w-0">
-            <h2 className="text-xl font-bold truncate">{isNew ? "New Post" : (post.title || "Edit Post")}</h2>
-            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-              <Badge
-                variant={statusCfg.variant}
-                className={statusCfg.className}
-              >
-                {post.status === "SCHEDULED" && <CalendarClock className="mr-1 h-3 w-3" />}
-                {statusCfg.label}
-              </Badge>
-              {post.status === "SCHEDULED" && post.scheduledAt && (
-                <span className="text-xs text-blue-600 font-medium">
-                  {new Date(post.scheduledAt).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </span>
-              )}
-              <span className="text-xs text-muted-foreground">
-                {wordCount.toLocaleString()} words · {readingTime} min read
-              </span>
-              {isFixingSEO && (
-                <span className="text-xs text-green-600 flex items-center gap-1">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  Optimizing…
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Right: action buttons */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          {/* Save */}
-          <Button variant="outline" size="sm" onClick={() => handleSave()} disabled={isSaving || isPublishing}>
-            {isSaving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
-            Save
-          </Button>
-
-          {/* View Live — only when published & URL known */}
-          {liveUrl && (
-            <a href={liveUrl} target="_blank" rel="noopener noreferrer">
-              <Button variant="outline" size="sm" className="border-emerald-500 text-emerald-700 hover:bg-emerald-50">
-                <Globe className="mr-1.5 h-3.5 w-3.5" />
-                View Live
-              </Button>
-            </a>
-          )}
-
-          {/* ── Publish-state actions ── */}
-          {post.status === "SCHEDULED" ? (
-            <>
-              <Button size="sm" onClick={handlePublish} disabled={isPublishing || isSaving}
-                className="bg-green-600 hover:bg-green-700 text-white">
-                {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
-                Publish Now
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleUnschedule}
-                className="border-blue-400 text-blue-700 hover:bg-blue-50">
-                <X className="mr-1 h-3.5 w-3.5" />
-                Unschedule
-              </Button>
-            </>
-          ) : post.status === "PUBLISHED" ? (
-            <Button size="sm" variant="outline" onClick={() => handleSave("DRAFT")} disabled={isSaving}
-              className="border-yellow-500 text-yellow-700 hover:bg-yellow-50">
-              Unpublish
-            </Button>
-          ) : (
-            <>
-              {/* Mark Review — only for DRAFT (not REVIEW, not SCHEDULED) */}
-              {post.status === "DRAFT" && !isNew && (
-                <Button size="sm" variant="secondary" onClick={() => handleSave("REVIEW")} disabled={isSaving}>
-                  <Send className="mr-1.5 h-3.5 w-3.5" />
-                  Mark Review
-                </Button>
-              )}
-              {/* Schedule — only for saved posts */}
-              {!isNew && (
-                <Button size="sm" variant="outline" onClick={() => { prefillScheduleDate(); setShowScheduler((v) => !v); }}
-                  className="border-blue-400 text-blue-700 hover:bg-blue-50">
-                  <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
-                  Schedule
-                </Button>
-              )}
-              <Button size="sm" onClick={handlePublish} disabled={isPublishing || isSaving}
-                className="bg-green-600 hover:bg-green-700 text-white">
-                {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
-                Publish
-              </Button>
-            </>
-          )}
-
-          {/* ── Push to CMS dropdown — only if connected ── */}
-          {!isNew && hasCMSIntegration && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={isPushingToCMS}>
-                  {isPushingToCMS ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plug className="mr-1.5 h-3.5 w-3.5" />}
-                  Push to CMS
-                  <ChevronDown className="ml-1.5 h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                {integrations.wp && (
-                  <>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">WordPress</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => handlePushToWordPress("draft")} className="text-sm cursor-pointer">
-                      <Plug className="mr-2 h-3.5 w-3.5 text-[#21759b]" />
-                      Push as Draft
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handlePushToWordPress("publish")} className="text-sm cursor-pointer">
-                      <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-[#21759b]" />
-                      Publish to WordPress
-                    </DropdownMenuItem>
-                  </>
-                )}
-                {integrations.wp && integrations.shopify && <DropdownMenuSeparator />}
-                {integrations.shopify && (
-                  <>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">Shopify</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => handlePushToShopify("draft")} className="text-sm cursor-pointer">
-                      <Plug className="mr-2 h-3.5 w-3.5 text-[#5c8a1e]" />
-                      Push as Draft
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handlePushToShopify("published")} className="text-sm cursor-pointer">
-                      <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-[#5c8a1e]" />
-                      Publish to Shopify
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {/* ── Download PDF ── */}
-          {!isNew && (
-            <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={isDownloadingPDF || !post.content?.trim()}>
-              {isDownloadingPDF ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
-              PDF
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* ── Scheduler Panel ───────────────────────────────────────────────── */}
-      {showScheduler && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm flex-wrap">
-          <CalendarClock className="h-4 w-4 text-blue-600 shrink-0" />
-          <span className="font-medium text-blue-800 shrink-0">Schedule publish:</span>
-          <input
-            type="datetime-local"
-            value={scheduleDate}
-            min={new Date().toISOString().slice(0, 16)}
-            onChange={(e) => setScheduleDate(e.target.value)}
-            className="border rounded-md px-2 py-1 text-sm bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
-          <Button size="sm" onClick={handleSchedule} disabled={isScheduling || !scheduleDate}
-            className="bg-blue-600 hover:bg-blue-700 text-white shrink-0">
-            {isScheduling ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CalendarClock className="mr-1.5 h-3.5 w-3.5" />}
-            Confirm
-          </Button>
-          <button type="button" onClick={() => setShowScheduler(false)} className="ml-auto text-blue-400 hover:text-blue-700">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-
-      {/* ── Scheduled banner ─────────────────────────────────────────────── */}
-      {post.status === "SCHEDULED" && post.scheduledAt && !showScheduler && (
-        <div className="flex items-center gap-3 p-3 rounded-lg border border-blue-200 bg-blue-50 text-sm">
-          <CalendarClock className="h-4 w-4 text-blue-600 shrink-0" />
-          <span className="text-blue-800">
-            Scheduled to publish on{" "}
-            <strong>
-              {new Date(post.scheduledAt).toLocaleString(undefined, {
-                weekday: "long", year: "numeric", month: "long",
-                day: "numeric", hour: "2-digit", minute: "2-digit",
-              })}
-            </strong>
-          </span>
-          <button type="button" onClick={() => {
-            const d = new Date(post.scheduledAt!);
-            const pad = (n: number) => String(n).padStart(2, "0");
-            setScheduleDate(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
-            setShowScheduler(true);
-          }}
-            className="ml-auto text-xs text-blue-600 hover:underline font-medium whitespace-nowrap">
-            Change date
-          </button>
-        </div>
-      )}
-
-      {/* ── CMS push result banner ────────────────────────────────────────── */}
-      {cmsResult && (
-        <div className={`flex items-center justify-between p-3 rounded-lg text-sm ${cmsResult.type === "wp" ? "bg-[#21759b]/10 border border-[#21759b]/20" : "bg-[#96bf48]/10 border border-[#96bf48]/20"}`}>
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className={`h-4 w-4 ${cmsResult.type === "wp" ? "text-[#21759b]" : "text-[#5c8a1e]"}`} />
-            <span className={`font-medium ${cmsResult.type === "wp" ? "text-[#21759b]" : "text-[#5c8a1e]"}`}>
-              Pushed to {cmsResult.type === "wp" ? "WordPress" : "Shopify"} successfully
-            </span>
-          </div>
-          <div className="flex gap-3">
-            {cmsResult.viewUrl && (
-              <a href={cmsResult.viewUrl} target="_blank" rel="noopener noreferrer"
-                className={`text-xs hover:underline flex items-center gap-1 ${cmsResult.type === "wp" ? "text-[#21759b]" : "text-[#5c8a1e]"}`}>
-                View Post <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-            {cmsResult.editUrl && (
-              <a href={cmsResult.editUrl} target="_blank" rel="noopener noreferrer"
-                className={`text-xs hover:underline flex items-center gap-1 ${cmsResult.type === "wp" ? "text-[#21759b]" : "text-[#5c8a1e]"}`}>
-                Edit <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-            <button type="button" onClick={() => setCmsResult(null)} className="text-muted-foreground hover:text-foreground">
-              <X className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Main Grid ─────────────────────────────────────────────────────── */}
+      {/* Main Grid */}
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         {/* Left: Editor */}
         <div className="space-y-4">
@@ -850,84 +332,12 @@ export default function PostEditorPage() {
             height={600}
           />
 
-          {/* ── AI Writing Assistant — below editor so it doesn't interrupt flow ── */}
-          <div className="border rounded-lg overflow-hidden">
-            <button
-              type="button"
-              onClick={() => { setShowAIPanel((p) => !p); setAiResult(""); }}
-              className="w-full flex items-center justify-between px-4 py-2.5 bg-gradient-to-r from-violet-50 to-purple-50 hover:from-violet-100 hover:to-purple-100 text-sm font-medium text-purple-800 transition-colors"
-            >
-              <span className="flex items-center gap-2">
-                <Wand2 className="h-4 w-4 text-purple-600" />
-                AI Writing Assistant
-                <span className="text-xs font-normal text-purple-500">— rewrite, expand, shorten any section</span>
-              </span>
-              {showAIPanel ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
-            </button>
-            {showAIPanel && (
-              <div className="p-4 space-y-3 bg-white border-t">
-                <Textarea
-                  placeholder="Paste the section you want to transform…"
-                  value={aiText}
-                  onChange={(e) => setAiText(e.target.value)}
-                  rows={4}
-                  className="text-sm font-mono"
-                />
-                <div className="flex flex-wrap items-center gap-2">
-                  {(["improve", "rewrite", "expand", "shorten", "custom"] as const).map((a) => (
-                    <button key={a} type="button" onClick={() => setAiAction(a)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                        aiAction === a
-                          ? "bg-purple-600 text-white border-purple-600"
-                          : "bg-white text-purple-700 border-purple-300 hover:border-purple-600"
-                      }`}>
-                      {a.charAt(0).toUpperCase() + a.slice(1)}
-                    </button>
-                  ))}
-                  <Button size="sm" onClick={handleAIRewrite} disabled={isRewriting || !aiText.trim()}
-                    className="ml-auto bg-purple-600 hover:bg-purple-700 text-white">
-                    {isRewriting ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Wand2 className="mr-1.5 h-3.5 w-3.5" />}
-                    {isRewriting ? "Working…" : "Apply"}
-                  </Button>
-                </div>
-                {aiAction === "custom" && (
-                  <input type="text" placeholder="Describe what you want to do…"
-                    value={aiCustomPrompt} onChange={(e) => setAiCustomPrompt(e.target.value)}
-                    className="w-full text-sm border rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400"
-                  />
-                )}
-                {aiResult && (
-                  <div className="space-y-2">
-                    <div className="border rounded-md p-3 bg-gray-50 text-sm font-mono whitespace-pre-wrap max-h-56 overflow-y-auto">
-                      {aiResult}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="outline"
-                        className="text-xs border-purple-400 text-purple-700 hover:bg-purple-50"
-                        onClick={() => { navigator.clipboard.writeText(aiResult); toast.success("Copied!"); }}>
-                        <ClipboardPaste className="mr-1 h-3 w-3" />
-                        Copy
-                      </Button>
-                      <Button size="sm" className="text-xs bg-purple-600 hover:bg-purple-700 text-white"
-                        onClick={() => {
-                          if (aiText && post.content?.includes(aiText)) {
-                            updateField("content", post.content.replace(aiText, aiResult));
-                            toast.success("Section replaced");
-                          } else {
-                            updateField("content", (post.content || "") + "\n\n" + aiResult);
-                            toast.success("Appended to content");
-                          }
-                          setAiText(aiResult);
-                          setAiResult("");
-                        }}>
-                        Replace in Editor
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          {/* AI Writing Assistant */}
+          <AIWritingAssistant
+            websiteId={websiteId}
+            content={post.content || ""}
+            onUpdateContent={(v) => updateField("content", v)}
+          />
         </div>
 
         {/* Right Sidebar */}
@@ -948,307 +358,33 @@ export default function PostEditorPage() {
               </TabsTrigger>
             </TabsList>
 
-            {/* ── SEO Tab ── */}
-            <TabsContent value="seo" className="space-y-4 mt-4">
-              <Card>
-                <CardContent className="pt-4">
-                  <SEOScore
-                    title={post.title || ""} content={post.content || ""}
-                    metaTitle={post.metaTitle || ""} metaDescription={post.metaDescription || ""}
-                    focusKeyword={post.focusKeyword || ""} wordCount={wordCount}
-                    featuredImage={post.featuredImage} featuredImageAlt={post.featuredImageAlt}
-                    onAutoFix={!isNew ? handleAutoFixSEO : undefined}
-                    isFixing={isFixingSEO}
-                  />
-                </CardContent>
-              </Card>
+            <SEOMetaTabs
+              post={post}
+              updateField={updateField}
+              wordCount={wordCount}
+              isNew={isNew}
+              isFixingSEO={isFixingSEO}
+              onAutoFixSEO={!isNew ? handleAutoFixSEO : undefined}
+              tagInput={tagInput}
+              setTagInput={setTagInput}
+              onAddTag={addTag}
+              onRemoveTag={removeTag}
+            />
 
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Focus Keyword</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Input placeholder="e.g., invoicing software"
-                    value={post.focusKeyword || ""}
-                    onChange={(e) => updateField("focusKeyword", e.target.value)} />
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Publish Settings</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Status</Label>
-                    <Select
-                      value={post.status || "DRAFT"}
-                      onValueChange={(v) => updateField("status", v)}
-                    >
-                      <SelectTrigger className="h-8 text-sm">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="DRAFT">Draft</SelectItem>
-                        <SelectItem value="REVIEW">Review</SelectItem>
-                        <SelectItem value="PUBLISHED">Published</SelectItem>
-                        <SelectItem value="ARCHIVED">Archived</SelectItem>
-                        {/* SCHEDULED only appears if already scheduled (read-only context) */}
-                        {post.status === "SCHEDULED" && (
-                          <SelectItem value="SCHEDULED" disabled>
-                            Scheduled (use toolbar to change)
-                          </SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Category</Label>
-                    <Input placeholder="e.g., Invoicing Tips"
-                      value={post.category || ""}
-                      onChange={(e) => updateField("category", e.target.value)}
-                      className="h-8 text-sm" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Tags (press Enter)</Label>
-                    <Input placeholder="Add tag…" value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onKeyDown={addTag} className="h-8 text-sm" />
-                    {(post.tags || []).length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {post.tags?.map((tag) => (
-                          <Badge key={tag} variant="secondary"
-                            className="text-xs cursor-pointer hover:bg-destructive/10"
-                            onClick={() => removeTag(tag)}>
-                            {tag} ×
-                          </Badge>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* ── Meta Tab ── */}
-            <TabsContent value="meta" className="space-y-4 mt-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Meta Title</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea placeholder="SEO title (≤60 chars)" value={post.metaTitle || ""}
-                    onChange={(e) => updateField("metaTitle", e.target.value)}
-                    rows={2} className="text-sm resize-none" />
-                  <p className={`text-xs mt-1 ${(post.metaTitle || "").length > 60 ? "text-destructive" : "text-muted-foreground"}`}>
-                    {(post.metaTitle || "").length}/60
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Meta Description</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea placeholder="Meta description (≤155 chars)" value={post.metaDescription || ""}
-                    onChange={(e) => updateField("metaDescription", e.target.value)}
-                    rows={3} className="text-sm resize-none" />
-                  <p className={`text-xs mt-1 ${(post.metaDescription || "").length > 155 ? "text-destructive" : "text-muted-foreground"}`}>
-                    {(post.metaDescription || "").length}/155
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Excerpt</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea placeholder="Short post summary…" value={post.excerpt || ""}
-                    onChange={(e) => updateField("excerpt", e.target.value)}
-                    rows={3} className="text-sm resize-none" />
-                </CardContent>
-              </Card>
-            </TabsContent>
-
-            {/* ── Image Tab ── */}
-            <TabsContent value="image" className="space-y-4 mt-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm flex items-center gap-2">
-                    <ImageIcon className="h-4 w-4" />
-                    Featured Image
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {post.featuredImage ? (
-                    <div className="relative group">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={`${post.featuredImage}?v=${imageCacheBust}`}
-                        alt={post.featuredImageAlt || "Featured image"}
-                        className="w-full rounded-lg aspect-video object-cover"
-                      />
-                      {isRegeneratingImage && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg">
-                          <div className="text-center text-white">
-                            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
-                            <p className="text-xs">Generating…</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div className={`w-full aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 ${isRegeneratingImage ? "border-primary/50 bg-primary/5 text-primary" : "border-amber-300 bg-amber-50 text-amber-700 cursor-pointer hover:bg-amber-100 transition-colors"}`}
-                      onClick={() => !isRegeneratingImage && !isNew && handleRegenerateImage()}>
-                      {isRegeneratingImage
-                        ? <><Loader2 className="h-6 w-6 animate-spin text-primary" /><p className="text-xs font-medium">Generating…</p></>
-                        : <>
-                            <Sparkles className="h-6 w-6" />
-                            <p className="text-xs font-semibold">No featured image</p>
-                            {!isNew && <p className="text-xs opacity-75">Click to generate with AI</p>}
-                          </>}
-                    </div>
-                  )}
-
-                  {!isNew && (
-                    <div className="space-y-2">
-                      <Button size="sm" className="w-full" variant={post.featuredImage ? "outline" : "default"}
-                        onClick={() => handleRegenerateImage()} disabled={isRegeneratingImage}>
-                        {isRegeneratingImage
-                          ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                          : <Sparkles className="mr-2 h-3.5 w-3.5" />}
-                        {post.featuredImage ? "Regenerate with AI" : "Generate Featured Image"}
-                      </Button>
-                      <div className="flex gap-1.5">
-                        <input type="text" placeholder="Custom prompt (optional)…"
-                          value={imagePromptInput}
-                          onChange={(e) => setImagePromptInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter" && imagePromptInput.trim()) handleRegenerateImage(imagePromptInput.trim()); }}
-                          className="flex-1 h-7 text-xs px-2 border rounded-md bg-background"
-                          disabled={isRegeneratingImage} />
-                        <Button size="sm" variant="ghost" className="h-7 px-2"
-                          onClick={() => imagePromptInput.trim() && handleRegenerateImage(imagePromptInput.trim())}
-                          disabled={isRegeneratingImage || !imagePromptInput.trim()}>
-                          <RefreshCw className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  <Separator />
-                  <div className="space-y-2">
-                    <Label className="text-xs text-muted-foreground">Manual URL override</Label>
-                    <Input placeholder="Paste image URL…" value={post.featuredImage || ""}
-                      onChange={(e) => updateField("featuredImage", e.target.value)}
-                      className="text-xs h-8" />
-                    <Input placeholder="Alt text" value={post.featuredImageAlt || ""}
-                      onChange={(e) => updateField("featuredImageAlt", e.target.value)}
-                      className="text-xs h-8" />
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* ── Inline Images (extracted from content) ── */}
-              {(() => {
-                const inlineImages = (post.content || "").match(/!\[([^\]]*)\]\(([^)]+)\)/g) || [];
-                if (inlineImages.length === 0) return null;
-                const parsed = inlineImages.map((m: string) => {
-                  const match = m.match(/!\[([^\]]*)\]\(([^)]+)\)/);
-                  return match ? { alt: match[1], url: match[2] } : null;
-                }).filter(Boolean) as { alt: string; url: string }[];
-                return (
-                  <Card>
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-sm flex items-center gap-2">
-                        <ImageIcon className="h-4 w-4" />
-                        Inline Images ({parsed.length})
-                      </CardTitle>
-                      <p className="text-xs text-muted-foreground">Images embedded within the article content</p>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                      {parsed.map((img, i) => (
-                        <div key={i} className="space-y-2 pb-3 border-b last:border-0 last:pb-0">
-                          <div className="relative group">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img
-                              src={`${img.url}${img.url.includes("?") ? "&" : "?"}v=${imageCacheBust}`}
-                              alt={img.alt || `Inline image ${i + 1}`}
-                              className="w-full rounded-md aspect-video object-cover border"
-                            />
-                            {regeneratingInlineIdx === i && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-md">
-                                <div className="text-center text-white">
-                                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-1" />
-                                  <p className="text-[10px]">Generating…</p>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                          <p className="text-[10px] text-muted-foreground truncate">{img.alt || `Image ${i + 1}`}</p>
-                          {!isNew && (
-                            <div className="space-y-1.5">
-                              <Button size="sm" variant="outline" className="w-full h-7 text-[11px]"
-                                disabled={regeneratingInlineIdx !== null}
-                                onClick={() => handleRegenerateInlineImage(i)}>
-                                {regeneratingInlineIdx === i
-                                  ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                                  : <Sparkles className="mr-1.5 h-3 w-3" />}
-                                Regenerate
-                              </Button>
-                              <div className="flex gap-1">
-                                <input type="text" placeholder="Custom prompt…"
-                                  value={inlinePrompts[i] || ""}
-                                  onChange={(e) => setInlinePrompts((p) => ({ ...p, [i]: e.target.value }))}
-                                  onKeyDown={(e) => { if (e.key === "Enter" && (inlinePrompts[i] || "").trim()) handleRegenerateInlineImage(i, inlinePrompts[i].trim()); }}
-                                  className="flex-1 h-6 text-[10px] px-2 border rounded-md bg-background"
-                                  disabled={regeneratingInlineIdx !== null} />
-                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
-                                  onClick={() => (inlinePrompts[i] || "").trim() && handleRegenerateInlineImage(i, inlinePrompts[i].trim())}
-                                  disabled={regeneratingInlineIdx !== null || !(inlinePrompts[i] || "").trim()}>
-                                  <RefreshCw className="h-2.5 w-2.5" />
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
-                );
-              })()}
-            </TabsContent>
-
-            {/* ── Social Tab ── */}
-            <TabsContent value="social" className="space-y-4 mt-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">Twitter / X Caption</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea placeholder="Tweet caption with hashtags…"
-                    value={(post.socialCaptions as { twitter?: string })?.twitter || ""}
-                    onChange={(e) => updateField("socialCaptions", { ...(post.socialCaptions || {}), twitter: e.target.value })}
-                    rows={3} className="text-sm resize-none" />
-                  <p className={`text-xs mt-1 ${((post.socialCaptions as { twitter?: string })?.twitter || "").length > 280 ? "text-destructive" : "text-muted-foreground"}`}>
-                    {((post.socialCaptions as { twitter?: string })?.twitter || "").length}/280
-                  </p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm">LinkedIn Caption</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <Textarea placeholder="LinkedIn post caption…"
-                    value={(post.socialCaptions as { linkedin?: string })?.linkedin || ""}
-                    onChange={(e) => updateField("socialCaptions", { ...(post.socialCaptions || {}), linkedin: e.target.value })}
-                    rows={4} className="text-sm resize-none" />
-                </CardContent>
-              </Card>
-            </TabsContent>
+            <ImageSocialTabs
+              post={post}
+              updateField={updateField}
+              isNew={isNew}
+              isRegeneratingImage={isRegeneratingImage}
+              imageCacheBust={imageCacheBust}
+              imagePromptInput={imagePromptInput}
+              setImagePromptInput={setImagePromptInput}
+              onRegenerateImage={handleRegenerateImage}
+              onRegenerateInlineImage={handleRegenerateInlineImage}
+              regeneratingInlineIdx={regeneratingInlineIdx}
+              inlinePrompts={inlinePrompts}
+              setInlinePrompts={setInlinePrompts}
+            />
           </Tabs>
         </div>
       </div>

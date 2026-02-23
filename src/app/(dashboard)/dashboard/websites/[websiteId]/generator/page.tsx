@@ -13,11 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -26,99 +22,34 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Bot,
   Play,
   Loader2,
   CheckCircle2,
   XCircle,
-  Search,
-  FileText,
-  Wand2,
-  Sparkles,
-  Image,
-  Tags,
-  ArrowRight,
   Zap,
   Target,
-  RefreshCw,
-  ExternalLink,
+  ArrowRight,
   Network,
-  Plus,
-  Trash2,
-  ChevronDown,
-  ChevronUp,
-  X,
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { useGlobalJobs } from "@/components/dashboard/global-jobs-context";
+import { JobCard, PIPELINE_STEPS } from "@/components/generator/job-card";
+import { ClusterCard } from "@/components/generator/cluster-card";
+import { ClusterDialog } from "@/components/generator/cluster-dialog";
+
+import type { JobStatus } from "@/components/generator/job-card";
+import type { ClusterData } from "@/components/generator/cluster-card";
+import type { ClusterPreviewData } from "@/components/generator/cluster-dialog";
 
 /* ──────────────────────────── Types ──────────────────────────── */
-
-interface PipelineStep {
-  id: string;
-  name: string;
-  icon: React.ElementType;
-  description: string;
-}
-
-const PIPELINE_STEPS: PipelineStep[] = [
-  { id: "research",  name: "Research",      icon: Search,    description: "Analyzing competitors & content gaps" },
-  { id: "outline",   name: "Outline",       icon: Target,    description: "Structuring content & headings" },
-  { id: "draft",     name: "Draft",         icon: FileText,  description: "Writing the full article" },
-  { id: "tone",      name: "Tone Rewrite",  icon: Wand2,     description: "Adjusting brand voice & style" },
-  { id: "seo",       name: "SEO Optimize",  icon: Sparkles,  description: "Keywords, links & structure" },
-  { id: "metadata",  name: "Metadata",      icon: Tags,      description: "Meta tags, schema & captions" },
-  { id: "image",     name: "Image",         icon: Image,     description: "Generating featured image" },
-];
 
 interface Keyword {
   id: string;
   keyword: string;
   status: string;
   priority: number;
-}
-
-interface JobStatus {
-  id: string;
-  status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
-  currentStep: string | null;
-  progress: number;
-  error: string | null;
-  input?: { keyword?: string } | null;
-  blogPost?: { id: string; title: string; slug: string; websiteId: string } | null;
-}
-
-interface ClusterKeyword {
-  keyword: string;
-  role: "pillar" | "supporting";
-  searchIntent: "informational" | "transactional" | "commercial";
-  suggestedWordCount: number;
-  description: string;
-}
-
-interface ClusterPreviewData {
-  pillarTitle: string;
-  description: string;
-  keywords: ClusterKeyword[];
-}
-
-interface ClusterData {
-  id: string;
-  name: string;
-  pillarKeyword: string;
-  status: string;
-  totalPosts: number;
-  publishedPosts: number;
-  keywords: { id: string; keyword: string; status: string; blogPostId: string | null }[];
-  stats: { pending: number; generating: number; done: number; failed: number; total: number };
 }
 
 /* ──────────────────────────── Page ──────────────────────────── */
@@ -243,7 +174,6 @@ export default function GeneratorPage() {
     }
   }, [websiteId]);
 
-  // Stable refs so polling effects don't re-fire when callbacks change
   const fetchJobsRef = useRef(fetchJobs);
   fetchJobsRef.current = fetchJobs;
   const fetchClustersRef = useRef(fetchClusters);
@@ -259,7 +189,6 @@ export default function GeneratorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [websiteId]);
 
-  // Poll while there are active jobs
   useEffect(() => {
     const hasActive = activeJobs.some(j => j.status === "QUEUED" || j.status === "PROCESSING");
 
@@ -283,7 +212,6 @@ export default function GeneratorPage() {
     };
   }, [activeJobs]);
 
-  // Notify on newly completed/failed jobs
   const prevJobsRef = useRef<Map<string, string>>(new Map());
   useEffect(() => {
     for (const job of activeJobs) {
@@ -785,413 +713,33 @@ export default function GeneratorPage() {
       </div>
 
       {/* ─── Cluster Dialog ───────────────────────────────────── */}
-      <Dialog open={showClusterDialog} onOpenChange={(open) => {
-        setShowClusterDialog(open);
-        if (!open) {
+      <ClusterDialog
+        open={showClusterDialog}
+        onOpenChange={(open) => {
+          setShowClusterDialog(open);
+          if (!open) {
+            setClusterPreview(null);
+            setSeedTopic("");
+            setSelectedKeywords(new Set());
+          }
+        }}
+        seedTopic={seedTopic}
+        onSeedTopicChange={setSeedTopic}
+        isResearching={isResearching}
+        clusterPreview={clusterPreview}
+        selectedKeywords={selectedKeywords}
+        isSavingCluster={isSavingCluster}
+        onResearch={handleClusterResearch}
+        onCancelResearch={handleCancelResearch}
+        onToggleKeyword={toggleKeyword}
+        onSelectAll={selectAll}
+        onSelectNone={selectNone}
+        onSave={handleSaveCluster}
+        onBack={() => {
           setClusterPreview(null);
-          setSeedTopic("");
           setSelectedKeywords(new Set());
-        }
-      }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Network className="h-5 w-5 text-primary" />
-              {clusterPreview ? "Review & Select Keywords" : "Create Topic Cluster"}
-            </DialogTitle>
-            <DialogDescription>
-              {clusterPreview
-                ? `Select the keywords you want to add to your generation queue from the "${clusterPreview.pillarTitle}" cluster.`
-                : "Enter a seed topic and AI will research and generate a full content cluster with pillar + supporting keywords."
-              }
-            </DialogDescription>
-          </DialogHeader>
-
-          {!clusterPreview ? (
-            /* ── Step 1: Seed Input ─────────────────────────────── */
-            <div className="space-y-4 py-2">
-              <div className="space-y-2">
-                <Label>Seed Topic</Label>
-                <Input
-                  placeholder='e.g. "Invoice Management for Small Businesses"'
-                  value={seedTopic}
-                  onChange={(e) => setSeedTopic(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && handleClusterResearch()}
-                  disabled={isResearching}
-                />
-                <p className="text-xs text-muted-foreground">
-                  AI will research this topic using deep web analysis + direct website crawl, then generate a cluster of 12-16 optimized keywords.
-                </p>
-              </div>
-
-              {isResearching && (
-                <div className="flex flex-col items-center py-8 gap-3">
-                  <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  <div className="text-center">
-                    <p className="font-medium text-sm">Researching &quot;{seedTopic}&quot;</p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Crawling your website, analyzing competitors, generating keywords...
-                    </p>
-                  </div>
-                  <Button variant="ghost" size="sm" className="text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
-                    onClick={handleCancelResearch}>
-                    <X className="h-3 w-3 mr-1" />
-                    Cancel
-                  </Button>
-                </div>
-              )}
-
-              <Button
-                className="w-full"
-                size="lg"
-                onClick={handleClusterResearch}
-                disabled={isResearching || !seedTopic.trim()}
-              >
-                {isResearching ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Researching...
-                  </>
-                ) : (
-                  <>
-                    <Search className="mr-2 h-4 w-4" />
-                    Research & Generate Cluster
-                  </>
-                )}
-              </Button>
-            </div>
-          ) : (
-            /* ── Step 2: Preview & Select ───────────────────────── */
-            <div className="flex flex-col min-h-0 flex-1 gap-3">
-              {/* Cluster summary */}
-              <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
-                <p className="font-semibold text-sm">{clusterPreview.pillarTitle}</p>
-                <p className="text-xs text-muted-foreground mt-1">{clusterPreview.description}</p>
-                <div className="flex items-center gap-3 mt-2">
-                  <Badge variant="outline" className="text-xs">
-                    {clusterPreview.keywords.length} keywords
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {clusterPreview.keywords.filter(k => k.role === "pillar").length} pillar
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {clusterPreview.keywords.filter(k => k.role === "supporting").length} supporting
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Select/deselect bar */}
-              <div className="flex items-center justify-between">
-                <p className="text-sm font-medium">{selectedKeywords.size} of {clusterPreview.keywords.length} selected</p>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs h-7">Select All</Button>
-                  <Button variant="ghost" size="sm" onClick={selectNone} className="text-xs h-7">Deselect All</Button>
-                </div>
-              </div>
-
-              {/* Keyword list */}
-              <ScrollArea className="flex-1 -mx-1 min-h-0" style={{ maxHeight: "40vh" }}>
-                <div className="space-y-1.5 px-1">
-                  {clusterPreview.keywords.map((kw, idx) => {
-                    const checked = selectedKeywords.has(idx);
-                    return (
-                      <div
-                        key={idx}
-                        className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                          checked ? "bg-primary/5 border-primary/20" : "hover:bg-muted/50"
-                        }`}
-                        onClick={() => toggleKeyword(idx)}
-                      >
-                        <Checkbox
-                          checked={checked}
-                          onCheckedChange={() => toggleKeyword(idx)}
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm">{kw.keyword}</span>
-                            {kw.role === "pillar" && (
-                              <Badge className="text-[10px] h-4 bg-primary/10 text-primary border-primary/20">Pillar</Badge>
-                            )}
-                            <Badge variant="outline" className="text-[10px] h-4 capitalize">{kw.searchIntent}</Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">{kw.description}</p>
-                          <p className="text-[11px] text-muted-foreground/70 mt-0.5">{kw.suggestedWordCount.toLocaleString()} words target</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
-
-              {/* Actions */}
-              <div className="flex gap-2 pt-2 border-t">
-                <Button
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    setClusterPreview(null);
-                    setSelectedKeywords(new Set());
-                  }}
-                >
-                  Back
-                </Button>
-                <Button
-                  className="flex-1"
-                  onClick={handleSaveCluster}
-                  disabled={isSavingCluster || selectedKeywords.size === 0}
-                >
-                  {isSavingCluster ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add {selectedKeywords.size} Keywords to Queue
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+        }}
+      />
     </div>
-  );
-}
-
-/* ─────────────────────── Job Card ────────────────────────── */
-
-function JobCard({
-  job,
-  websiteId,
-  onRetry,
-  onDismiss,
-  onCancel,
-}: {
-  job: JobStatus;
-  websiteId: string;
-  onRetry?: (jobId: string) => void;
-  onDismiss?: (jobId: string) => void;
-  onCancel?: (jobId: string) => void;
-}) {
-  const isRunning = job.status === "QUEUED" || job.status === "PROCESSING";
-  const isCompleted = job.status === "COMPLETED";
-  const isFailed = job.status === "FAILED";
-  const keyword = (job.input as { keyword?: string })?.keyword || "Unknown keyword";
-
-  return (
-    <Card className={
-      isCompleted ? "border-green-200 bg-green-50/50" :
-      isFailed ? "border-red-200 bg-red-50/50" :
-      "border-primary/20 bg-primary/5"
-    }>
-      <CardContent className="pt-4 pb-4 space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 min-w-0">
-            {isRunning && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
-            {isCompleted && <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />}
-            {isFailed && <XCircle className="h-4 w-4 text-red-600 shrink-0" />}
-            <span className="text-sm font-medium truncate">{keyword}</span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0 ml-2">
-            <span className="text-sm font-medium tabular-nums">{job.progress}%</span>
-            {isRunning && (
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-6 text-[11px] px-2 border-red-300 text-red-700 hover:bg-red-50"
-                onClick={() => onCancel?.(job.id)}
-              >
-                Cancel
-              </Button>
-            )}
-            {!isRunning && (
-              <button
-                onClick={() => onDismiss?.(job.id)}
-                className="text-muted-foreground/50 hover:text-muted-foreground transition-colors"
-                aria-label="Dismiss"
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        </div>
-
-        <Progress value={job.progress} className="h-1.5" />
-
-        <div className="grid grid-cols-4 gap-1 sm:grid-cols-7">
-          {PIPELINE_STEPS.map((step) => {
-            const stepIdx = PIPELINE_STEPS.findIndex(s => s.id === step.id);
-            const currentIdx = PIPELINE_STEPS.findIndex(s => s.id === job.currentStep);
-            const isDone = isCompleted || (currentIdx > stepIdx);
-            const isCurrent = job.currentStep === step.id;
-            return (
-              <div
-                key={step.id}
-                className={`flex items-center gap-1 text-[11px] ${
-                  isDone ? "text-green-700" :
-                  isCurrent ? "text-primary font-medium" :
-                  "text-muted-foreground/60"
-                }`}
-              >
-                {isDone ? (
-                  <CheckCircle2 className="h-3 w-3 shrink-0 text-green-600" />
-                ) : isCurrent ? (
-                  <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                ) : (
-                  <div className="h-3 w-3 rounded-full border border-muted-foreground/30 shrink-0" />
-                )}
-                <span className="hidden sm:inline">{step.name}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        {isFailed && (
-          <div className="space-y-2">
-            <p className="text-xs text-red-700 bg-red-100 px-2 py-1.5 rounded">
-              {job.error || "Generation failed"}
-            </p>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                className="flex-1 h-8 text-xs"
-                onClick={() => onRetry?.(job.id)}
-              >
-                <RefreshCw className="mr-1.5 h-3 w-3" />
-                Retry
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                className="flex-1 h-8 text-xs text-muted-foreground"
-                onClick={() => onDismiss?.(job.id)}
-              >
-                Remove
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {isCompleted && job.blogPost && (
-          <div className="flex items-center justify-between gap-2 p-2 bg-green-100 rounded">
-            <p className="text-xs font-medium text-green-900 truncate">
-              {job.blogPost.title}
-            </p>
-            <Button asChild size="sm" variant="outline" className="border-green-300 h-7 text-xs shrink-0">
-              <Link href={`/dashboard/websites/${websiteId}/posts/${job.blogPost.id}`}>
-                Edit <ExternalLink className="ml-1 h-3 w-3" />
-              </Link>
-            </Button>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
-/* ─────────────────────── Cluster Card ───────────────────── */
-
-function ClusterCard({
-  cluster,
-  expanded,
-  onToggle,
-  onDelete,
-}: {
-  cluster: ClusterData;
-  expanded: boolean;
-  onToggle: () => void;
-  onDelete: (id: string) => void;
-}) {
-  const { stats } = cluster;
-  const progress = stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
-  const isActive = stats.generating > 0;
-
-  return (
-    <Card className={isActive ? "border-primary/30" : ""}>
-      <CardContent className="pt-4 pb-4 space-y-3">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <Network className="h-4 w-4 text-primary shrink-0" />
-              <p className="font-semibold text-sm truncate">{cluster.name}</p>
-            </div>
-            <p className="text-xs text-muted-foreground mt-0.5">{cluster.pillarKeyword}</p>
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <Badge variant={progress === 100 ? "default" : "outline"} className="text-xs">
-              {progress}%
-            </Badge>
-            <button
-              onClick={() => onDelete(cluster.id)}
-              className="text-muted-foreground/40 hover:text-red-500 transition-colors p-1"
-              aria-label="Delete cluster"
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-
-        <Progress value={progress} className="h-1.5" />
-
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          {stats.done > 0 && (
-            <span className="flex items-center gap-1 text-green-600">
-              <CheckCircle2 className="h-3 w-3" />
-              {stats.done} done
-            </span>
-          )}
-          {stats.generating > 0 && (
-            <span className="flex items-center gap-1 text-primary">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              {stats.generating} active
-            </span>
-          )}
-          {stats.pending > 0 && (
-            <span>{stats.pending} pending</span>
-          )}
-          {stats.failed > 0 && (
-            <span className="flex items-center gap-1 text-red-500">
-              <XCircle className="h-3 w-3" />
-              {stats.failed} failed
-            </span>
-          )}
-          <span className="ml-auto">{stats.total} total</span>
-        </div>
-
-        {/* Expandable keyword list */}
-        <button
-          onClick={onToggle}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors w-full"
-        >
-          {expanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-          {expanded ? "Hide" : "Show"} keywords
-        </button>
-
-        {expanded && (
-          <div className="space-y-1 pt-1 border-t">
-            {cluster.keywords.map(kw => (
-              <div key={kw.id} className="flex items-center justify-between text-xs py-1">
-                <span className="truncate mr-2">{kw.keyword}</span>
-                <Badge
-                  variant="outline"
-                  className={`text-[10px] shrink-0 ${
-                    kw.status === "COMPLETED" ? "border-green-300 text-green-700" :
-                    kw.status === "FAILED" ? "border-red-300 text-red-700" :
-                    ["RESEARCHING", "GENERATING"].includes(kw.status) ? "border-primary/30 text-primary" :
-                    ""
-                  }`}
-                >
-                  {kw.status === "COMPLETED" && kw.blogPostId ? "Published" : kw.status.toLowerCase()}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
   );
 }
