@@ -32,6 +32,38 @@ function resolveModel(options?: { model?: string }): string {
   return options?.model || _modelOverride || DEFAULT_MODEL;
 }
 
+async function withRetry<T>(fn: () => Promise<T>, maxRetries: number, label: string): Promise<T> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      const message = err instanceof Error ? err.message : String(err);
+      const isRetryable = status === 429 || status === 500 || status === 503 ||
+        message.includes("ECONNRESET") || message.includes("timeout") || message.includes("network");
+      if (!isRetryable || attempt === maxRetries) throw err;
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      console.warn(`[${label}] Attempt ${attempt} failed (${status || message.slice(0, 80)}), retrying in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error("withRetry: unreachable");
+}
+
+function repairJSON(text: string): string {
+  let cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+    const jsonMatch = cleaned.match(/(\{[\s\S]*\})/);
+    if (jsonMatch) cleaned = jsonMatch[1];
+  }
+  cleaned = cleaned.replace(/,\s*([\]}])/g, "$1");
+  return cleaned;
+}
+
 export interface GenerateTextResult {
   text: string;
   finishReason: string;
@@ -71,7 +103,7 @@ export async function generateTextWithMeta(
     },
   });
 
-  const result = await model.generateContent(prompt);
+  const result = await withRetry(() => model.generateContent(prompt), 3, `gemini:${modelName}`);
   const response = result.response;
   const text = response.text();
   const candidate = response.candidates?.[0];
@@ -84,11 +116,10 @@ export async function generateTextWithMeta(
   if (truncated) {
     console.warn(`[gemini] Response truncated (MAX_TOKENS). Output: ${outputTokens}/${maxTokens} tokens, ~${text.split(/\s+/).length} words`);
   }
-  if (finishReason === "SAFETY") {
-    console.warn(`[gemini] Response blocked by safety filter. Output: ${text.length} chars`);
-  }
-  if (finishReason === "RECITATION") {
-    console.warn(`[gemini] Response blocked by recitation filter. Output: ${text.length} chars`);
+  if (finishReason === "SAFETY" || finishReason === "RECITATION") {
+    console.error(`[gemini] Response blocked: ${finishReason}. Got ${text.length} chars.`);
+    if (text.length > 100) return { text, finishReason, promptTokens, outputTokens, truncated: true };
+    throw new Error(`[gemini] Response blocked by ${finishReason} filter with insufficient content (${text.length} chars)`);
   }
 
   return { text, finishReason, promptTokens, outputTokens, truncated };
@@ -96,25 +127,31 @@ export async function generateTextWithMeta(
 
 export async function generateJSON<T>(
   prompt: string,
-  systemPrompt?: string
+  systemPrompt?: string,
+  options?: { model?: string }
 ): Promise<T> {
-  const modelName = resolveModel();
+  const modelName = resolveModel(options);
 
   if (isClaudeModel(modelName)) {
     return claudeGenerateJSON<T>(prompt, systemPrompt);
   }
 
-  const text = await generateText(
-    prompt + "\n\nRespond with valid JSON only. No markdown code blocks.",
-    systemPrompt,
-    { temperature: 0.3 }
-  );
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const text = await generateText(
+      prompt + "\n\nRespond with valid JSON only. No markdown code blocks.",
+      systemPrompt,
+      { temperature: 0.3, model: modelName }
+    );
 
-  const cleaned = text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
-  return JSON.parse(cleaned) as T;
+    try {
+      return JSON.parse(repairJSON(text)) as T;
+    } catch {
+      if (attempt === 3) {
+        console.error(`[gemini] JSON parse failed after 3 attempts. Raw: ${text.slice(0, 500)}`);
+        throw new Error(`Failed to parse JSON from AI response after 3 attempts`);
+      }
+      console.warn(`[gemini] JSON parse attempt ${attempt} failed, retrying generation...`);
+    }
+  }
+  throw new Error("generateJSON: unreachable");
 }

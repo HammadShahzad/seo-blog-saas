@@ -110,7 +110,7 @@ BANNED AI PHRASES (NEVER USE):
 - "Navigating the complexities"
 - "Unlock the power/potential"
 - "It's important to note that" or "It's worth noting"
-- Em-dash (—) — use commas or periods instead
+- Never use em-dash characters, use commas or periods instead
 - Do NOT start sentences with "So," or "Well,"
 - Avoid overly formal transitions like "Furthermore," "Moreover," "Additionally"`;
 
@@ -131,7 +131,10 @@ export function slugify(text: string): string {
 }
 
 export function countWords(text: string): number {
-  return text.split(/\s+/).filter(Boolean).length;
+  const stripped = text
+    .replace(/https?:\/\/[^\s)]+/g, "")
+    .replace(/\[[^\]]*\]\([^)]+\)/g, (m) => m.replace(/\]\([^)]+\)/, "]"));
+  return stripped.split(/\s+/).filter(Boolean).length;
 }
 
 export function deduplicateContent(text: string): string {
@@ -197,6 +200,9 @@ export function isCutOff(content: string): boolean {
   if (!content) return true;
   const trimmed = content.trim();
   if (trimmed.length === 0) return true;
+  const lastLine = trimmed.split("\n").pop()?.trim() || "";
+  if (/^[-*]\s/.test(lastLine) || /^\d+\.\s/.test(lastLine)) return false;
+  if (/^#{1,6}\s/.test(lastLine)) return false;
   const validEndings = [".", "!", "?", '"', "'", "\u201D", "\u2019", ")", "]", ">", "*", "`"];
   return !validEndings.includes(trimmed.slice(-1));
 }

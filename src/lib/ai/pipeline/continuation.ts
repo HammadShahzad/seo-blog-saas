@@ -9,7 +9,7 @@ import { countWords, isCutOff } from "./helpers";
 export async function generateWithContinuation(
   prompt: string,
   sysPrompt: string,
-  options: { temperature: number; maxTokens: number },
+  options: { temperature: number; maxTokens: number; model?: string },
   label = "generation",
   maxContinuations = 5,
   minWords = 0
@@ -33,6 +33,7 @@ export async function generateWithContinuation(
     console.warn(`[content-gen] ${label} incomplete — continuation ${attempt}/${maxContinuations} (${currentWords} words${belowMin ? `, need ${minWords}` : ""})`);
 
     const contextTail = accumulated.slice(-1400);
+    const remainingTokens = Math.max(2048, options.maxTokens - Math.ceil(countWords(accumulated) * 1.4));
 
     const contResult = await generateTextWithMeta(
       `A blog post was being written but the output was cut off. Continue writing from exactly where it stopped.
@@ -44,7 +45,7 @@ ${contextTail}
 
 Continue the article from the very next word. Maintain the same writing style, tone, Markdown formatting, and heading structure. Do not add any introduction, preamble, or explanation. Just continue seamlessly.`,
       sysPrompt,
-      { temperature: options.temperature, maxTokens: options.maxTokens }
+      { temperature: options.temperature, maxTokens: remainingTokens, model: options.model }
     );
 
     const contText = contResult.text.trim();
@@ -88,10 +89,13 @@ Continue the article from the very next word. Maintain the same writing style, t
     if (!stillTruncated && !stillBelowMin) break;
   }
 
+  const finalCutOff = isCutOff(accumulated);
+  const finalBelowMin = minWords > 0 && countWords(accumulated) < minWords;
+
   return {
     text: accumulated,
-    truncated: false,
-    finishReason: "STOP",
+    truncated: finalCutOff || finalBelowMin,
+    finishReason: finalCutOff || finalBelowMin ? "INCOMPLETE" : "STOP",
     promptTokens: result.promptTokens,
     outputTokens: result.outputTokens,
   };

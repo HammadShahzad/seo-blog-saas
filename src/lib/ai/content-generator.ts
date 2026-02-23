@@ -26,6 +26,13 @@ import {
 
 export type { WebsiteContext, GeneratedPost, GenerationProgress, ProgressCallback } from "./pipeline/types";
 
+function truncateAtSentence(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const cut = text.slice(0, maxChars);
+  const lastSentenceEnd = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf(".\n"), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+  return lastSentenceEnd > maxChars * 0.5 ? cut.slice(0, lastSentenceEnd + 1) : cut;
+}
+
 export async function generateBlogPost(
   keyword: string,
   website: WebsiteWithSettings,
@@ -46,6 +53,30 @@ export async function generateBlogPost(
   if (preferredModel && preferredModel !== "gemini-3.1-pro-preview") {
     setModelOverride(preferredModel);
   }
+
+  try {
+  return await _runPipeline(keyword, website, contentLength, options, { includeImages, includeFAQ, includeTableOfContents, onProgress });
+  } finally {
+    setModelOverride(null);
+  }
+}
+
+async function _runPipeline(
+  keyword: string,
+  website: WebsiteWithSettings,
+  contentLength: "SHORT" | "MEDIUM" | "LONG" | "PILLAR",
+  options: {
+    includeImages?: boolean;
+    includeFAQ?: boolean;
+    includeTableOfContents?: boolean;
+    onProgress?: ProgressCallback;
+    existingPosts?: { title: string; slug: string; url: string; focusKeyword: string }[];
+    internalLinks?: { keyword: string; url: string }[];
+    customDirection?: string;
+  },
+  resolved: { includeImages: boolean; includeFAQ: boolean; includeTableOfContents: boolean; onProgress?: ProgressCallback }
+): Promise<GeneratedPost> {
+  const { includeImages, includeFAQ, includeTableOfContents, onProgress } = resolved;
 
   const ctx: WebsiteContext = {
     id: website.id,
@@ -91,7 +122,7 @@ export async function generateBlogPost(
 
   // ─── STEP 1: RESEARCH ───────────────────────────────────────────
   await progress("research", `Researching "${keyword}"...`);
-  const research = await researchKeyword(keyword, { ...ctx, description: ctx.description });
+  const research = await researchKeyword(keyword, ctx);
 
   // ─── STEP 2: OUTLINE ────────────────────────────────────────────
   await progress("outline", "Creating content outline and structure...");
@@ -124,7 +155,7 @@ ${research.commonQuestions.slice(0, 5).map((q) => `- ${q}`).join("\n")}
 ${research.keyStatistics.slice(0, 4).map((s) => `- ${s}`).join("\n")}
 
 ## Research Summary
-${research.rawResearch.substring(0, 2500)}
+${truncateAtSentence(research.rawResearch, 3000)}
 
 ## Outline Rules
 - H1 title: MUST contain the EXACT focus keyword "${keyword}" (or very close variant). SEO-optimized (50-70 chars), reflects the winning angle. If you cannot fit the exact keyword, use as many of its words as possible in the title.
@@ -148,6 +179,14 @@ ${ctx.requiredSections?.length ? `- MUST include these sections: ${ctx.requiredS
 Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."] }], "uniqueAngle": "..." }`,
     systemPrompt
   );
+
+  if (!outline.title || !outline.sections?.length) {
+    throw new Error(`Outline generation failed: empty title or no sections for keyword "${keyword}"`);
+  }
+  if (outline.sections.length < 2) {
+    console.warn(`[content-gen] Outline has only ${outline.sections.length} section(s) — adding placeholder`);
+    outline.sections.push({ heading: `Understanding ${keyword}`, points: ["Cover the core concept", "Provide actionable advice"] });
+  }
 
   // Fix outdated year in title
   const lastYear = String(currentYear - 1);
@@ -317,11 +356,13 @@ CRITICAL: Output the COMPLETE article with every section. Do NOT stop early or d
     featuredImageAlt: string;
   }
 
-  const metadata = await generateJSON<MetadataResult>(
-    `Generate SEO metadata and social media captions for this blog post about "${keyword}" for ${ctx.brandName} (${ctx.brandUrl}).
+  let metadata: MetadataResult;
+  try {
+    metadata = await generateJSON<MetadataResult>(
+      `Generate SEO metadata and social media captions for this blog post about "${keyword}" for ${ctx.brandName} (${ctx.brandUrl}).
 
 ## Blog Post:
-${finalContent.substring(0, 3000)}
+${truncateAtSentence(finalContent, 3000)}
 
 Output ONLY valid JSON (no markdown code fences) with this exact structure:
 {
@@ -340,8 +381,27 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
   "structuredData": { "@context": "https://schema.org", "@type": "Article", "headline": "...", "description": "...", "author": { "@type": "Organization", "name": "${ctx.brandName}" } },
   "featuredImageAlt": "Descriptive alt text for featured image (includes keyword)"
 }`,
-    "You are an SEO specialist and social media expert. Return valid JSON only."
-  );
+      "You are an SEO specialist and social media expert. Return valid JSON only."
+    );
+  } catch (metaErr) {
+    console.error("[content-gen] Metadata generation failed, using defaults:", metaErr instanceof Error ? metaErr.message : metaErr);
+    metadata = {
+      title: outline.title,
+      slug: slugify(outline.title),
+      metaTitle: outline.title.slice(0, 60),
+      metaDescription: finalContent.replace(/[#*\[\]()]/g, "").slice(0, 155),
+      excerpt: finalContent.replace(/[#*\[\]()]/g, "").slice(0, 200),
+      secondaryKeywords: [],
+      tags: [ctx.niche],
+      category: ctx.niche,
+      twitterCaption: "",
+      linkedinCaption: "",
+      instagramCaption: "",
+      facebookCaption: "",
+      structuredData: { "@context": "https://schema.org", "@type": "Article", "headline": outline.title, "author": { "@type": "Organization", "name": ctx.brandName } },
+      featuredImageAlt: `${keyword} - ${outline.title}`,
+    };
+  }
 
   // ─── STEP 7: IMAGE GENERATION ──────────────────────────────────
   let featuredImageUrl: string | undefined;
@@ -360,7 +420,6 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
       const reason = err instanceof Error ? err.message : String(err);
       console.error(`[content-gen] Featured image generation failed: ${reason}`);
       featuredImageUrl = undefined;
-      (options as Record<string, unknown>)._imageError = reason;
     }
 
     const h2Regex = /^## .+$/gm;
@@ -395,16 +454,11 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
       }
     }
   } else if (includeImages) {
-    const reason = !process.env.GOOGLE_AI_API_KEY ? "GOOGLE_AI_API_KEY not configured" : "B2 storage not configured";
-    console.warn(`[content-gen] Skipping image generation: ${reason}`);
-    (options as Record<string, unknown>)._imageError = reason;
+    console.warn(`[content-gen] Skipping image generation: ${!process.env.GOOGLE_AI_API_KEY ? "GOOGLE_AI_API_KEY not configured" : "B2 storage not configured"}`);
   }
 
-  // ─── FINAL: ASSEMBLE ─────────────────────────────────────────────
   const wordCount = countWords(finalContent);
   const readingTime = Math.ceil(wordCount / 200);
-
-  setModelOverride(null);
 
   return {
     title: outline.title,

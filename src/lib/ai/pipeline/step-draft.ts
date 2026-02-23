@@ -242,7 +242,7 @@ Output ONLY the FAQ section in Markdown.`,
     const stitchedWords = countWords(stitchedDraft);
     console.log(`[content-gen] Section-by-section total: ${stitchedWords} words`);
 
-    if (stitchedWords >= 200) {
+    if (stitchedWords >= Math.max(200, opts.minExpectedWords * 0.5)) {
       cleanDraft = stitchedDraft;
       draftWords = stitchedWords;
       draftTruncated = false;

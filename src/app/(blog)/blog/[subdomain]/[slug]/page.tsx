@@ -1,12 +1,9 @@
 import { notFound } from "next/navigation";
 import prisma from "@/lib/prisma";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Calendar, Clock, User, ArrowLeft, Tag, Share2, ChevronRight } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeSlug from "rehype-slug";
-import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
+import { BlogPostLayout } from "@/components/blog-post/BlogPostLayout";
+import { PostArticle } from "@/components/blog-post/PostArticle";
+import { RelatedPosts } from "@/components/blog-post/RelatedPosts";
 
 interface Props {
   params: Promise<{ subdomain: string; slug: string }>;
@@ -140,7 +137,6 @@ export default async function PublicBlogPostPage({ params }: Props) {
     category: true,
   } as const;
 
-  // Prioritize: same cluster > same category > recent
   let related = await prisma.blogPost.findMany({
     where: {
       websiteId: website.id,
@@ -191,58 +187,41 @@ export default async function PublicBlogPostPage({ params }: Props) {
   const postUrl = `${baseUrl}/blog/${subdomain}/${slug}`;
 
   const cleanContent = post.content
-    // Strip any opening code fence regardless of language tag (```markdown, ```plaintext, etc.)
     .replace(/^```[a-zA-Z0-9_-]*\s*\n?/, "")
-    // Strip closing code fence at end
     .replace(/\n?```\s*$/, "")
     .replace(
       /\[INTERNAL_LINK:\s*([^\]]+)\]\(([^)]*)\)/gi,
       (_match, anchor: string) => anchor.trim()
     )
     .trim()
-    // Fix broken multi-line TOC links (AI wraps long headings across lines)
     .replace(/^(\s*[-*]\s+\[[^\]]*)\n\s*([^\n]*?\]\(#[^)]+\))/gm, "$1 $2")
-    // Remove orphaned link tail fragments like "text](#slug)" on their own line
     .replace(/^\s*[^-*#\s][^\n]*\]\(#[^)]+\)\s*$/gm, "")
-    // Remove duplicate Table of Contents blocks (keep only the first)
     .replace(/(## Table of Contents\n(?:\s*[-*]\s+.*\n)*)([\s\S]*?)(## Table of Contents\n(?:\s*[-*]\s+.*\n)*)/gi, "$1$2");
 
-  // --- JSON-LD: Article Schema ---
   const articleJsonLd = {
     "@context": "https://schema.org",
     "@type": "Article",
     headline: post.metaTitle || post.title,
     description: post.metaDescription || post.excerpt || "",
-    author: {
-      "@type": "Organization",
-      name: website.brandName,
-      url: website.brandUrl,
-    },
+    author: { "@type": "Organization", name: website.brandName, url: website.brandUrl },
     publisher: {
       "@type": "Organization",
       name: website.brandName,
       url: website.brandUrl,
-      ...(website.logoUrl && {
-        logo: { "@type": "ImageObject", url: website.logoUrl },
-      }),
+      ...(website.logoUrl && { logo: { "@type": "ImageObject", url: website.logoUrl } }),
     },
     url: postUrl,
     datePublished: post.publishedAt?.toISOString(),
     dateModified: post.updatedAt?.toISOString(),
     mainEntityOfPage: postUrl,
     ...(post.featuredImage && {
-      image: {
-        "@type": "ImageObject",
-        url: post.featuredImage,
-        caption: post.featuredImageAlt || post.title,
-      },
+      image: { "@type": "ImageObject", url: post.featuredImage, caption: post.featuredImageAlt || post.title },
     }),
     ...(tags.length > 0 && { keywords: tags.join(", ") }),
     wordCount: post.wordCount || cleanContent.split(/\s+/).length,
     articleSection: post.category || website.niche,
   };
 
-  // --- JSON-LD: BreadcrumbList Schema ---
   const breadcrumbJsonLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -253,20 +232,16 @@ export default async function PublicBlogPostPage({ params }: Props) {
     ],
   };
 
-  // --- JSON-LD: Organization Schema ---
   const organizationJsonLd = {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: website.brandName,
     url: website.brandUrl,
-    ...(website.logoUrl && {
-      logo: { "@type": "ImageObject", url: website.logoUrl },
-    }),
+    ...(website.logoUrl && { logo: { "@type": "ImageObject", url: website.logoUrl } }),
     ...(website.faviconUrl && { image: website.faviconUrl }),
     description: website.description,
   };
 
-  // --- JSON-LD: FAQPage Schema (extract from content) ---
   const faqs = extractFAQs(cleanContent);
   const faqJsonLd = faqs.length > 0 ? {
     "@context": "https://schema.org",
@@ -274,341 +249,32 @@ export default async function PublicBlogPostPage({ params }: Props) {
     mainEntity: faqs.map(faq => ({
       "@type": "Question",
       name: faq.question,
-      acceptedAnswer: {
-        "@type": "Answer",
-        text: faq.answer,
-      },
+      acceptedAnswer: { "@type": "Answer", text: faq.answer },
     })),
   } : null;
 
+  const jsonLdObjects = [articleJsonLd, breadcrumbJsonLd, organizationJsonLd, ...(faqJsonLd ? [faqJsonLd] : [])];
+
   return (
-    <div className="min-h-screen bg-white">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
+    <BlogPostLayout
+      jsonLdObjects={jsonLdObjects}
+      subdomain={subdomain}
+      website={website}
+      post={post}
+    >
+      <PostArticle
+        post={post}
+        website={website}
+        brandColor={brandColor}
+        readingTime={readingTime}
+        cleanContent={cleanContent}
+        tags={tags}
+        postUrl={postUrl}
+        subdomain={subdomain}
       />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }}
-      />
-      {faqJsonLd && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
-        />
-      )}
-
-      <header className="sticky top-0 z-50">
-        <nav className="border-b bg-white/80 backdrop-blur-sm">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-            <Link
-              href={`/blog/${subdomain}`}
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              {website.brandName} Blog
-            </Link>
-            <a
-              href={website.brandUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {website.domain} ↗
-            </a>
-          </div>
-        </nav>
-      </header>
-
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
-        <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm text-muted-foreground">
-          <a href={website.brandUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground transition-colors">
-            {website.brandName}
-          </a>
-          <ChevronRight className="h-3 w-3" />
-          <Link href={`/blog/${subdomain}`} className="hover:text-foreground transition-colors">
-            Blog
-          </Link>
-          {post.category && (
-            <>
-              <ChevronRight className="h-3 w-3" />
-              <span className="text-muted-foreground">{post.category}</span>
-            </>
-          )}
-          <ChevronRight className="h-3 w-3" />
-          <span className="text-foreground font-medium truncate max-w-[200px]">{post.title}</span>
-        </nav>
-      </div>
-
-      <main>
-      {/* Article */}
-      <article className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Category */}
-        {post.category && (
-          <span
-            className="text-sm font-medium px-3 py-1 rounded-full"
-            style={{ backgroundColor: `${brandColor}14`, color: brandColor }}
-          >
-            {post.category}
-          </span>
-        )}
-
-        {/* Title (single H1) */}
-        <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-foreground mt-4 mb-4 leading-tight tracking-tight">
-          {post.title}
-        </h1>
-
-        {/* Excerpt */}
-        {post.excerpt && (
-          <p className="text-lg text-muted-foreground leading-relaxed mb-2">
-            {post.excerpt}
-          </p>
-        )}
-
-        {/* Meta */}
-        <div className="flex items-center gap-4 mt-4 mb-8 text-sm text-muted-foreground">
-          <span className="flex items-center gap-1.5">
-            <User className="h-4 w-4" />
-            {website.brandName}
-          </span>
-          {post.publishedAt && (
-            <span className="flex items-center gap-1.5">
-              <Calendar className="h-4 w-4" />
-              <time dateTime={post.publishedAt.toISOString()}>
-                {new Date(post.publishedAt).toLocaleDateString("en-US", {
-                  month: "long",
-                  day: "numeric",
-                  year: "numeric",
-                })}
-              </time>
-            </span>
-          )}
-          <span className="flex items-center gap-1.5">
-            <Clock className="h-4 w-4" />
-            {readingTime} min read
-          </span>
-        </div>
-
-        {/* Featured Image */}
-        {post.featuredImage && (
-          <figure className="mb-10">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={post.featuredImage}
-              alt={post.featuredImageAlt || post.title}
-              className="w-full rounded-2xl object-cover max-h-[500px]"
-              loading="eager"
-              width={1200}
-              height={630}
-            />
-            {post.featuredImageAlt && (
-              <figcaption className="text-center text-xs text-muted-foreground mt-2">
-                {post.featuredImageAlt}
-              </figcaption>
-            )}
-          </figure>
-        )}
-
-        {/* Content */}
-        <section className="prose prose-slate prose-lg max-w-none prose-headings:tracking-tight prose-h1:text-3xl prose-h2:text-2xl prose-h3:text-xl prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-img:rounded-xl prose-pre:bg-slate-900 prose-pre:text-slate-100 prose-blockquote:border-l-primary/30 prose-blockquote:text-muted-foreground [&_table]:block [&_table]:overflow-x-auto [&_table]:whitespace-nowrap sm:[&_table]:table sm:[&_table]:whitespace-normal [&_th]:bg-slate-100 [&_th]:border [&_th]:border-slate-300 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_th]:text-sm [&_td]:border [&_td]:border-slate-200 [&_td]:px-3 [&_td]:py-2 [&_td]:text-sm [&_table]:border-collapse [&_table]:w-full [&_table]:text-base sm:[&_th]:px-4 sm:[&_td]:px-4 sm:[&_th]:text-base sm:[&_td]:text-base">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={[
-              [
-                rehypeSanitize,
-                {
-                  ...defaultSchema,
-                  tagNames: [
-                    ...(defaultSchema.tagNames || []),
-                    "table", "thead", "tbody", "tr", "th", "td",
-                    "details", "summary",
-                  ],
-                  attributes: {
-                    ...defaultSchema.attributes,
-                    "*": [...(defaultSchema.attributes?.["*"] || []), "className", "class"],
-                    a: [...(defaultSchema.attributes?.a || []), "href", "title", "target", "rel"],
-                    img: [...(defaultSchema.attributes?.img || []), "src", "alt", "title", "width", "height", "loading"],
-                  },
-                },
-              ],
-              rehypeSlug,
-            ]}
-          >
-            {cleanContent}
-          </ReactMarkdown>
-        </section>
-
-        {/* Tags */}
-        {tags.length > 0 && (
-          <aside className="mt-12 pt-8 border-t flex items-center gap-2 flex-wrap">
-            <Tag className="h-4 w-4 text-muted-foreground" />
-            {tags.map((tag) => (
-              <span
-                key={tag}
-                className="text-xs bg-muted px-2.5 py-1 rounded-full text-muted-foreground"
-              >
-                {tag}
-              </span>
-            ))}
-          </aside>
-        )}
-
-        {/* Author Box (EEAT) */}
-        <aside className="mt-10 p-6 bg-slate-50 rounded-2xl border flex items-start gap-4">
-          {website.faviconUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={website.faviconUrl}
-              alt={website.brandName}
-              className="w-14 h-14 rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0"
-            />
-          ) : (
-            <div
-              className="w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-bold flex-shrink-0"
-              style={{ backgroundColor: brandColor }}
-            >
-              {website.brandName.charAt(0)}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="font-semibold text-foreground">{website.brandName}</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {website.description}
-            </p>
-            <div className="flex items-center gap-3 mt-3">
-              <a
-                href={website.brandUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium hover:underline"
-                style={{ color: brandColor }}
-              >
-                Visit Website
-              </a>
-              <Link
-                href={`/blog/${subdomain}`}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                More Articles
-              </Link>
-            </div>
-          </div>
-        </aside>
-
-        {/* Share + CTA */}
-        <div className="mt-10 pt-6 border-t flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Found this helpful?</p>
-            <p className="text-xs text-muted-foreground">Share it with your network</p>
-          </div>
-          <div className="flex gap-2">
-            <a
-              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(post.title)}&url=${encodeURIComponent(postUrl)}`}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border hover:bg-muted transition-colors"
-            >
-              <Share2 className="h-3.5 w-3.5" /> Tweet
-            </a>
-            <a
-              href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(postUrl)}`}
-              target="_blank"
-              rel="noopener noreferrer nofollow"
-              className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-lg border hover:bg-muted transition-colors"
-            >
-              <Share2 className="h-3.5 w-3.5" /> LinkedIn
-            </a>
-          </div>
-        </div>
-
-        {/* Brand CTA */}
-        <div
-          className="mt-10 p-8 rounded-2xl text-center"
-          style={{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}dd)` }}
-        >
-          <h2 className="text-2xl font-bold text-white mb-2">
-            Ready to try {website.brandName}?
-          </h2>
-          <p className="text-white/80 mb-6">{website.description}</p>
-          <a
-            href={website.brandUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-white font-semibold px-6 py-3 rounded-xl hover:bg-white/90 transition-colors"
-            style={{ color: brandColor }}
-          >
-            Visit {website.brandName}
-          </a>
-        </div>
-      </article>
-
-      {/* Related Posts - 9 articles for maximum internal linking */}
       {related.length > 0 && (
-        <section className="border-t py-12">
-          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            <h2 className="text-xl font-bold mb-6">Related Articles</h2>
-            <div className="grid gap-6 md:grid-cols-3">
-              {related.map((r) => (
-                <Link
-                  key={r.id}
-                  href={`/blog/${subdomain}/${r.slug}`}
-                  className="group block border rounded-2xl overflow-hidden hover:shadow-lg transition-all"
-                >
-                  {r.featuredImage && (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={r.featuredImage}
-                      alt={r.featuredImageAlt || r.title}
-                      className="w-full h-40 object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                    />
-                  )}
-                  <div className="p-4">
-                    {r.category && (
-                      <span className="text-xs font-medium text-muted-foreground">
-                        {r.category}
-                      </span>
-                    )}
-                    <p className="font-semibold text-sm line-clamp-2 group-hover:text-primary mt-1">
-                      {r.title}
-                    </p>
-                    {r.readingTime && (
-                      <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                        <Clock className="h-3 w-3" /> {r.readingTime} min read
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </section>
+        <RelatedPosts related={related} subdomain={subdomain} />
       )}
-
-      </main>
-
-      <footer className="border-t bg-slate-50 py-8">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-sm text-muted-foreground">
-          <p>
-            &copy; {new Date().getFullYear()}{" "}
-            <a href={website.brandUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-              {website.brandName}
-            </a>
-          </p>
-          <div className="flex gap-4">
-            <Link href={`/blog/${subdomain}`} className="hover:text-foreground">
-              Blog
-            </Link>
-            <a href={website.brandUrl} target="_blank" rel="noopener noreferrer" className="hover:text-foreground">
-              Website
-            </a>
-          </div>
-        </div>
-      </footer>
-    </div>
+    </BlogPostLayout>
   );
 }

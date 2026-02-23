@@ -165,9 +165,8 @@ export function postProcess(
     finalContent = finalContent.replace(brandRegex, (match) => {
       brandCount++;
       if (brandCount <= 3) return match;
-      return "";
+      return "the platform";
     });
-    finalContent = finalContent.replace(/\.\s*is\s[^.]*\./g, ".");
     finalContent = finalContent.replace(/\n\s*\n\s*\n/g, "\n\n");
     if (brandCount > 3) console.log(`[content-gen] Trimmed brand mentions from ${brandCount} to 3`);
   }
@@ -179,16 +178,16 @@ export function postProcess(
     "after working with", "i've seen", "i have seen",
     "i always", "i recently", "i regularly",
   ];
+  let totalFirstPerson = 0;
   for (const phrase of firstPersonPhrases) {
     const phraseRegex = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
-    let count = 0;
     finalContent = finalContent.replace(phraseRegex, (match) => {
-      count++;
-      if (count <= 1) return match;
-      const neutrals = ["Based on industry data,", "Evidence shows", "In practice,", "Research indicates", "The data confirms"];
-      return neutrals[count % neutrals.length];
+      totalFirstPerson++;
+      if (totalFirstPerson <= 4) return match;
+      return "";
     });
   }
+  finalContent = finalContent.replace(/\s{2,}/g, " ");
 
   // Fix outdated year references — replace last year with current year in titles/headings/guides
   finalContent = fixOutdatedYears(finalContent);
@@ -272,7 +271,8 @@ function stripHallucinatedLinks(content: string, ctx: WebsiteContext, consolidat
   const allowedUrls = new Set<string>();
   for (const l of consolidatedLinks) allowedUrls.add(l.url.replace(/\/$/, "").toLowerCase());
   if (ctx.ctaUrl) allowedUrls.add(ctx.ctaUrl.replace(/\/$/, "").toLowerCase());
-  const brandHost = ctx.brandUrl ? new URL(ctx.brandUrl).hostname : "";
+  let brandHost = "";
+  try { if (ctx.brandUrl) brandHost = new URL(ctx.brandUrl).hostname; } catch { /* malformed brandUrl */ }
 
   if (consolidatedLinks.length > 0) {
     content = content.replace(

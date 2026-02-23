@@ -42,10 +42,11 @@ export async function runSeoOptimization(
     includeFAQ: boolean;
   }
 ): Promise<SeoResult> {
+  const cappedLinks = consolidatedLinks.slice(0, 25);
   let internalLinkBlock = "";
-  if (consolidatedLinks.length) {
-    internalLinkBlock = "\n\n## Internal Links (use each URL AT MOST ONCE — no duplicate links):\n" +
-      consolidatedLinks.map((l) => `   - "${l.anchor}" → ${l.url}`).join("\n");
+  if (cappedLinks.length) {
+    internalLinkBlock = "\n\n## Internal Links (use each URL AT MOST ONCE):\n" +
+      cappedLinks.map((l) => `   - "${l.anchor}" → ${l.url}`).join("\n");
   }
   console.log(`[content-gen] Internal links available for SEO step: ${consolidatedLinks.length} (from internalLinks: ${ctx.internalLinks?.length ?? 0}, existingPosts: ${ctx.existingPosts?.length ?? 0})`);
 
@@ -65,7 +66,7 @@ ${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONL
    - ONLY use URLs from the list above. If a URL is not in the list, do NOT use it.
    - Do NOT hallucinate, guess, or create any URLs. Every link must match an entry above EXACTLY, character for character.
    - NEVER write partial URLs like "com/path/" — always use the FULL URL starting with https://.
-   - Use AS MANY links from the list as possible — aim for at least ${Math.min(consolidatedLinks.length, 15)} internal links total. More internal links = better SEO.
+   - Use AS MANY links from the list as possible, aim for at least ${Math.min(cappedLinks.length, 15)} internal links total.
    - Each URL may appear up to 2 times if needed (with different anchor text in different contexts).
    - Spread links throughout ALL sections — every H2 section should contain at least 1-2 internal links where relevant.
    - Use descriptive anchor text that matches the context.

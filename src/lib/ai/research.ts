@@ -6,14 +6,15 @@
 export interface ResearchResult {
   rawResearch: string;
   topRankingContent: string;
-  contentGaps: string[];       // Topics/questions competitors fail to cover
-  missingSubtopics: string[];  // Specific subtopics absent from top-ranking posts
+  contentGaps: string[];
+  missingSubtopics: string[];
   competitorHeadings: string[];
   keyStatistics: string[];
   relatedTopics: string[];
   suggestedAngle: string;
   commonQuestions: string[];
   rawResponse: string;
+  researchFailed?: boolean;
 }
 
 export async function researchKeyword(
@@ -33,7 +34,8 @@ export async function researchKeyword(
   let apiKey = process.env.PERPLEXITY_API_KEY;
 
   if (!apiKey) {
-    return getMockResearch(keyword, websiteContext);
+    console.warn("[research] No PERPLEXITY_API_KEY — using mock research data");
+    return { ...getMockResearch(keyword, websiteContext), researchFailed: true };
   }
   apiKey = apiKey.replace(/\\n/g, "").trim();
 
@@ -105,14 +107,14 @@ Look for: contrarian takes, more specific use cases, more recent data, underserv
     if (!response.ok) {
       const err = await response.text();
       console.error("Perplexity API error:", err);
-      return getMockResearch(keyword, websiteContext);
+      return { ...getMockResearch(keyword, websiteContext), researchFailed: true };
     }
 
     const data = await response.json();
     const rawResearch = data.choices?.[0]?.message?.content || "";
 
     if (!rawResearch) {
-      return getMockResearch(keyword, websiteContext);
+      return { ...getMockResearch(keyword, websiteContext), researchFailed: true };
     }
 
     return {
@@ -129,7 +131,7 @@ Look for: contrarian takes, more specific use cases, more recent data, underserv
     };
   } catch (error) {
     console.error("Research error:", error);
-    return getMockResearch(keyword, websiteContext);
+    return { ...getMockResearch(keyword, websiteContext), researchFailed: true };
   }
 }
 

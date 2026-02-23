@@ -18,6 +18,38 @@ function getClient(): Anthropic {
 
 const DEFAULT_CLAUDE_MODEL = "claude-sonnet-4-6";
 
+async function withRetry<T>(fn: () => Promise<T>, maxRetries: number, label: string): Promise<T> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err: unknown) {
+      const status = (err as { status?: number })?.status;
+      const message = err instanceof Error ? err.message : String(err);
+      const isRetryable = status === 429 || status === 500 || status === 503 || status === 529 ||
+        message.includes("ECONNRESET") || message.includes("timeout") || message.includes("overloaded");
+      if (!isRetryable || attempt === maxRetries) throw err;
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
+      console.warn(`[${label}] Attempt ${attempt} failed (${status || message.slice(0, 80)}), retrying in ${delay}ms...`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  throw new Error("withRetry: unreachable");
+}
+
+function repairJSON(text: string): string {
+  let cleaned = text
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+  if (!cleaned.startsWith("{") && !cleaned.startsWith("[")) {
+    const jsonMatch = cleaned.match(/(\{[\s\S]*\})/);
+    if (jsonMatch) cleaned = jsonMatch[1];
+  }
+  cleaned = cleaned.replace(/,\s*([\]}])/g, "$1");
+  return cleaned;
+}
+
 export async function claudeGenerateTextWithMeta(
   prompt: string,
   systemPrompt?: string,
@@ -27,13 +59,17 @@ export async function claudeGenerateTextWithMeta(
   const modelName = options?.model || DEFAULT_CLAUDE_MODEL;
   const maxTokens = options?.maxTokens ?? 8192;
 
-  const response = await client.messages.create({
-    model: modelName,
-    max_tokens: maxTokens,
-    temperature: options?.temperature ?? 0.7,
-    ...(systemPrompt ? { system: systemPrompt } : {}),
-    messages: [{ role: "user", content: prompt }],
-  });
+  const response = await withRetry(
+    () => client.messages.create({
+      model: modelName,
+      max_tokens: maxTokens,
+      temperature: options?.temperature ?? 0.7,
+      ...(systemPrompt ? { system: systemPrompt } : {}),
+      messages: [{ role: "user", content: prompt }],
+    }),
+    3,
+    `claude:${modelName}`
+  );
 
   const textBlocks = response.content.filter((b) => b.type === "text");
   const text = textBlocks.map((b) => b.text).join("");
@@ -63,17 +99,22 @@ export async function claudeGenerateJSON<T>(
   prompt: string,
   systemPrompt?: string
 ): Promise<T> {
-  const text = await claudeGenerateText(
-    prompt + "\n\nRespond with valid JSON only. No markdown code blocks.",
-    systemPrompt,
-    { temperature: 0.3 }
-  );
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const text = await claudeGenerateText(
+      prompt + "\n\nRespond with valid JSON only. No markdown code blocks.",
+      systemPrompt,
+      { temperature: 0.3 }
+    );
 
-  const cleaned = text
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/\s*```$/i, "")
-    .trim();
-
-  return JSON.parse(cleaned) as T;
+    try {
+      return JSON.parse(repairJSON(text)) as T;
+    } catch {
+      if (attempt === 3) {
+        console.error(`[claude] JSON parse failed after 3 attempts. Raw: ${text.slice(0, 500)}`);
+        throw new Error(`Failed to parse JSON from Claude after 3 attempts`);
+      }
+      console.warn(`[claude] JSON parse attempt ${attempt} failed, retrying generation...`);
+    }
+  }
+  throw new Error("claudeGenerateJSON: unreachable");
 }

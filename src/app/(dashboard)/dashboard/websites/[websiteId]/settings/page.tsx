@@ -1,200 +1,27 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Loader2, Save, Globe, Palette, Bot, Share2, Code, AlertTriangle,
-  CheckCircle2, XCircle, Plug,
-  Zap, Twitter, Linkedin, ShoppingBag, ChevronDown, ChevronRight, Clock, CalendarDays,
-  X, Plus, Sparkles, Link2, Trash2,
+  Loader2, Save, Plug, Zap, Share2, Code, ShoppingBag,
 } from "lucide-react";
 import { toast } from "sonner";
 import { GhostSettings } from "@/components/settings/ghost-settings";
 import { WebhookSettings } from "@/components/settings/webhook-settings";
 import { WordPressSettings } from "@/components/settings/wordpress-settings";
 import { ShopifySettings } from "@/components/settings/shopify-settings";
-
-interface WebsiteData {
-  id: string;
-  name: string;
-  domain: string;
-  niche: string;
-  description: string;
-  targetAudience: string;
-  tone: string;
-  brandName: string;
-  brandUrl: string;
-  primaryColor: string;
-  autoPublish: boolean;
-  postsPerWeek: number;
-  publishTime: string;
-  publishDays: string;
-  timezone: string;
-  hostingMode: string;
-  googleAnalyticsId: string | null;
-  gscPropertyUrl: string | null;
-  indexNowKey: string | null;
-  twitterApiKey: string | null;
-  twitterApiSecret: string | null;
-  twitterAccessToken: string | null;
-  twitterAccessSecret: string | null;
-  linkedinAccessToken: string | null;
-  status: string;
-  // Brand Intelligence
-  uniqueValueProp: string | null;
-  competitors: string[];
-  keyProducts: string[];
-  targetLocation: string | null;
-}
-
-interface BlogSettingsData {
-  ctaText: string | null;
-  ctaUrl: string | null;
-  avoidTopics: string[];
-  writingStyle: string;
-  contentLength: string;
-  includeFAQ: boolean;
-  includeTableOfContents: boolean;
-}
-
-const ALL_DAYS = [
-  { key: "MON", label: "Mon" },
-  { key: "TUE", label: "Tue" },
-  { key: "WED", label: "Wed" },
-  { key: "THU", label: "Thu" },
-  { key: "FRI", label: "Fri" },
-  { key: "SAT", label: "Sat" },
-  { key: "SUN", label: "Sun" },
-] as const;
-
-const COMMON_TIMEZONES = [
-  "UTC",
-  "America/New_York",
-  "America/Chicago",
-  "America/Denver",
-  "America/Los_Angeles",
-  "America/Anchorage",
-  "Pacific/Honolulu",
-  "America/Toronto",
-  "America/Vancouver",
-  "America/Sao_Paulo",
-  "America/Argentina/Buenos_Aires",
-  "America/Mexico_City",
-  "Europe/London",
-  "Europe/Paris",
-  "Europe/Berlin",
-  "Europe/Amsterdam",
-  "Europe/Rome",
-  "Europe/Madrid",
-  "Europe/Zurich",
-  "Europe/Stockholm",
-  "Europe/Warsaw",
-  "Europe/Moscow",
-  "Europe/Istanbul",
-  "Asia/Dubai",
-  "Asia/Karachi",
-  "Asia/Kolkata",
-  "Asia/Dhaka",
-  "Asia/Bangkok",
-  "Asia/Singapore",
-  "Asia/Shanghai",
-  "Asia/Hong_Kong",
-  "Asia/Tokyo",
-  "Asia/Seoul",
-  "Australia/Sydney",
-  "Australia/Melbourne",
-  "Pacific/Auckland",
-];
-
-function getTimezoneLabel(tz: string): string {
-  try {
-    const now = new Date();
-    const offset = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      timeZoneName: "shortOffset",
-    }).formatToParts(now).find((p) => p.type === "timeZoneName")?.value || "";
-    return `${tz.replace(/_/g, " ")} (${offset})`;
-  } catch {
-    return tz;
-  }
-}
-
-function computeNextPublishDate(
-  publishDays: string,
-  publishTime: string,
-  timezone: string,
-): Date | null {
-  if (!publishDays || !publishTime) return null;
-  const days = publishDays.split(",").map((d) => d.trim().toUpperCase());
-  const dayMap: Record<string, number> = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
-  const targetDayNumbers = days.map((d) => dayMap[d]).filter((n) => n !== undefined);
-  if (targetDayNumbers.length === 0) return null;
-
-  const [h, m] = publishTime.split(":").map(Number);
-  const tz = timezone || "UTC";
-  const now = new Date();
-
-  for (let offset = 0; offset <= 7; offset++) {
-    const candidate = new Date(now.getTime() + offset * 86400000);
-    try {
-      const parts = new Intl.DateTimeFormat("en-US", {
-        timeZone: tz,
-        weekday: "short",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).formatToParts(candidate);
-      const weekday = (parts.find((p) => p.type === "weekday")?.value || "").toUpperCase().slice(0, 3);
-      const dayNum = dayMap[weekday];
-      if (!targetDayNumbers.includes(dayNum)) continue;
-
-      const localDateStr = `${parts.find((p) => p.type === "year")?.value}-${parts.find((p) => p.type === "month")?.value}-${parts.find((p) => p.type === "day")?.value}`;
-      const scheduledLocal = new Date(`${localDateStr}T${publishTime}:00`);
-      const localNowStr = new Intl.DateTimeFormat("en-CA", { timeZone: tz, hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).format(now);
-      const [datePart, timePart] = localNowStr.split(", ");
-      const localNow = new Date(`${datePart}T${timePart}:00`);
-
-      if (offset === 0 && scheduledLocal <= localNow) continue;
-
-      const offsetMs = now.getTime() - localNow.getTime();
-      return new Date(scheduledLocal.getTime() + offsetMs);
-    } catch {
-      continue;
-    }
-  }
-  return null;
-}
+import { GeneralSettings } from "@/components/settings/general-settings";
+import { BrandSettings } from "@/components/settings/brand-settings";
+import { ContentSettings } from "@/components/settings/content-settings";
+import { InternalLinksSettings } from "@/components/settings/internal-links-settings";
+import { SocialSettings } from "@/components/settings/social-settings";
+import { AnalyticsSettings } from "@/components/settings/analytics-settings";
+import { DangerZoneSettings } from "@/components/settings/danger-zone-settings";
+import { AIResearchDialog } from "@/components/settings/ai-research-dialog";
+import type { WebsiteData, BlogSettingsData } from "@/components/settings/settings-types";
 
 export default function WebsiteSettingsPage() {
   const params = useParams();
@@ -204,193 +31,110 @@ export default function WebsiteSettingsPage() {
   const { data: sessionData } = useSession();
   const defaultTab = searchParams.get("tab") || "general";
   const isAdmin = sessionData?.user?.systemRole === "ADMIN";
+
   const [website, setWebsite] = useState<WebsiteData | null>(null);
   const [blogSettings, setBlogSettings] = useState<BlogSettingsData>({
     ctaText: null, ctaUrl: null, avoidTopics: [], writingStyle: "informative",
     contentLength: "MEDIUM", includeFAQ: true, includeTableOfContents: true,
   });
-  const [isSavingBlogSettings, setIsSavingBlogSettings] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  // Helpers for array fields (tag-style input)
   const [competitorInput, setCompetitorInput] = useState("");
   const [keyProductInput, setKeyProductInput] = useState("");
   const [avoidTopicInput, setAvoidTopicInput] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isPausing, setIsPausing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState("");
 
-  // AI preview dialog — multi-option
-  interface AIRawData {
-    brandName: string; brandUrl: string; primaryColor: string[];
-    niche: string[]; description: string[]; targetAudience: string[]; tone: string[];
-    uniqueValueProp: string[]; competitors: string[]; keyProducts: string[];
-    targetLocation: string; suggestedCtaText: string[]; suggestedCtaUrl: string;
-    suggestedWritingStyle: string[];
-  }
-  const [aiRaw, setAiRaw] = useState<AIRawData | null>(null);
-  const [aiDialogOpen, setAiDialogOpen] = useState(false);
-  const [aiPicks, setAiPicks] = useState<Record<string, number>>({});
-  const [aiEnabled, setAiEnabled] = useState<Record<string, boolean>>({});
-  // Custom user-written values for fields toggled OFF (write-your-own mode)
-  const [customValues, setCustomValues] = useState<Record<string, string>>({});
-  const [polishingField, setPolishingField] = useState<string | null>(null);
+  useEffect(() => {
+    fetchWebsite();
+  }, [websiteId]);
 
-  // Internal links (collapsed section)
-  const [linksOpen, setLinksOpen] = useState(false);
-  const [internalLinks, setInternalLinks] = useState<{ id: string; keyword: string; url: string; usageCount: number }[]>([]);
-  const [linksLoaded, setLinksLoaded] = useState(false);
+  const fetchWebsite = async () => {
+    try {
+      const [siteRes, bsRes] = await Promise.all([
+        fetch(`/api/websites/${websiteId}`),
+        fetch(`/api/websites/${websiteId}/blog-settings`),
+      ]);
+      if (siteRes.ok) setWebsite(await siteRes.json());
+      if (bsRes.ok) {
+        const bs = await bsRes.json();
+        if (bs && Object.keys(bs).length > 0) setBlogSettings((prev) => ({ ...prev, ...bs }));
+      }
+    } catch {
+      toast.error("Failed to load website settings");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-  const toggleLinks = async () => {
-    if (!linksOpen && !linksLoaded) {
-      try {
-        const res = await fetch(`/api/websites/${websiteId}/links`);
-        if (res.ok) {
-          setInternalLinks(await res.json());
-          setLinksLoaded(true);
+  const buildFinalData = () => {
+    const finalWebsite = website ? { ...website } : null;
+    const finalBlogSettings = { ...blogSettings };
+
+    if (finalWebsite) {
+      if (competitorInput.trim()) {
+        const val = competitorInput.trim();
+        if (!finalWebsite.competitors?.includes(val)) {
+          finalWebsite.competitors = [...(finalWebsite.competitors || []), val];
         }
-      } catch { /* silent */ }
+        setCompetitorInput("");
+      }
+      if (keyProductInput.trim()) {
+        const val = keyProductInput.trim();
+        if (!finalWebsite.keyProducts?.includes(val)) {
+          finalWebsite.keyProducts = [...(finalWebsite.keyProducts || []), val];
+        }
+        setKeyProductInput("");
+      }
     }
-    setLinksOpen((v) => !v);
+    if (avoidTopicInput.trim()) {
+      const val = avoidTopicInput.trim();
+      if (!finalBlogSettings.avoidTopics?.includes(val)) {
+        finalBlogSettings.avoidTopics = [...(finalBlogSettings.avoidTopics || []), val];
+      }
+      setAvoidTopicInput("");
+    }
+
+    return { finalWebsite, finalBlogSettings };
   };
 
-  const deleteLink = async (id: string) => {
-    try {
-      await fetch(`/api/websites/${websiteId}/links?id=${id}`, { method: "DELETE" });
-      setInternalLinks((prev) => prev.filter((l) => l.id !== id));
-    } catch {
-      toast.error("Failed to delete link");
-    }
-  };
-
-  const handleImproveField = async (fieldKey: string) => {
-    const text = customValues[fieldKey]?.trim();
-    if (!text) { toast.error("Type something first"); return; }
-    setPolishingField(fieldKey);
-    try {
-      const res = await fetch("/api/websites/improve-field", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          field: fieldKey,
-          value: text,
-          brandName: website?.brandName || "",
-          niche: website?.niche || "",
-        }),
-      });
-      if (!res.ok) { toast.error("AI rewrite failed"); return; }
-      const { improved } = await res.json();
-      if (improved) setCustomValues((p) => ({ ...p, [fieldKey]: improved }));
-    } catch {
-      toast.error("AI rewrite failed");
-    } finally {
-      setPolishingField(null);
-    }
-  };
-
-  const MULTI_FIELDS = [
-    { key: "niche", label: "Niche / Industry", group: "General" },
-    { key: "description", label: "Description", group: "General" },
-    { key: "targetAudience", label: "Target Audience", group: "General" },
-    { key: "tone", label: "Writing Tone", group: "Brand" },
-    { key: "primaryColor", label: "Brand Color", group: "Brand" },
-    { key: "uniqueValueProp", label: "Value Proposition", group: "Brand" },
-    { key: "suggestedCtaText", label: "Call-to-Action", group: "Content" },
-    { key: "suggestedWritingStyle", label: "Writing Style", group: "Content" },
-  ] as const;
-
-  const SINGLE_FIELDS = [
-    { key: "brandName", label: "Brand Name", group: "Brand" },
-    { key: "brandUrl", label: "Brand URL", group: "Brand" },
-    { key: "targetLocation", label: "Location", group: "Brand" },
-    { key: "suggestedCtaUrl", label: "CTA URL", group: "Content" },
-  ] as const;
-
-  const handleAIResearch = async () => {
+  const handleSave = async () => {
     if (!website) return;
-    setIsAnalyzing(true);
+    const { finalWebsite, finalBlogSettings } = buildFinalData();
+    if (!finalWebsite) return;
+    setWebsite(finalWebsite);
+    setBlogSettings(finalBlogSettings);
+    setIsSaving(true);
     try {
-      const res = await fetch("/api/websites/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: website.name || website.brandName, domain: website.domain }),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        toast.error(err.error || "AI analysis failed");
-        return;
+      const [siteRes, bsRes] = await Promise.all([
+        fetch(`/api/websites/${websiteId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(finalWebsite),
+        }),
+        fetch(`/api/websites/${websiteId}/blog-settings`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(finalBlogSettings),
+        }),
+      ]);
+      if (siteRes.ok && bsRes.ok) {
+        toast.success("All settings saved");
+      } else if (!siteRes.ok) {
+        toast.error("Failed to save website settings");
+      } else {
+        toast.error("Failed to save content settings");
       }
-      const data = await res.json() as AIRawData;
-      setAiRaw(data);
-      const picks: Record<string, number> = {};
-      const enabled: Record<string, boolean> = {};
-      for (const f of MULTI_FIELDS) { picks[f.key] = 0; enabled[f.key] = true; }
-      for (const f of SINGLE_FIELDS) { enabled[f.key] = true; }
-      enabled["competitors"] = true;
-      enabled["keyProducts"] = true;
-      setAiPicks(picks);
-      setAiEnabled(enabled);
-      setAiDialogOpen(true);
     } catch {
-      toast.error("AI analysis failed");
+      toast.error("Failed to save settings");
     } finally {
-      setIsAnalyzing(false);
+      setIsSaving(false);
     }
   };
 
-  const getPickedValue = (key: string): string => {
-    if (!aiRaw) return "";
-    const raw = (aiRaw as unknown as Record<string, unknown>)[key];
-    if (Array.isArray(raw)) return raw[aiPicks[key] ?? 0] || raw[0] || "";
-    return String(raw || "");
-  };
-
-  const handleAIApply = () => {
-    if (!aiRaw) return;
-    let applied = 0;
-    const pick = (k: string) => getPickedValue(k);
-    const custom = (k: string) => customValues[k]?.trim() || "";
-
-    // Helper: returns AI pick if enabled, custom value if disabled but has text, or null to skip
-    const resolve = (k: string, aiVal?: string): string | null => {
-      if (aiEnabled[k]) return aiVal ?? pick(k);
-      const c = custom(k);
-      return c || null;
-    };
-
-    const v = resolve("niche"); if (v) { updateField("niche", v); applied++; }
-    const d = resolve("description"); if (d) { updateField("description", d); applied++; }
-    const ta = resolve("targetAudience"); if (ta) { updateField("targetAudience", ta); applied++; }
-    const bn = resolve("brandName", aiRaw.brandName); if (bn) { updateField("brandName", bn); applied++; }
-    const bu = resolve("brandUrl", aiRaw.brandUrl); if (bu) { updateField("brandUrl", bu); applied++; }
-    const t = resolve("tone"); if (t) { updateField("tone", t); applied++; }
-    const pc = resolve("primaryColor"); if (pc) { updateField("primaryColor", pc); applied++; }
-    const uvp = resolve("uniqueValueProp"); if (uvp) { updateField("uniqueValueProp", uvp); applied++; }
-    const tl = resolve("targetLocation", aiRaw.targetLocation); if (tl) { updateField("targetLocation", tl); applied++; }
-
-    if (aiEnabled.competitors && aiRaw.competitors?.length) { updateField("competitors", aiRaw.competitors); applied++; }
-    if (aiEnabled.keyProducts && aiRaw.keyProducts?.length) { updateField("keyProducts", aiRaw.keyProducts); applied++; }
-
-    const cta = resolve("suggestedCtaText");
-    if (cta) { setBlogSettings((p) => ({ ...p, ctaText: cta })); applied++; }
-    const ctaUrl = resolve("suggestedCtaUrl", aiRaw.suggestedCtaUrl);
-    if (ctaUrl) { setBlogSettings((p) => ({ ...p, ctaUrl })); applied++; }
-
-    if (aiEnabled.suggestedWritingStyle) {
-      const style = pick("suggestedWritingStyle");
-      if (["informative", "conversational", "technical", "storytelling", "persuasive", "humorous"].includes(style)) {
-        setBlogSettings((p) => ({ ...p, writingStyle: style })); applied++;
-      }
-    } else if (custom("suggestedWritingStyle")) {
-      const style = custom("suggestedWritingStyle").toLowerCase();
-      if (["informative", "conversational", "technical", "storytelling", "persuasive", "humorous"].includes(style)) {
-        setBlogSettings((p) => ({ ...p, writingStyle: style })); applied++;
-      }
-    }
-
-    setAiDialogOpen(false);
-    toast.success(`Applied ${applied} field${applied !== 1 ? "s" : ""} — review and save`);
+  const updateField = (field: string, value: string | boolean | number | string[]) => {
+    setWebsite((prev) => (prev ? { ...prev, [field]: value } : null));
   };
 
   const handlePause = useCallback(async () => {
@@ -431,139 +175,6 @@ export default function WebsiteSettingsPage() {
     finally { setIsDeleting(false); }
   }, [confirmDelete, website?.domain, websiteId, router]);
 
-  const nextPublish = useMemo(() => {
-    if (!website?.autoPublish) return null;
-    return computeNextPublishDate(
-      website.publishDays || "MON,WED,FRI",
-      website.publishTime || "09:00",
-      website.timezone || "UTC",
-    );
-  }, [website?.autoPublish, website?.publishDays, website?.publishTime, website?.timezone]);
-
-  const toggleDay = (dayKey: string) => {
-    if (!website) return;
-    const current = (website.publishDays || "MON,WED,FRI").split(",").map((d) => d.trim());
-    const updated = current.includes(dayKey)
-      ? current.filter((d) => d !== dayKey)
-      : [...current, dayKey];
-    if (updated.length === 0) return;
-    const ordered = ALL_DAYS.map((d) => d.key).filter((k) => updated.includes(k));
-    updateField("publishDays", ordered.join(","));
-  };
-
-  useEffect(() => {
-    fetchWebsite();
-  }, [websiteId]);
-
-  const fetchWebsite = async () => {
-    try {
-      const [siteRes, bsRes] = await Promise.all([
-        fetch(`/api/websites/${websiteId}`),
-        fetch(`/api/websites/${websiteId}/blog-settings`),
-      ]);
-      if (siteRes.ok) setWebsite(await siteRes.json());
-      if (bsRes.ok) {
-        const bs = await bsRes.json();
-        if (bs && Object.keys(bs).length > 0) setBlogSettings((prev) => ({ ...prev, ...bs }));
-      }
-    } catch {
-      toast.error("Failed to load website settings");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSaveBlogSettings = async () => {
-    const { finalWebsite, finalBlogSettings } = buildFinalData();
-    if (finalWebsite) setWebsite(finalWebsite);
-    setBlogSettings(finalBlogSettings);
-    setIsSavingBlogSettings(true);
-    try {
-      const res = await fetch(`/api/websites/${websiteId}/blog-settings`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(finalBlogSettings),
-      });
-      if (res.ok) toast.success("Content settings saved");
-      else toast.error("Failed to save content settings");
-    } catch {
-      toast.error("Failed to save content settings");
-    } finally {
-      setIsSavingBlogSettings(false);
-    }
-  };
-
-  // Build final website/blogSettings objects that include any pending chip inputs
-  const buildFinalData = () => {
-    const finalWebsite = website ? { ...website } : null;
-    const finalBlogSettings = { ...blogSettings };
-
-    if (finalWebsite) {
-      if (competitorInput.trim()) {
-        const val = competitorInput.trim();
-        if (!finalWebsite.competitors?.includes(val)) {
-          finalWebsite.competitors = [...(finalWebsite.competitors || []), val];
-        }
-        setCompetitorInput("");
-      }
-      if (keyProductInput.trim()) {
-        const val = keyProductInput.trim();
-        if (!finalWebsite.keyProducts?.includes(val)) {
-          finalWebsite.keyProducts = [...(finalWebsite.keyProducts || []), val];
-        }
-        setKeyProductInput("");
-      }
-    }
-    if (avoidTopicInput.trim()) {
-      const val = avoidTopicInput.trim();
-      if (!finalBlogSettings.avoidTopics?.includes(val)) {
-        finalBlogSettings.avoidTopics = [...(finalBlogSettings.avoidTopics || []), val];
-      }
-      setAvoidTopicInput("");
-    }
-
-    return { finalWebsite, finalBlogSettings };
-  };
-
-  const handleSave = async () => {
-    if (!website) return;
-    const { finalWebsite, finalBlogSettings } = buildFinalData();
-    if (!finalWebsite) return;
-    // Sync flushed chips into state so UI reflects it
-    setWebsite(finalWebsite);
-    setBlogSettings(finalBlogSettings);
-    setIsSaving(true);
-    try {
-      const [siteRes, bsRes] = await Promise.all([
-        fetch(`/api/websites/${websiteId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(finalWebsite),
-        }),
-        fetch(`/api/websites/${websiteId}/blog-settings`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(finalBlogSettings),
-        }),
-      ]);
-      if (siteRes.ok && bsRes.ok) {
-        toast.success("All settings saved");
-      } else if (!siteRes.ok) {
-        toast.error("Failed to save website settings");
-      } else {
-        toast.error("Failed to save content settings");
-      }
-    } catch {
-      toast.error("Failed to save settings");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const updateField = (field: string, value: string | boolean | number | string[]) => {
-    setWebsite((prev) => (prev ? { ...prev, [field]: value } : null));
-  };
-
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -579,21 +190,10 @@ export default function WebsiteSettingsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">Settings</h2>
-          <p className="text-muted-foreground">
-            {website.name}
-          </p>
+          <p className="text-muted-foreground">{website.name}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAIResearch}
-            disabled={isAnalyzing}
-            className="border-violet-300 text-violet-700 hover:bg-violet-50"
-          >
-            {isAnalyzing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
-            {isAnalyzing ? "Researching..." : "AI Auto-Fill"}
-          </Button>
+          <AIResearchDialog website={website} updateField={updateField} setBlogSettings={setBlogSettings} />
           <Button onClick={handleSave} disabled={isSaving}>
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
             Save
@@ -611,490 +211,29 @@ export default function WebsiteSettingsPage() {
         </div>
       )}
 
-      {/* ── GENERAL ─────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Globe className="h-4 w-4 text-primary" />
-            General
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Website Name</Label>
-              <Input
-                value={website.name}
-                onChange={(e) => updateField("name", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Domain</Label>
-              <Input
-                value={website.domain}
-                onChange={(e) => updateField("domain", e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Niche / Industry</Label>
-              <Input
-                value={website.niche}
-                onChange={(e) => updateField("niche", e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Target Audience</Label>
-              <Input
-                value={website.targetAudience}
-                onChange={(e) => updateField("targetAudience", e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="space-y-2">
-            <Label>Description</Label>
-            <Textarea
-              value={website.description}
-              onChange={(e) => updateField("description", e.target.value)}
-              rows={2}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <GeneralSettings website={website} updateField={updateField} />
 
-      {/* ── BRAND ───────────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Palette className="h-4 w-4 text-primary" />
-            Brand &amp; Identity
-          </CardTitle>
-          <CardDescription>
-            AI uses this to match your voice, differentiate content, and write targeted CTAs
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Brand Name</Label>
-              <Input value={website.brandName} onChange={(e) => updateField("brandName", e.target.value)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Brand URL</Label>
-              <Input value={website.brandUrl} onChange={(e) => updateField("brandUrl", e.target.value)} />
-            </div>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Writing Tone</Label>
-              <Input value={website.tone} onChange={(e) => updateField("tone", e.target.value)} placeholder="e.g., Friendly, authoritative, witty" />
-            </div>
-            <div className="space-y-2">
-              <Label>Brand Color</Label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={website.primaryColor || "#4F46E5"}
-                  onChange={(e) => updateField("primaryColor", e.target.value)}
-                  className="h-10 w-10 rounded border cursor-pointer"
-                />
-                <Input
-                  value={website.primaryColor || "#4F46E5"}
-                  onChange={(e) => updateField("primaryColor", e.target.value)}
-                  className="w-32"
-                />
-              </div>
-            </div>
-          </div>
+      <BrandSettings
+        website={website}
+        updateField={updateField}
+        isAdmin={isAdmin}
+        competitorInput={competitorInput}
+        setCompetitorInput={setCompetitorInput}
+        keyProductInput={keyProductInput}
+        setKeyProductInput={setKeyProductInput}
+      />
 
-          <Separator />
+      <ContentSettings
+        website={website}
+        updateField={updateField}
+        blogSettings={blogSettings}
+        setBlogSettings={setBlogSettings}
+        avoidTopicInput={avoidTopicInput}
+        setAvoidTopicInput={setAvoidTopicInput}
+      />
 
-          <div className="space-y-2">
-            <Label>Unique Value Proposition</Label>
-            <Textarea
-              placeholder="What makes your business different from competitors?"
-              value={website.uniqueValueProp || ""}
-              onChange={(e) => updateField("uniqueValueProp", e.target.value)}
-              rows={2}
-            />
-            <p className="text-xs text-muted-foreground">
-              AI uses this to write differentiating CTAs and unique angles in every article.
-            </p>
-          </div>
+      <InternalLinksSettings websiteId={websiteId} />
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Geographic Focus</Label>
-              <Input
-                placeholder="e.g., United States, Global, Pakistan"
-                value={website.targetLocation || ""}
-                onChange={(e) => updateField("targetLocation", e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Used for pricing, examples, and market references.
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Hosting Mode</Label>
-              <Select value={website.hostingMode} onValueChange={(v) => updateField("hostingMode", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {isAdmin && <SelectItem value="HOSTED">Self-Hosted</SelectItem>}
-                  <SelectItem value="WORDPRESS">WordPress</SelectItem>
-                  <SelectItem value="WEBHOOK">Webhook</SelectItem>
-                  <SelectItem value="API">API</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Key Products / Features</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Type and press Enter to add"
-                value={keyProductInput}
-                onChange={(e) => setKeyProductInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === ",") {
-                    e.preventDefault();
-                    const val = keyProductInput.trim().replace(/,$/, "");
-                    if (val && !(website.keyProducts || []).includes(val)) {
-                      updateField("keyProducts", [...(website.keyProducts || []), val]);
-                    }
-                    setKeyProductInput("");
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" size="sm" onClick={() => {
-                const val = keyProductInput.trim();
-                if (val && !(website.keyProducts || []).includes(val)) {
-                  updateField("keyProducts", [...(website.keyProducts || []), val]);
-                }
-                setKeyProductInput("");
-              }}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            {(website.keyProducts || []).length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {(website.keyProducts || []).map((p) => (
-                  <span key={p} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                    {p}
-                    <button type="button" onClick={() => updateField("keyProducts", (website.keyProducts || []).filter((x) => x !== p))}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <Label>Top Competitors</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Type and press Enter to add"
-                value={competitorInput}
-                onChange={(e) => setCompetitorInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === ",") {
-                    e.preventDefault();
-                    const val = competitorInput.trim().replace(/,$/, "");
-                    if (val && !(website.competitors || []).includes(val)) {
-                      updateField("competitors", [...(website.competitors || []), val]);
-                    }
-                    setCompetitorInput("");
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" size="sm" onClick={() => {
-                const val = competitorInput.trim();
-                if (val && !(website.competitors || []).includes(val)) {
-                  updateField("competitors", [...(website.competitors || []), val]);
-                }
-                setCompetitorInput("");
-              }}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            {(website.competitors || []).length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {(website.competitors || []).map((c) => (
-                  <span key={c} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 text-xs font-medium">
-                    {c}
-                    <button type="button" onClick={() => updateField("competitors", (website.competitors || []).filter((x) => x !== c))}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* ── CONTENT AI ──────────────────────────────────── */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Bot className="h-4 w-4 text-primary" />
-            Content &amp; AI
-          </CardTitle>
-          <CardDescription>
-            Control what the AI writes, how it writes, and when it publishes
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Writing Style</Label>
-              <Select value={blogSettings.writingStyle} onValueChange={(v) => setBlogSettings((p) => ({ ...p, writingStyle: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="informative">Informative</SelectItem>
-                  <SelectItem value="conversational">Conversational</SelectItem>
-                  <SelectItem value="technical">Technical</SelectItem>
-                  <SelectItem value="storytelling">Storytelling</SelectItem>
-                  <SelectItem value="persuasive">Persuasive</SelectItem>
-                  <SelectItem value="humorous">Humorous</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Default Article Length</Label>
-              <Select value={blogSettings.contentLength} onValueChange={(v) => setBlogSettings((p) => ({ ...p, contentLength: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SHORT">Short (~800 words)</SelectItem>
-                  <SelectItem value="MEDIUM">Medium (~1,500 words)</SelectItem>
-                  <SelectItem value="LONG">Long (~2,500 words)</SelectItem>
-                  <SelectItem value="PILLAR">Pillar (~4,000 words)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <Label>Call-to-Action Text</Label>
-              <Input
-                placeholder="e.g., Start your free trial"
-                value={blogSettings.ctaText || ""}
-                onChange={(e) => setBlogSettings((p) => ({ ...p, ctaText: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Call-to-Action URL</Label>
-              <Input
-                placeholder="e.g., https://yoursite.com/signup"
-                value={blogSettings.ctaUrl || ""}
-                onChange={(e) => setBlogSettings((p) => ({ ...p, ctaUrl: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Topics to Avoid</Label>
-            <div className="flex gap-2">
-              <Input
-                placeholder="Type and press Enter to add"
-                value={avoidTopicInput}
-                onChange={(e) => setAvoidTopicInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === ",") {
-                    e.preventDefault();
-                    const val = avoidTopicInput.trim().replace(/,$/, "");
-                    if (val && !(blogSettings.avoidTopics || []).includes(val)) {
-                      setBlogSettings((p) => ({ ...p, avoidTopics: [...(p.avoidTopics || []), val] }));
-                    }
-                    setAvoidTopicInput("");
-                  }
-                }}
-              />
-              <Button type="button" variant="outline" size="sm" onClick={() => {
-                const val = avoidTopicInput.trim();
-                if (val && !(blogSettings.avoidTopics || []).includes(val)) {
-                  setBlogSettings((p) => ({ ...p, avoidTopics: [...(p.avoidTopics || []), val] }));
-                }
-                setAvoidTopicInput("");
-              }}>
-                <Plus className="h-4 w-4" />
-              </Button>
-            </div>
-            {(blogSettings.avoidTopics || []).length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {(blogSettings.avoidTopics || []).map((t) => (
-                  <span key={t} className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200 text-xs font-medium">
-                    {t}
-                    <button type="button" onClick={() => setBlogSettings((p) => ({ ...p, avoidTopics: (p.avoidTopics || []).filter((x) => x !== t) }))}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <Separator />
-
-          <div className="grid gap-x-8 gap-y-3 md:grid-cols-3">
-            <div className="flex items-center justify-between">
-              <Label>Auto-Publish</Label>
-              <Switch checked={website.autoPublish} onCheckedChange={(v) => updateField("autoPublish", v)} />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>FAQ Section</Label>
-              <Switch checked={blogSettings.includeFAQ} onCheckedChange={(v) => setBlogSettings((p) => ({ ...p, includeFAQ: v }))} />
-            </div>
-            <div className="flex items-center justify-between">
-              <Label>Table of Contents</Label>
-              <Switch checked={blogSettings.includeTableOfContents} onCheckedChange={(v) => setBlogSettings((p) => ({ ...p, includeTableOfContents: v }))} />
-            </div>
-          </div>
-
-          {website.autoPublish && (
-            <>
-              <Separator />
-              <div className="space-y-4">
-                <p className="text-sm font-medium flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-primary" />
-                  Publish Schedule
-                </p>
-                <div className="space-y-2">
-                  <Label>Publish Days</Label>
-                  <div className="flex flex-wrap gap-2">
-                    {ALL_DAYS.map((day) => {
-                      const active = (website.publishDays || "MON,WED,FRI").split(",").map((d) => d.trim()).includes(day.key);
-                      return (
-                        <button
-                          key={day.key}
-                          type="button"
-                          onClick={() => toggleDay(day.key)}
-                          className={`px-3 py-1.5 rounded-md text-sm font-medium border transition-colors ${
-                            active
-                              ? "bg-primary text-primary-foreground border-primary"
-                              : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"
-                          }`}
-                        >
-                          {day.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2">
-                    <Label className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> Time</Label>
-                    <Input type="time" value={website.publishTime || "09:00"} onChange={(e) => updateField("publishTime", e.target.value)} className="w-32" />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Posts/Week</Label>
-                    <Select value={String(website.postsPerWeek)} onValueChange={(v) => updateField("postsPerWeek", parseInt(v))}>
-                      <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {[1, 2, 3, 5, 7, 10, 14].map((n) => (
-                          <SelectItem key={n} value={String(n)}>{n}/week</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Timezone</Label>
-                    <Select value={website.timezone || "UTC"} onValueChange={(v) => updateField("timezone", v)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent className="max-h-60">
-                        {COMMON_TIMEZONES.map((tz) => (
-                          <SelectItem key={tz} value={tz}>{getTimezoneLabel(tz)}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                {nextPublish && (
-                  <div className="rounded-lg border bg-muted/30 p-3 text-sm">
-                    <span className="font-medium">Next post:</span>{" "}
-                    {nextPublish.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: website.timezone || "UTC" })}
-                    {" at "}
-                    {nextPublish.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZone: website.timezone || "UTC" })}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* ── INTERNAL LINKS (collapsed) ──────────────────── */}
-      <div className="rounded-lg border">
-        <button
-          type="button"
-          onClick={toggleLinks}
-          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors rounded-lg"
-        >
-          <div className="flex items-center gap-2">
-            <Link2 className="h-4 w-4 text-primary" />
-            <span className="font-semibold text-sm">Internal Links</span>
-            {linksLoaded && (
-              <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
-                {internalLinks.length}
-              </span>
-            )}
-          </div>
-          {linksOpen ? (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-muted-foreground" />
-          )}
-        </button>
-
-        {linksOpen && (
-          <div className="px-4 pb-4 space-y-2 border-t">
-            <p className="text-xs text-muted-foreground pt-3">
-              AI uses these keyword → URL pairs to add internal links in every generated article.
-              Manage the full list in the <a href={`/dashboard/websites/${websiteId}/links`} className="text-primary hover:underline">Internal Links page</a>.
-            </p>
-            {!linksLoaded ? (
-              <div className="flex items-center gap-2 py-3 text-muted-foreground text-sm">
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Loading…
-              </div>
-            ) : internalLinks.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-2">No internal links yet.</p>
-            ) : (
-              <div className="divide-y rounded-lg border overflow-hidden mt-2">
-                {internalLinks.slice(0, 20).map((link) => (
-                  <div key={link.id} className="flex items-center justify-between px-3 py-2 bg-background hover:bg-muted/20 text-sm gap-2">
-                    <span className="font-medium text-foreground min-w-0 truncate">{link.keyword}</span>
-                    <span className="text-muted-foreground truncate flex-1 min-w-0 text-xs">{link.url}</span>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs text-muted-foreground">{link.usageCount}x</span>
-                      <button
-                        type="button"
-                        onClick={() => deleteLink(link.id)}
-                        className="text-muted-foreground hover:text-destructive transition-colors"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {internalLinks.length > 20 && (
-                  <div className="px-3 py-2 text-xs text-muted-foreground bg-muted/30">
-                    +{internalLinks.length - 20} more —{" "}
-                    <a href={`/dashboard/websites/${websiteId}/links`} className="text-primary hover:underline">
-                      view all
-                    </a>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── INTEGRATIONS ────────────────────────────────── */}
       <div>
         <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <Plug className="h-4 w-4 text-primary" />
@@ -1123,311 +262,23 @@ export default function WebsiteSettingsPage() {
           </TabsContent>
 
           <TabsContent value="publishing" className="mt-0">
-            <Card>
-              <CardContent className="space-y-4 pt-6">
-                <div>
-                  <p className="text-sm font-medium flex items-center gap-2 mb-3"><Twitter className="h-4 w-4" /> Twitter / X</p>
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <Input type="password" placeholder="API Key (Consumer Key)" value={website.twitterApiKey || ""} onChange={(e) => updateField("twitterApiKey", e.target.value)} />
-                    <Input type="password" placeholder="API Secret (Consumer Secret)" value={website.twitterApiSecret || ""} onChange={(e) => updateField("twitterApiSecret", e.target.value)} />
-                    <Input type="password" placeholder="Access Token" value={website.twitterAccessToken || ""} onChange={(e) => updateField("twitterAccessToken", e.target.value)} />
-                    <Input type="password" placeholder="Access Token Secret" value={website.twitterAccessSecret || ""} onChange={(e) => updateField("twitterAccessSecret", e.target.value)} />
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-2">
-                    All 4 keys needed.{" "}
-                    <a href="https://developer.twitter.com" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Get API keys →</a>
-                  </p>
-                </div>
-                <Separator />
-                <div>
-                  <p className="text-sm font-medium flex items-center gap-2 mb-3"><Linkedin className="h-4 w-4" /> LinkedIn</p>
-                  <Input type="password" placeholder="LinkedIn OAuth access token" value={website.linkedinAccessToken || ""} onChange={(e) => updateField("linkedinAccessToken", e.target.value)} />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Requires <code className="bg-muted px-1 rounded">w_member_social</code> scope.{" "}
-                    <a href="https://www.linkedin.com/developers/" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">LinkedIn Developers →</a>
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            <SocialSettings website={website} updateField={updateField} />
           </TabsContent>
 
           <TabsContent value="advanced" className="mt-0 space-y-4">
-            <Card>
-              <CardContent className="space-y-4 pt-6">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Google Analytics ID</Label>
-                    <Input placeholder="G-XXXXXXXXXX" value={website.googleAnalyticsId || ""} onChange={(e) => updateField("googleAnalyticsId", e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Search Console URL</Label>
-                    <Input placeholder="https://yourdomain.com" value={website.gscPropertyUrl || ""} onChange={(e) => updateField("gscPropertyUrl", e.target.value)} />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2"><Zap className="h-3.5 w-3.5 text-primary" /> IndexNow API Key</Label>
-                  <Input placeholder="Auto-submit to Google & Bing on publish" value={website.indexNowKey || ""} onChange={(e) => updateField("indexNowKey", e.target.value)} />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-destructive/50">
-              <CardHeader>
-                <CardTitle className="text-destructive flex items-center gap-2">
-                  <AlertTriangle className="h-5 w-5" />
-                  Danger Zone
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">Pause Website</p>
-                    <p className="text-sm text-muted-foreground">Stop all content generation</p>
-                  </div>
-                  <Button variant="outline" onClick={handlePause} disabled={isPausing}>
-                    {isPausing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {website.status === "PAUSED" ? "Resume" : "Pause"}
-                  </Button>
-                </div>
-                <Separator />
-                <div className="space-y-3">
-                  <p className="font-medium">Delete Website</p>
-                  <p className="text-sm text-muted-foreground">Permanently delete this website and all its content</p>
-                  <div className="space-y-2">
-                    <p className="text-xs text-muted-foreground">
-                      Type <span className="font-mono font-semibold text-foreground">{website.domain}</span> to confirm:
-                    </p>
-                    <div className="flex gap-2">
-                      <Input placeholder={website.domain} value={confirmDelete} onChange={(e) => setConfirmDelete(e.target.value)} className="max-w-xs" />
-                      <Button variant="destructive" onClick={handleDelete} disabled={isDeleting || confirmDelete !== website.domain}>
-                        {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                        Delete Forever
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <AnalyticsSettings website={website} updateField={updateField} />
+            <DangerZoneSettings
+              website={website}
+              isPausing={isPausing}
+              isDeleting={isDeleting}
+              confirmDelete={confirmDelete}
+              setConfirmDelete={setConfirmDelete}
+              onPause={handlePause}
+              onDelete={handleDelete}
+            />
           </TabsContent>
         </Tabs>
       </div>
-
-      {/* ── AI PREVIEW DIALOG ───────────────────────────── */}
-      <Dialog open={aiDialogOpen} onOpenChange={setAiDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-violet-600" />
-              AI Research Results
-            </DialogTitle>
-            <DialogDescription>
-              Pick an AI option or toggle to &quot;Custom&quot; to write your own. Use the Improve button to let AI polish your text.
-            </DialogDescription>
-          </DialogHeader>
-
-          {aiRaw && (
-            <div className="space-y-5 py-2">
-              {["General", "Brand", "Content"].map((group) => (
-                <div key={group}>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">{group}</p>
-                  <div className="space-y-3">
-                    {/* Multi-option fields */}
-                    {MULTI_FIELDS.filter((f) => f.group === group).map((field) => {
-                      const options = (aiRaw as unknown as Record<string, unknown>)[field.key];
-                      if (!Array.isArray(options) || options.length === 0) return null;
-                      const selected = aiPicks[field.key] ?? 0;
-                      const enabled = aiEnabled[field.key] !== false;
-
-                      return (
-                        <div key={field.key} className={`rounded-lg border p-3 transition-colors ${enabled ? "border-border" : "border-border bg-muted/10"}`}>
-                          <div className="flex items-center justify-between mb-2">
-                            <p className="text-sm font-medium">{field.label}</p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-muted-foreground">{enabled ? "AI picks" : "Custom"}</span>
-                              <Switch checked={enabled} onCheckedChange={(v) => setAiEnabled((p) => ({ ...p, [field.key]: v }))} />
-                            </div>
-                          </div>
-                          {enabled ? (
-                            field.key === "primaryColor" ? (
-                              <div className="flex gap-2">
-                                {options.map((color: string, i: number) => (
-                                  <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => setAiPicks((p) => ({ ...p, [field.key]: i }))}
-                                    className={`h-10 w-10 rounded-lg border-2 transition-all ${selected === i ? "border-violet-500 scale-110 ring-2 ring-violet-200" : "border-transparent hover:scale-105"}`}
-                                    style={{ backgroundColor: color }}
-                                    title={color}
-                                  />
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="space-y-1.5">
-                                {options.map((opt: string, i: number) => (
-                                  <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => setAiPicks((p) => ({ ...p, [field.key]: i }))}
-                                    className={`w-full text-left px-3 py-2 rounded-md text-sm transition-all border ${
-                                      selected === i
-                                        ? "bg-violet-50 border-violet-300 text-violet-900 ring-1 ring-violet-200"
-                                        : "bg-muted/30 border-transparent hover:bg-muted/60 text-muted-foreground"
-                                    }`}
-                                  >
-                                    {opt}
-                                  </button>
-                                ))}
-                              </div>
-                            )
-                          ) : (
-                            <div className="space-y-2">
-                              <div className="flex gap-2">
-                                {field.key === "primaryColor" ? (
-                                  <Input
-                                    type="color"
-                                    value={customValues[field.key] || "#4F46E5"}
-                                    onChange={(e) => setCustomValues((p) => ({ ...p, [field.key]: e.target.value }))}
-                                    className="h-9 w-16 p-1 cursor-pointer"
-                                  />
-                                ) : ["description", "uniqueValueProp", "targetAudience"].includes(field.key) ? (
-                                  <Textarea
-                                    placeholder={`Write your own ${field.label.toLowerCase()}...`}
-                                    value={customValues[field.key] || ""}
-                                    onChange={(e) => setCustomValues((p) => ({ ...p, [field.key]: e.target.value }))}
-                                    className="text-sm min-h-[60px] flex-1"
-                                    rows={2}
-                                  />
-                                ) : (
-                                  <Input
-                                    placeholder={`Write your own ${field.label.toLowerCase()}...`}
-                                    value={customValues[field.key] || ""}
-                                    onChange={(e) => setCustomValues((p) => ({ ...p, [field.key]: e.target.value }))}
-                                    className="text-sm flex-1"
-                                  />
-                                )}
-                                {field.key !== "primaryColor" && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    disabled={!customValues[field.key]?.trim() || polishingField === field.key}
-                                    onClick={() => handleImproveField(field.key)}
-                                    className="shrink-0 gap-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
-                                    title="AI will rewrite your text to be more polished"
-                                  >
-                                    {polishingField === field.key ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <Sparkles className="h-3.5 w-3.5" />
-                                    )}
-                                    Improve
-                                  </Button>
-                                )}
-                              </div>
-                              {customValues[field.key]?.trim() && field.key !== "primaryColor" && (
-                                <p className="text-[11px] text-muted-foreground">Type your version, then click Improve to let AI polish it</p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* Single-value fields */}
-                    {SINGLE_FIELDS.filter((f) => f.group === group).map((field) => {
-                      const val = (aiRaw as unknown as Record<string, unknown>)[field.key];
-                      if (!val) return null;
-                      const enabled = aiEnabled[field.key] !== false;
-                      return (
-                        <div key={field.key} className={`rounded-lg border p-3 transition-colors ${enabled ? "border-border" : "border-border bg-muted/10"}`}>
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="text-sm font-medium">{field.label}</p>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-muted-foreground">{enabled ? "AI" : "Custom"}</span>
-                              <Switch checked={enabled} onCheckedChange={(v) => setAiEnabled((p) => ({ ...p, [field.key]: v }))} />
-                            </div>
-                          </div>
-                          {enabled ? (
-                            <p className="text-sm text-muted-foreground">{String(val)}</p>
-                          ) : (
-                            <div className="flex gap-2">
-                              <Input
-                                placeholder={`Write your own ${field.label.toLowerCase()}...`}
-                                value={customValues[field.key] || ""}
-                                onChange={(e) => setCustomValues((p) => ({ ...p, [field.key]: e.target.value }))}
-                                className="text-sm flex-1"
-                              />
-                              {!["brandUrl", "suggestedCtaUrl"].includes(field.key) && (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={!customValues[field.key]?.trim() || polishingField === field.key}
-                                  onClick={() => handleImproveField(field.key)}
-                                  className="shrink-0 gap-1.5 text-violet-600 border-violet-200 hover:bg-violet-50"
-                                >
-                                  {polishingField === field.key ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                  ) : (
-                                    <Sparkles className="h-3.5 w-3.5" />
-                                  )}
-                                  Improve
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* Competitors / Products as badges */}
-                    {group === "Brand" && (
-                      <>
-                        {aiRaw.competitors?.length > 0 && (
-                          <div className={`rounded-lg border p-3 transition-colors ${aiEnabled.competitors !== false ? "border-border" : "border-muted opacity-50"}`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-sm font-medium">Competitors</p>
-                              <Switch checked={aiEnabled.competitors !== false} onCheckedChange={(v) => setAiEnabled((p) => ({ ...p, competitors: v }))} />
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {aiRaw.competitors.map((c: string) => (
-                                <Badge key={c} variant="secondary" className="text-xs">{c}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {aiRaw.keyProducts?.length > 0 && (
-                          <div className={`rounded-lg border p-3 transition-colors ${aiEnabled.keyProducts !== false ? "border-border" : "border-muted opacity-50"}`}>
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-sm font-medium">Products / Features</p>
-                              <Switch checked={aiEnabled.keyProducts !== false} onCheckedChange={(v) => setAiEnabled((p) => ({ ...p, keyProducts: v }))} />
-                            </div>
-                            <div className="flex flex-wrap gap-1.5">
-                              {aiRaw.keyProducts.map((p: string) => (
-                                <Badge key={p} variant="secondary" className="text-xs">{p}</Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setAiDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleAIApply} className="bg-violet-600 hover:bg-violet-700">
-              <CheckCircle2 className="mr-1.5 h-4 w-4" />
-              Apply Fields
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
-
-
