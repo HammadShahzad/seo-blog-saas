@@ -15,9 +15,13 @@ export async function DELETE(
 
     const { memberId } = await params;
 
-    const adminMembership = await prisma.organizationMember.findFirst({
+    const adminMemberships = await prisma.organizationMember.findMany({
       where: { userId: session.user.id },
+      include: { organization: { include: { _count: { select: { websites: true } } } } },
     });
+    const adminMembership = adminMemberships.sort(
+      (a, b) => b.organization._count.websites - a.organization._count.websites
+    )[0];
 
     if (!adminMembership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });

@@ -33,10 +33,13 @@ export async function POST(req: NextRequest) {
     });
 
     if (!subscription) {
-      const membership = await prisma.organizationMember.findFirst({
+      const memberships = await prisma.organizationMember.findMany({
         where: { userId: session.user.id },
-        select: { organizationId: true },
+        include: { organization: { include: { _count: { select: { websites: true } } } } },
       });
+      const membership = memberships.sort(
+        (a, b) => b.organization._count.websites - a.organization._count.websites
+      )[0];
 
       if (membership) {
         subscription = await prisma.subscription.findUnique({

@@ -15,7 +15,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const membership = await prisma.organizationMember.findFirst({
+    const memberships = await prisma.organizationMember.findMany({
       where: { userId: session.user.id },
       include: {
         organization: {
@@ -25,10 +25,14 @@ export async function GET() {
               include: { user: { select: { id: true, name: true, email: true, createdAt: true } } },
               orderBy: { createdAt: "asc" },
             },
+            _count: { select: { websites: true } },
           },
         },
       },
     });
+    const membership = memberships.sort(
+      (a, b) => b.organization._count.websites - a.organization._count.websites
+    )[0];
 
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
@@ -60,17 +64,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Email is required" }, { status: 400 });
     }
 
-    const membership = await prisma.organizationMember.findFirst({
+    const memberships = await prisma.organizationMember.findMany({
       where: { userId: session.user.id },
       include: {
         organization: {
           include: {
             subscription: true,
             members: true,
+            _count: { select: { websites: true } },
           },
         },
       },
     });
+    const membership = memberships.sort(
+      (a, b) => b.organization._count.websites - a.organization._count.websites
+    )[0];
 
     if (!membership) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });

@@ -20,15 +20,16 @@ async function getJobWithOwnership(jobId: string, userId: string, isAdmin: boole
 
   if (isAdmin) return job;
 
-  // Verify user belongs to the org that owns this website
-  const membership = await prisma.organizationMember.findFirst({
+  // Verify user belongs to any org that owns this website
+  const memberships = await prisma.organizationMember.findMany({
     where: { userId },
     select: { organizationId: true },
   });
-  if (!membership) return null;
+  const orgIds = memberships.map((m) => m.organizationId);
+  if (orgIds.length === 0) return null;
 
   const website = await prisma.website.findFirst({
-    where: { id: job.websiteId, organizationId: membership.organizationId },
+    where: { id: job.websiteId, organizationId: { in: orgIds } },
     select: { id: true },
   });
 

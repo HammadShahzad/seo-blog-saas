@@ -8,11 +8,14 @@ import { checkAiRateLimit } from "@/lib/api-helpers";
 export const maxDuration = 30;
 
 async function verifyAccess(websiteId: string, userId: string) {
-  const membership = await prisma.organizationMember.findFirst({
+  const memberships = await prisma.organizationMember.findMany({
     where: { userId },
-    include: { organization: { include: { websites: true } } },
+    select: { organizationId: true },
   });
-  return membership?.organization.websites.find((w) => w.id === websiteId) || null;
+  const orgIds = memberships.map((m) => m.organizationId);
+  return prisma.website.findFirst({
+    where: { id: websiteId, organizationId: { in: orgIds } },
+  });
 }
 
 /**

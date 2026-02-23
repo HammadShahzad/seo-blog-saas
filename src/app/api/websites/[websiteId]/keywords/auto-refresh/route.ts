@@ -21,11 +21,16 @@ export async function POST(req: Request, { params }: Params) {
 
   const { websiteId } = await params;
 
-  const membership = await prisma.organizationMember.findFirst({
+  const memberships = await prisma.organizationMember.findMany({
     where: { userId: session.user.id },
-    include: { organization: { include: { websites: { select: { id: true } } } } },
+    select: { organizationId: true },
   });
-  if (!membership?.organization.websites.some((w) => w.id === websiteId)) {
+  const orgIds = memberships.map((m) => m.organizationId);
+  const verifiedWebsite = await prisma.website.findFirst({
+    where: { id: websiteId, organizationId: { in: orgIds } },
+    select: { id: true },
+  });
+  if (!verifiedWebsite) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 

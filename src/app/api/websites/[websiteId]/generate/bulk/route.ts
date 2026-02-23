@@ -39,13 +39,13 @@ export async function POST(
       return NextResponse.json({ error: "Invalid contentLength" }, { status: 400 });
     }
 
-    // Check subscription limit (scoped to the verified org)
-    const membership = await prisma.organizationMember.findFirst({
-      where: { userId: session.user.id },
+    // Check subscription limit (scoped to the org that owns this website)
+    const websiteWithOrg = await prisma.website.findUnique({
+      where: { id: websiteId },
       include: { organization: { include: { subscription: true } } },
     });
 
-    const subscription = membership?.organization?.subscription;
+    const subscription = websiteWithOrg?.organization?.subscription;
     const remaining = subscription
       ? subscription.maxPostsPerMonth - subscription.postsGeneratedThisMonth
       : 3;

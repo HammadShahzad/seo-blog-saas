@@ -25,19 +25,21 @@ export async function verifyWebsiteAccess(websiteId: string) {
     return { session, website, organizationId: website.organizationId };
   }
 
-  const membership = await prisma.organizationMember.findFirst({
+  const memberships = await prisma.organizationMember.findMany({
     where: { userId: session.user.id },
     select: { organizationId: true },
   });
 
-  if (!membership) {
+  if (memberships.length === 0) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
+
+  const orgIds = memberships.map((m) => m.organizationId);
 
   const website = await prisma.website.findFirst({
     where: {
       id: websiteId,
-      organizationId: membership.organizationId,
+      organizationId: { in: orgIds },
       status: { not: "DELETED" },
     },
   });
@@ -46,7 +48,7 @@ export async function verifyWebsiteAccess(websiteId: string) {
     return { error: NextResponse.json({ error: "Website not found" }, { status: 404 }) };
   }
 
-  return { session, website, organizationId: membership.organizationId };
+  return { session, website, organizationId: website.organizationId };
 }
 
 export function requireCronAuth(req: Request): NextResponse | null {

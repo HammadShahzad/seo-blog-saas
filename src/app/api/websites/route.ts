@@ -13,17 +13,20 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const membership = await prisma.organizationMember.findFirst({
+    const memberships = await prisma.organizationMember.findMany({
       where: { userId: session.user.id },
+      select: { organizationId: true },
     });
 
-    if (!membership) {
+    if (memberships.length === 0) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
 
+    const orgIds = memberships.map((m) => m.organizationId);
+
     const websites = await prisma.website.findMany({
       where: {
-        organizationId: membership.organizationId,
+        organizationId: { in: orgIds },
         status: { not: "DELETED" },
       },
       orderBy: { createdAt: "desc" },
@@ -46,18 +49,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const membership = await prisma.organizationMember.findFirst({
+    const memberships = await prisma.organizationMember.findMany({
       where: { userId: session.user.id },
       include: {
         organization: {
-          include: { subscription: true },
+          include: {
+            subscription: true,
+            _count: { select: { websites: { where: { status: { not: "DELETED" } } } } },
+          },
         },
       },
+      orderBy: { createdAt: "asc" },
     });
 
-    if (!membership) {
+    if (memberships.length === 0) {
       return NextResponse.json({ error: "No organization found" }, { status: 404 });
     }
+
+    // Prefer org with most websites (the shared team org) over empty personal org
+    const membership = memberships.sort(
+      (a, b) => b.organization._count.websites - a.organization._count.websites
+    )[0];
 
     const subscription = membership.organization.subscription;
 

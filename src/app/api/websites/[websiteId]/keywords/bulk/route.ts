@@ -4,11 +4,14 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 
 async function verifyAccess(userId: string, websiteId: string) {
-  const membership = await prisma.organizationMember.findFirst({
+  const memberships = await prisma.organizationMember.findMany({
     where: { userId },
-    include: { organization: { include: { websites: true } } },
+    select: { organizationId: true },
   });
-  return membership?.organization.websites.find((w) => w.id === websiteId);
+  const orgIds = memberships.map((m) => m.organizationId);
+  return prisma.website.findFirst({
+    where: { id: websiteId, organizationId: { in: orgIds } },
+  });
 }
 
 export async function DELETE(

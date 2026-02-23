@@ -12,11 +12,16 @@ import prisma from "@/lib/prisma";
 type Params = { params: Promise<{ websiteId: string; briefId: string }> };
 
 async function verifyAccess(websiteId: string, userId: string) {
-  const m = await prisma.organizationMember.findFirst({
+  const memberships = await prisma.organizationMember.findMany({
     where: { userId },
-    include: { organization: { include: { websites: { select: { id: true } } } } },
+    select: { organizationId: true },
   });
-  return m?.organization.websites.some((w) => w.id === websiteId) ?? false;
+  const orgIds = memberships.map((m) => m.organizationId);
+  const website = await prisma.website.findFirst({
+    where: { id: websiteId, organizationId: { in: orgIds } },
+    select: { id: true },
+  });
+  return !!website;
 }
 
 export async function GET(req: Request, { params }: Params) {

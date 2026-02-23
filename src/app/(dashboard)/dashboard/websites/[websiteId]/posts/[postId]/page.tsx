@@ -124,6 +124,8 @@ export default function PostEditorPage() {
   const [imagePromptInput, setImagePromptInput] = useState("");
   const [imageCacheBust, setImageCacheBust] = useState<number>(Date.now());
   const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
+  const [regeneratingInlineIdx, setRegeneratingInlineIdx] = useState<number | null>(null);
+  const [inlinePrompts, setInlinePrompts] = useState<Record<number, string>>({});
   const [tagInput, setTagInput] = useState("");
   const [autoSlug, setAutoSlug] = useState(isNew);
 
@@ -427,6 +429,32 @@ export default function PostEditorPage() {
       }
     } catch { toast.error("Image generation failed"); }
     finally { setIsRegeneratingImage(false); }
+  };
+
+  const handleRegenerateInlineImage = async (index: number, customPrompt?: string) => {
+    if (isNew) { toast.error("Save the post first"); return; }
+    setRegeneratingInlineIdx(index);
+    try {
+      const res = await fetch(`/api/websites/${websiteId}/posts/${postId}/regenerate-image`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "inline",
+          inlineIndex: index,
+          ...(customPrompt ? { prompt: customPrompt } : {}),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.content) {
+        updateField("content", data.content);
+        setImageCacheBust(Date.now());
+        toast.success(`Inline image ${index + 1} regenerated!`);
+        setInlinePrompts((p) => ({ ...p, [index]: "" }));
+      } else {
+        toast.error(data.error || "Failed to regenerate inline image");
+      }
+    } catch { toast.error("Inline image regeneration failed"); }
+    finally { setRegeneratingInlineIdx(null); }
   };
 
   const addTag = (e: React.KeyboardEvent) => {
@@ -1139,20 +1167,53 @@ export default function PostEditorPage() {
                       </CardTitle>
                       <p className="text-xs text-muted-foreground">Images embedded within the article content</p>
                     </CardHeader>
-                    <CardContent>
-                      <div className="grid grid-cols-2 gap-3">
-                        {parsed.map((img, i) => (
-                          <div key={i} className="space-y-1">
+                    <CardContent className="space-y-4">
+                      {parsed.map((img, i) => (
+                        <div key={i} className="space-y-2 pb-3 border-b last:border-0 last:pb-0">
+                          <div className="relative group">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={img.url}
+                              src={`${img.url}${img.url.includes("?") ? "&" : "?"}v=${imageCacheBust}`}
                               alt={img.alt || `Inline image ${i + 1}`}
                               className="w-full rounded-md aspect-video object-cover border"
                             />
-                            <p className="text-[10px] text-muted-foreground truncate">{img.alt || `Image ${i + 1}`}</p>
+                            {regeneratingInlineIdx === i && (
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-md">
+                                <div className="text-center text-white">
+                                  <Loader2 className="h-6 w-6 animate-spin mx-auto mb-1" />
+                                  <p className="text-[10px]">Generating…</p>
+                                </div>
+                              </div>
+                            )}
                           </div>
-                        ))}
-                      </div>
+                          <p className="text-[10px] text-muted-foreground truncate">{img.alt || `Image ${i + 1}`}</p>
+                          {!isNew && (
+                            <div className="space-y-1.5">
+                              <Button size="sm" variant="outline" className="w-full h-7 text-[11px]"
+                                disabled={regeneratingInlineIdx !== null}
+                                onClick={() => handleRegenerateInlineImage(i)}>
+                                {regeneratingInlineIdx === i
+                                  ? <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                                  : <Sparkles className="mr-1.5 h-3 w-3" />}
+                                Regenerate
+                              </Button>
+                              <div className="flex gap-1">
+                                <input type="text" placeholder="Custom prompt…"
+                                  value={inlinePrompts[i] || ""}
+                                  onChange={(e) => setInlinePrompts((p) => ({ ...p, [i]: e.target.value }))}
+                                  onKeyDown={(e) => { if (e.key === "Enter" && (inlinePrompts[i] || "").trim()) handleRegenerateInlineImage(i, inlinePrompts[i].trim()); }}
+                                  className="flex-1 h-6 text-[10px] px-2 border rounded-md bg-background"
+                                  disabled={regeneratingInlineIdx !== null} />
+                                <Button size="sm" variant="ghost" className="h-6 w-6 p-0"
+                                  onClick={() => (inlinePrompts[i] || "").trim() && handleRegenerateInlineImage(i, inlinePrompts[i].trim())}
+                                  disabled={regeneratingInlineIdx !== null || !(inlinePrompts[i] || "").trim()}>
+                                  <RefreshCw className="h-2.5 w-2.5" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </CardContent>
                   </Card>
                 );
