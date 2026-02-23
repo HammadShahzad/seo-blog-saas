@@ -69,7 +69,7 @@ export async function processJob(jobId: string): Promise<void> {
         include: { blogSettings: true },
       }),
       prisma.blogPost.findMany({
-        where: { websiteId: input.websiteId, status: "PUBLISHED" },
+        where: { websiteId: input.websiteId, status: { in: ["PUBLISHED", "REVIEW"] } },
         select: { title: true, slug: true, focusKeyword: true, secondaryKeywords: true },
         orderBy: { publishedAt: "desc" },
         take: 100,

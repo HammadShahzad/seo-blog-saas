@@ -99,9 +99,10 @@ export function postProcess(
     );
   }
 
-  // Inject internal links post-hoc when the winning version has none
+  // Inject internal links post-hoc — always fill up to the 15-link target.
+  // Even if the SEO step added some, inject more via phrase-matching to reach the goal.
   const existingLinkCount = (finalContent.match(/\[[^\]]+\]\(https?:\/\/[^)]+\)/g) || []).length;
-  if (consolidatedLinks.length > 0 && (best.label !== "SEO" || existingLinkCount < 3)) {
+  if (consolidatedLinks.length > 0 && existingLinkCount < 15) {
     finalContent = injectInternalLinks(finalContent, consolidatedLinks);
   }
 
@@ -262,7 +263,8 @@ function injectInternalLinks(content: string, consolidatedLinks: ConsolidatedLin
         if (linkedLines.has(i)) continue;
         const line = lines[i];
         if (/^(#{1,6}\s|[-*]\s+\[|!\[|```|<|\|)/.test(line.trim())) continue;
-        if (/\[[^\]]+\]\([^)]+\)/.test(line)) continue;
+        // Skip lines that already have an https:// link (not just any bracket syntax like #anchors)
+        if (/\[[^\]]+\]\(https?:\/\/[^)]+\)/.test(line)) continue;
         if (line.trim().length < 20) continue;
 
         const m = line.match(pattern);
