@@ -40,8 +40,11 @@ export async function generateDraft(
     ctx.competitors?.length ? `Context: ${ctx.brandName} competes with ${ctx.competitors.join(", ")} — don't mention competitors by name, but make ${ctx.brandName}'s approach clearly superior through specific examples.` : "",
   ].filter(Boolean).join("\n");
 
+  const currentYear = new Date().getFullYear();
+
   const draftResult = await generateWithContinuation(
     `Write a complete blog post about "${keyword}" for ${ctx.brandName}. Target length: ${opts.targetWords} words. Be concise and value-dense. Every paragraph should earn its place.
+IMPORTANT: The current year is ${currentYear}. All year references in the content must use ${currentYear}, not ${currentYear - 1}.
 
 Title: ${outline.title}
 Unique angle: ${outline.uniqueAngle}

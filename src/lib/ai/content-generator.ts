@@ -87,6 +87,7 @@ export async function generateBlogPost(
 
   const systemPrompt = buildSystemPrompt(ctx);
   const isComparisonArticle = /\b(best|vs\.?|compare|comparison|top \d+|alternatives?|review|which|ranking|ranked|versus)\b/i.test(keyword);
+  const currentYear = new Date().getFullYear();
 
   // ─── STEP 1: RESEARCH ───────────────────────────────────────────
   await progress("research", `Researching "${keyword}"...`);
@@ -127,6 +128,7 @@ ${research.rawResearch.substring(0, 2500)}
 
 ## Outline Rules
 - H1 title: MUST contain the EXACT focus keyword "${keyword}" (or very close variant). SEO-optimized (50-70 chars), reflects the winning angle. If you cannot fit the exact keyword, use as many of its words as possible in the title.
+- YEAR IN TITLE: If the title references a year (e.g. "Guide for [year]", "[year] Edition"), it MUST be ${currentYear}. NEVER use ${currentYear - 1}. The current year is ${currentYear}.
 - STRICT section count based on target word count (${targetWords} words):
   ${contentLength === "SHORT"  ? "• SHORT article → MAXIMUM 3 content H2 sections (each ~200-250 words)" : ""}
   ${contentLength === "MEDIUM" ? "• MEDIUM article → MAXIMUM 4 content H2 sections (each ~300 words)" : ""}
@@ -146,6 +148,13 @@ ${ctx.requiredSections?.length ? `- MUST include these sections: ${ctx.requiredS
 Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."] }], "uniqueAngle": "..." }`,
     systemPrompt
   );
+
+  // Fix outdated year in title
+  const lastYear = String(currentYear - 1);
+  if (outline.title.includes(lastYear)) {
+    outline.title = outline.title.replace(new RegExp(lastYear, "g"), String(currentYear));
+    console.log(`[content-gen] Title year fixed: ${lastYear} → ${currentYear}`);
+  }
 
   // Ensure the title contains the focus keyword
   const keywordLower = keyword.toLowerCase();

@@ -190,6 +190,9 @@ export function postProcess(
     });
   }
 
+  // Fix outdated year references — replace last year with current year in titles/headings/guides
+  finalContent = fixOutdatedYears(finalContent);
+
   // Final safety-net orphan cleanup
   finalContent = cleanOrphanedUrlFragments(finalContent);
   finalContent = finalContent.replace(/  +/g, " ");
@@ -303,6 +306,28 @@ function stripHallucinatedLinks(content: string, ctx: WebsiteContext, consolidat
     );
   }
   return content;
+}
+
+function fixOutdatedYears(content: string): string {
+  const currentYear = new Date().getFullYear();
+  const lastYear = currentYear - 1;
+  const lastYearStr = String(lastYear);
+  const currentYearStr = String(currentYear);
+
+  return content.split("\n").map((line) => {
+    if (/^#{1,6}\s/.test(line)) {
+      return line.replace(new RegExp(lastYearStr, "g"), currentYearStr);
+    }
+
+    const yearContextPattern = new RegExp(
+      `((?:in|for|of|guide|edition|update|best|top|latest|review|trends|strategies|tips|framework|playbook|roadmap|checklist|report)\\s+)${lastYearStr}\\b` +
+      `|\\b${lastYearStr}(\\s+(?:guide|edition|update|best|tips|trends|strategies|framework|playbook|roadmap|report|review|checklist))`,
+      "gi"
+    );
+    return line.replace(yearContextPattern, (match) =>
+      match.replace(lastYearStr, currentYearStr)
+    );
+  }).join("\n");
 }
 
 function fixTableOfContents(content: string): string {

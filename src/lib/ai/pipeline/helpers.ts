@@ -48,7 +48,8 @@ ${ctx.brandName} is a ${ctx.description}.
 Your target audience is: ${ctx.targetAudience}
 Writing tone: ${ctx.tone}${styleGuidance ? `\nWriting style: ${ctx.writingStyle} — ${styleGuidance}` : ""}
 Niche: ${ctx.niche}
-Today's date: ${currentDate}. The current year is ${currentYear}. Always use ${currentYear} data and references, never outdated years.
+Today's date: ${currentDate}. The current year is ${currentYear}.
+CRITICAL YEAR RULE: The current year is ${currentYear}. NEVER reference ${currentYear - 1} as the current year. If mentioning a year in a title, heading, or "guide for [year]" context, it MUST be ${currentYear}. All data, statistics, and references should be ${currentYear} unless citing a specific historical event. Replace any instinct to write "${currentYear - 1}" with "${currentYear}".
 ${ctx.targetLocation ? `Geographic focus: ${ctx.targetLocation} — use locally relevant data, examples, pricing, and market references.` : ""}
 ${ctx.uniqueValueProp ? `${ctx.brandName}'s unique value: ${ctx.uniqueValueProp}` : ""}
 ${ctx.keyProducts?.length ? `Key products/features to reference naturally when relevant: ${ctx.keyProducts.join(", ")}` : ""}
