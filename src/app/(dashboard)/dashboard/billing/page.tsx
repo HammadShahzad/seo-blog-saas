@@ -34,7 +34,7 @@ export default async function BillingPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Billing</h2>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Billing</h2>
         <p className="text-muted-foreground mt-1">
           Manage your subscription and billing
         </p>
@@ -57,7 +57,7 @@ export default async function BillingPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-6 md:grid-cols-4">
+            <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
               <div className="text-center p-4 rounded-lg bg-muted/50">
                 <Globe className="h-5 w-5 mx-auto mb-2 text-muted-foreground" />
                 <p className="text-2xl font-bold">

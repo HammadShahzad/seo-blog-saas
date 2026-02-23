@@ -305,114 +305,134 @@ export function EditorHeader({
         </div>
 
         {/* Right: action buttons */}
-        <div className="flex items-center gap-2 shrink-0 flex-wrap">
-          {/* Save */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Save — always visible */}
           <Button variant="outline" size="sm" onClick={() => onSave()} disabled={isSaving || isPublishing}>
             {isSaving ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
             Save
           </Button>
 
-          {/* View Live */}
+          {/* View Live — hidden on mobile, shown on sm+ */}
           {liveUrl && (
-            <a href={liveUrl} target="_blank" rel="noopener noreferrer">
+            <a href={liveUrl} target="_blank" rel="noopener noreferrer" className="hidden sm:block">
               <Button variant="outline" size="sm" className="border-emerald-500 text-emerald-700 hover:bg-emerald-50">
                 <Globe className="mr-1.5 h-3.5 w-3.5" />
-                View Live
+                <span className="hidden md:inline">View Live</span>
+                <span className="sm:hidden md:hidden"><Globe className="h-3.5 w-3.5" /></span>
               </Button>
             </a>
           )}
 
-          {/* Publish-state actions */}
+          {/* Primary publish action — always visible */}
           {post.status === "SCHEDULED" ? (
-            <>
-              <Button size="sm" onClick={onPublish} disabled={isPublishing || isSaving}
-                className="bg-green-600 hover:bg-green-700 text-white">
-                {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
-                Publish Now
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleUnschedule}
-                className="border-blue-400 text-blue-700 hover:bg-blue-50">
-                <X className="mr-1 h-3.5 w-3.5" />
-                Unschedule
-              </Button>
-            </>
+            <Button size="sm" onClick={onPublish} disabled={isPublishing || isSaving}
+              className="bg-green-600 hover:bg-green-700 text-white">
+              {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
+              <span className="hidden sm:inline">Publish Now</span>
+              <span className="sm:hidden">Publish</span>
+            </Button>
           ) : post.status === "PUBLISHED" ? (
             <Button size="sm" variant="outline" onClick={() => onSave("DRAFT")} disabled={isSaving}
               className="border-yellow-500 text-yellow-700 hover:bg-yellow-50">
               Unpublish
             </Button>
           ) : (
-            <>
-              {post.status === "DRAFT" && !isNew && (
-                <Button size="sm" variant="secondary" onClick={() => onSave("REVIEW")} disabled={isSaving}>
-                  <Send className="mr-1.5 h-3.5 w-3.5" />
-                  Mark Review
-                </Button>
-              )}
-              {!isNew && (
-                <Button size="sm" variant="outline" onClick={() => { prefillScheduleDate(); setShowScheduler((v) => !v); }}
-                  className="border-blue-400 text-blue-700 hover:bg-blue-50">
-                  <CalendarClock className="mr-1.5 h-3.5 w-3.5" />
-                  Schedule
-                </Button>
-              )}
-              <Button size="sm" onClick={onPublish} disabled={isPublishing || isSaving}
-                className="bg-green-600 hover:bg-green-700 text-white">
-                {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
-                Publish
-              </Button>
-            </>
-          )}
-
-          {/* Push to CMS dropdown */}
-          {!isNew && hasCMSIntegration && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={isPushingToCMS}>
-                  {isPushingToCMS ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Plug className="mr-1.5 h-3.5 w-3.5" />}
-                  Push to CMS
-                  <ChevronDown className="ml-1.5 h-3 w-3" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52">
-                {integrations.wp && (
-                  <>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">WordPress</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => handlePushToWordPress("draft")} className="text-sm cursor-pointer">
-                      <Plug className="mr-2 h-3.5 w-3.5 text-[#21759b]" />
-                      Push as Draft
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handlePushToWordPress("publish")} className="text-sm cursor-pointer">
-                      <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-[#21759b]" />
-                      Publish to WordPress
-                    </DropdownMenuItem>
-                  </>
-                )}
-                {integrations.wp && integrations.shopify && <DropdownMenuSeparator />}
-                {integrations.shopify && (
-                  <>
-                    <DropdownMenuLabel className="text-xs text-muted-foreground">Shopify</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => handlePushToShopify("draft")} className="text-sm cursor-pointer">
-                      <Plug className="mr-2 h-3.5 w-3.5 text-[#5c8a1e]" />
-                      Push as Draft
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handlePushToShopify("published")} className="text-sm cursor-pointer">
-                      <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-[#5c8a1e]" />
-                      Publish to Shopify
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-
-          {/* Download PDF */}
-          {!isNew && (
-            <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={isDownloadingPDF || !post.content?.trim()}>
-              {isDownloadingPDF ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
-              PDF
+            <Button size="sm" onClick={onPublish} disabled={isPublishing || isSaving}
+              className="bg-green-600 hover:bg-green-700 text-white">
+              {isPublishing ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />}
+              Publish
             </Button>
           )}
+
+          {/* Overflow "More" dropdown — secondary actions collapsed on mobile */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="px-2">
+                <ChevronDown className="h-4 w-4" />
+                <span className="sr-only">More actions</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-56">
+              {/* Unschedule (scheduled posts) */}
+              {post.status === "SCHEDULED" && (
+                <DropdownMenuItem onClick={handleUnschedule} className="text-sm cursor-pointer">
+                  <X className="mr-2 h-3.5 w-3.5" />
+                  Unschedule
+                </DropdownMenuItem>
+              )}
+
+              {/* Mark as Review (draft posts) */}
+              {post.status === "DRAFT" && !isNew && (
+                <DropdownMenuItem onClick={() => onSave("REVIEW")} disabled={isSaving} className="text-sm cursor-pointer">
+                  <Send className="mr-2 h-3.5 w-3.5" />
+                  Mark for Review
+                </DropdownMenuItem>
+              )}
+
+              {/* Schedule */}
+              {!isNew && post.status !== "PUBLISHED" && (
+                <DropdownMenuItem onClick={() => { prefillScheduleDate(); setShowScheduler((v) => !v); }} className="text-sm cursor-pointer">
+                  <CalendarClock className="mr-2 h-3.5 w-3.5" />
+                  Schedule Post
+                </DropdownMenuItem>
+              )}
+
+              {/* View Live on mobile */}
+              {liveUrl && (
+                <DropdownMenuItem asChild className="text-sm cursor-pointer sm:hidden">
+                  <a href={liveUrl} target="_blank" rel="noopener noreferrer">
+                    <Globe className="mr-2 h-3.5 w-3.5 text-emerald-600" />
+                    View Live
+                  </a>
+                </DropdownMenuItem>
+              )}
+
+              {/* Push to CMS */}
+              {!isNew && hasCMSIntegration && (
+                <>
+                  <DropdownMenuSeparator />
+                  {integrations.wp && (
+                    <>
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">WordPress</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => handlePushToWordPress("draft")} disabled={isPushingToCMS} className="text-sm cursor-pointer">
+                        <Plug className="mr-2 h-3.5 w-3.5 text-[#21759b]" />
+                        Push as Draft
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handlePushToWordPress("publish")} disabled={isPushingToCMS} className="text-sm cursor-pointer">
+                        <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-[#21759b]" />
+                        Publish to WordPress
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                  {integrations.wp && integrations.shopify && <DropdownMenuSeparator />}
+                  {integrations.shopify && (
+                    <>
+                      <DropdownMenuLabel className="text-xs text-muted-foreground">Shopify</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => handlePushToShopify("draft")} disabled={isPushingToCMS} className="text-sm cursor-pointer">
+                        <Plug className="mr-2 h-3.5 w-3.5 text-[#5c8a1e]" />
+                        Push as Draft
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => handlePushToShopify("published")} disabled={isPushingToCMS} className="text-sm cursor-pointer">
+                        <CheckCircle2 className="mr-2 h-3.5 w-3.5 text-[#5c8a1e]" />
+                        Publish to Shopify
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </>
+              )}
+
+              {/* Download PDF */}
+              {!isNew && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleDownloadPDF} disabled={isDownloadingPDF || !post.content?.trim()} className="text-sm cursor-pointer">
+                    {isDownloadingPDF ? <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-2 h-3.5 w-3.5" />}
+                    Download PDF
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

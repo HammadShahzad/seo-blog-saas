@@ -41,20 +41,20 @@ export default async function PostsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">Blog Posts</h2>
           <p className="text-muted-foreground">
             Manage blog content for {website.name}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button asChild variant="outline">
+        <div className="flex items-center gap-2 shrink-0">
+          <Button asChild variant="outline" size="sm">
             <Link href={`/dashboard/websites/${websiteId}/generator`}>
               AI Generate
             </Link>
           </Button>
-          <Button asChild>
+          <Button asChild size="sm">
             <Link href={`/dashboard/websites/${websiteId}/posts/new`}>
               <Plus className="mr-2 h-4 w-4" />
               New Post
@@ -64,7 +64,7 @@ export default async function PostsPage({
       </div>
 
       {/* Status Filter Badges */}
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Badge variant="default">All ({statusCounts.all})</Badge>
         <Badge variant="outline">Published ({statusCounts.published})</Badge>
         <Badge variant="outline">Drafts ({statusCounts.draft})</Badge>
@@ -97,7 +97,7 @@ export default async function PostsPage({
         </Card>
       ) : (
         <Card>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <PostsTable
               posts={posts.map(p => ({
                 id: p.id,

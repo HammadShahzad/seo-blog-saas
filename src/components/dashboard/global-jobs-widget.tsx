@@ -78,7 +78,7 @@ export function GlobalJobsWidget() {
 
   return (
     <div
-      className={`fixed bottom-4 right-4 z-50 w-80 shadow-2xl rounded-xl border bg-background overflow-hidden transition-all duration-300 ${
+      className={`fixed bottom-4 right-2 sm:right-4 z-50 w-[calc(100vw-1rem)] sm:w-80 max-w-80 shadow-2xl rounded-xl border bg-background overflow-hidden transition-all duration-300 ${
         activeJobs.length > 0
           ? "translate-y-0 opacity-100"
           : "translate-y-4 opacity-0"

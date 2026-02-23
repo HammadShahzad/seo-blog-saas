@@ -165,9 +165,9 @@ export default function TeamPage() {
 
   return (
     <div className="max-w-3xl space-y-8">
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Team</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Team</h2>
           <p className="text-muted-foreground mt-1">
             Manage team members who have access to your workspace
           </p>
@@ -176,6 +176,7 @@ export default function TeamPage() {
           <Button
             onClick={() => setShowInviteForm((v) => !v)}
             disabled={!canInvite}
+            className="shrink-0 w-full sm:w-auto"
           >
             <UserPlus className="mr-2 h-4 w-4" />
             Add Member
@@ -186,7 +187,7 @@ export default function TeamPage() {
       {/* Plan limit warning — hidden for system admins who bypass limits */}
       {!isSysAdmin && maxMembers !== -1 && members.length >= maxMembers && isOwnerOrAdmin && (
         <Card className="border-amber-200 bg-amber-50">
-          <CardContent className="flex items-center justify-between p-4">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4">
             <div className="flex items-center gap-3">
               <Info className="h-5 w-5 text-amber-600 shrink-0" />
               <div>
@@ -198,7 +199,7 @@ export default function TeamPage() {
                 </p>
               </div>
             </div>
-            <Button asChild size="sm" variant="outline" className="border-amber-300 text-amber-800">
+            <Button asChild size="sm" variant="outline" className="border-amber-300 text-amber-800 w-full sm:w-auto shrink-0">
               <Link href="/dashboard/billing">
                 Upgrade
                 <ArrowRight className="ml-1 h-3 w-3" />
@@ -247,9 +248,9 @@ export default function TeamPage() {
               {members.map((member, i) => (
                 <div key={member.id}>
                   {i > 0 && <Separator />}
-                  <div className="flex items-center justify-between py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+                  <div className="flex items-center justify-between py-3 gap-2 min-w-0">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
                         {member.user.name
                           ? member.user.name
                               .split(" ")
@@ -259,8 +260,8 @@ export default function TeamPage() {
                               .slice(0, 2)
                           : member.user.email?.[0]?.toUpperCase() || "?"}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">
                           {member.user.name || "No name"}
                           {member.user.id === currentUserId && (
                             <span className="ml-2 text-xs text-muted-foreground">
@@ -268,7 +269,7 @@ export default function TeamPage() {
                             </span>
                           )}
                         </p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground truncate">
                           {member.user.email}
                         </p>
                       </div>

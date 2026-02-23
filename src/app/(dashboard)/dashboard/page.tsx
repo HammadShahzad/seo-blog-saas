@@ -84,7 +84,7 @@ export default async function DashboardOverview() {
     <div className="space-y-8">
       {/* Welcome Section */}
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
           Welcome back
         </h2>
         <p className="text-muted-foreground mt-1">
@@ -95,9 +95,9 @@ export default async function DashboardOverview() {
       {/* Subscription Banner */}
       {subscription && subscription.plan === "FREE" && (
         <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="flex items-center justify-between p-4">
+          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4">
             <div className="flex items-center gap-3">
-              <TrendingUp className="h-5 w-5 text-primary" />
+              <TrendingUp className="h-5 w-5 text-primary shrink-0" />
               <div>
                 <p className="font-medium">
                   You&apos;re on the Free plan
@@ -108,7 +108,7 @@ export default async function DashboardOverview() {
                 </p>
               </div>
             </div>
-            <Button asChild size="sm">
+            <Button asChild size="sm" className="w-full sm:w-auto shrink-0">
               <Link href="/dashboard/billing">Upgrade Plan</Link>
             </Button>
           </CardContent>

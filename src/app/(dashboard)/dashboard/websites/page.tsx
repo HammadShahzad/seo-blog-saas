@@ -57,14 +57,14 @@ export default async function WebsitesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Websites</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Websites</h2>
           <p className="text-muted-foreground mt-1">
             Manage your websites and AI content generation.
           </p>
         </div>
-        <Button asChild>
+        <Button asChild className="shrink-0 w-full sm:w-auto">
           <Link href="/dashboard/websites/new">
             <Plus className="mr-2 h-4 w-4" />
             Add Website

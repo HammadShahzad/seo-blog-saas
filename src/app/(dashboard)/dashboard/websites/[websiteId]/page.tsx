@@ -94,22 +94,20 @@ export default async function WebsiteDashboard({
   return (
     <div className="space-y-6">
       {/* Website Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <div
-              className="flex h-10 w-10 items-center justify-center rounded-lg text-white font-bold"
-              style={{ backgroundColor: website.primaryColor || "#4F46E5" }}
-            >
-              {website.name[0].toUpperCase()}
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold">{website.name}</h2>
-              <p className="text-muted-foreground">{website.domain}</p>
-            </div>
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-white font-bold"
+            style={{ backgroundColor: website.primaryColor || "#4F46E5" }}
+          >
+            {website.name[0].toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <h2 className="text-xl sm:text-2xl font-bold truncate">{website.name}</h2>
+            <p className="text-muted-foreground text-sm truncate">{website.domain}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <Badge variant={website.status === "ACTIVE" ? "default" : "secondary"}>
             {website.status.toLowerCase()}
           </Badge>
@@ -138,7 +136,7 @@ export default async function WebsiteDashboard({
 
       {/* Brand Intelligence completion prompt */}
       {!website.uniqueValueProp && (
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-background to-primary/5 p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-background to-primary/5 p-4">
           <div className="flex items-center gap-3 min-w-0">
             <div className="shrink-0 flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
               <Brain className="h-5 w-5 text-primary" />
