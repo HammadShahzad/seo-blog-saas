@@ -49,7 +49,10 @@ export async function researchKeyword(
 
   const currentYear = new Date().getFullYear();
 
-  const prompt = `Research this topic for an SEO blog post that will OUTRANK the current top results: "${keyword}". The current year is ${currentYear}.
+  const currentDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+
+  const prompt = `Research this topic for an SEO blog post that will OUTRANK the current top results: "${keyword}".
+TODAY'S DATE: ${currentDate}. The current year is ${currentYear}. ONLY return ${currentYear} data, statistics, and sources. If you find ${currentYear - 1} data, explicitly note it is outdated. Any "best of" or "guide for" framing MUST reference ${currentYear}.
 
 ${brandContext}
 
@@ -71,10 +74,10 @@ Based on your analysis of the top-ranking content, list:
 What single, specific angle would make our article clearly better than everything that ranks now?
 Look for: contrarian takes, more specific use cases, more recent data, underserved audience segments, or topics competitors avoid because they're controversial or complex.
 
-## PART 4 — FACTUAL AMMUNITION
-- 5-8 statistics with sources (numbers, percentages, study citations)
-- 3-5 real-world examples, case studies, or named tools/companies to cite
-- Any expert quotes or studies from ${currentYear - 1}-${currentYear}${websiteContext.competitors?.length ? `\n\n## PART 5 — NAMED COMPETITOR BLOGS\nSpecifically check how ${websiteContext.competitors.join(", ")} cover "${keyword}" on their own blogs.\nWhat do they write about it? What do they deliberately avoid? What angle can we take that beats them?` : ""}`;
+## PART 4 — FACTUAL AMMUNITION (${currentYear} data required)
+- 5-8 statistics with sources from ${currentYear} (numbers, percentages, study citations). Mark any pre-${currentYear} stats as "[older data]"
+- 3-5 real-world examples, case studies, or named tools/companies from ${currentYear}. Include any tools or platforms that launched or gained traction in ${currentYear}.
+- Any expert quotes or studies from ${currentYear} (prefer ${currentYear} over ${currentYear - 1})${websiteContext.competitors?.length ? `\n\n## PART 5 — NAMED COMPETITOR BLOGS\nSpecifically check how ${websiteContext.competitors.join(", ")} cover "${keyword}" on their own blogs.\nWhat do they write about it? What do they deliberately avoid? What angle can we take that beats them?` : ""}`;
 
   try {
     const response = await fetch("https://api.perplexity.ai/chat/completions", {
@@ -88,7 +91,7 @@ Look for: contrarian takes, more specific use cases, more recent data, underserv
         messages: [
           {
             role: "system",
-            content: `You are an SEO content researcher and competitor analyst. The current year is ${currentYear}. Provide comprehensive research with sources, statistics, competitor insights, and content gap analysis. Prioritize ${currentYear} data and sources. Focus on actionable data that helps create content that outranks existing articles.`,
+            content: `You are an SEO content researcher and competitor analyst. Today's date is ${currentDate} and the current year is ${currentYear}. CRITICAL: All research, statistics, trends, and recommendations MUST be for ${currentYear}. Do NOT treat ${currentYear - 1} as the current year. If a tool or trend only became relevant recently (in ${currentYear}), include it. Provide comprehensive research with sources, competitor insights, and content gap analysis. Focus on actionable ${currentYear} data that helps create content that outranks existing articles.`,
           },
           { role: "user", content: prompt },
         ],
