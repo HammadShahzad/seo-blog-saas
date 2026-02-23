@@ -63,6 +63,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title,
     description,
+    robots: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large" as const,
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
     icons: website.faviconUrl
       ? { icon: website.faviconUrl, apple: website.faviconUrl }
       : undefined,
@@ -82,8 +89,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           {
             url: post.featuredImage,
             alt: post.featuredImageAlt || post.title,
-            width: 1200,
-            height: 630,
+            width: 1600,
+            height: 840,
           },
         ],
       }),

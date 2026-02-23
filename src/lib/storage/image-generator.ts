@@ -211,7 +211,7 @@ export async function generateBlogImage(
   }
 
   let processed = await sharp(imageBytes)
-    .resize(1200, 630, { fit: "cover", position: "center" })
+    .resize(1600, 840, { fit: "cover", position: "center" })
     .toBuffer();
 
   if (overlayText) {
@@ -227,9 +227,9 @@ export async function generateBlogImage(
 }
 
 async function addTextOverlay(imageBuffer: Buffer, text: string): Promise<Buffer> {
-  const width = 1200;
-  const height = 630;
-  const maxCharsPerLine = 30;
+  const width = 1600;
+  const height = 840;
+  const maxCharsPerLine = 35;
   const words = text.split(" ");
   const lines: string[] = [];
   let currentLine = "";
@@ -283,7 +283,7 @@ async function addTextOverlay(imageBuffer: Buffer, text: string): Promise<Buffer
 }
 
 /**
- * Generate a smaller inline/section image (800x450, no text overlay)
+ * Generate an inline/section image (1200x675, no text overlay)
  */
 export async function generateInlineImage(
   prompt: string,
@@ -309,7 +309,7 @@ export async function generateInlineImage(
   }
 
   const processed = await sharp(imageBytes)
-    .resize(800, 450, { fit: "cover", position: "center" })
+    .resize(1200, 675, { fit: "cover", position: "center" })
     .webp({ quality: 90 })
     .toBuffer();
 
