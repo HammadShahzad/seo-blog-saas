@@ -1114,9 +1114,47 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
 
   // Post-process: ensure TOC entries are proper clickable anchor links
   finalContent = (() => {
-    const lines = finalContent.split("\n");
+    // Step 1: Join broken multi-line TOC links before line-by-line processing.
+    // The AI sometimes wraps long headings like:
+    //   - [How to Choose Between N8N, Make, and
+    //   Zapier as a Beginner](#slug)
+    // We rejoin these into single lines.
+    finalContent = finalContent.replace(
+      /^(\s*[-*]\s+\[[^\]]*)\n\s*([^\n]*?\]\(#[^)]+\))/gm,
+      "$1 $2"
+    );
 
-    // Build heading text → slug map from actual H2/H3 headings in the content
+    // Step 2: Fix orphaned link tails like "Zapier as a Beginner](#slug)" on their own line
+    // These are remnants of broken multi-line links that weren't caught above
+    finalContent = finalContent.replace(
+      /^\s*[^-*#\s][^\n]*\]\(#[^)]+\)\s*$/gm,
+      ""
+    );
+
+    // Step 3: Remove duplicate TOC blocks — keep only the first "## Table of Contents"
+    let tocCount = 0;
+    const dedupedLines: string[] = [];
+    let skippingDupToc = false;
+    for (const line of finalContent.split("\n")) {
+      if (/^#{1,3}\s+table of contents/i.test(line)) {
+        tocCount++;
+        if (tocCount > 1) { skippingDupToc = true; continue; }
+        skippingDupToc = false;
+      }
+      if (skippingDupToc) {
+        if (/^#{1,3}\s/.test(line) && !/table of contents/i.test(line)) {
+          skippingDupToc = false;
+        } else if (/^\s*[-*]\s/.test(line) || line.trim() === "") {
+          continue;
+        } else {
+          skippingDupToc = false;
+        }
+      }
+      dedupedLines.push(line);
+    }
+    const lines = dedupedLines;
+
+    // Step 4: Build heading text → slug map from actual H2/H3 headings
     const headingToSlug = new Map<string, string>();
     const slugToHeading = new Map<string, string>();
     for (const line of lines) {
@@ -1129,7 +1167,7 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
       slugToHeading.set(slug, text);
     }
 
-    // Detect if we're inside a TOC section
+    // Step 5: Fix TOC entries — ensure all are clickable anchor links
     let inToc = false;
     return lines.map((line) => {
       if (/^#{1,3}\s+table of contents/i.test(line)) { inToc = true; return line; }
@@ -1138,7 +1176,7 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
       if (!inToc) return line;
 
       // Already a proper link — fix the label if needed
-      const tocLink = line.match(/^(\s*-\s+\[)([^\]]+)(\]\(#)([^)]+)(\))/);
+      const tocLink = line.match(/^(\s*[-*]\s+\[)([^\]]+)(\]\(#)([^)]+)(\))/);
       if (tocLink) {
         const slug = tocLink[4];
         const correctText = slugToHeading.get(slug);
@@ -1151,10 +1189,9 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
       // Plain text TOC entry (no link) — convert to anchor link
       const plainEntry = line.match(/^(\s*[-*]\s+)(.+)$/);
       if (plainEntry) {
-        const text = plainEntry[1];
+        const indent = plainEntry[1];
         const entryText = plainEntry[2].trim();
         const entryLower = entryText.toLowerCase();
-        // Find the best matching heading
         let bestSlug = "";
         let bestHeading = entryText;
         for (const [headingLower, slug] of headingToSlug) {
@@ -1165,10 +1202,9 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
           }
         }
         if (!bestSlug) {
-          // Generate slug from entry text
           bestSlug = entryText.toLowerCase().replace(/[^\w\s-]/g, "").trim().replace(/\s+/g, "-");
         }
-        return `${text}[${bestHeading}](#${bestSlug})`;
+        return `${indent}[${bestHeading}](#${bestSlug})`;
       }
 
       return line;
