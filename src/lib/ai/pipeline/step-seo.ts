@@ -82,7 +82,12 @@ ${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONL
    - Use descriptive anchor text that matches the context.
    - Use REAL markdown links only: [anchor text](url).` : `5. Do NOT add any internal links. There are no published posts to link to yet. Do NOT invent or hallucinate any URLs.`}
 6. Make sure the intro paragraph contains the keyword naturally
-${opts.includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common questions (format as proper ## FAQ heading with ### for each question — this helps with Google's FAQ rich snippets)` : "7. Skip FAQ if not present"}
+${opts.includeFAQ ? `7. Ensure the FAQ section exists at the end. CRITICAL FORMAT — every answer MUST be directly preceded by its ### question heading. The only valid pattern is:
+   ### Question?
+   Answer.
+   ### Next Question?
+   Answer.
+   NEVER write an answer without a ### question heading immediately above it. NEVER write any text between the ## FAQ heading and the first ### question. If any answer is missing its question, ADD the question as a ### heading before it.` : "7. Skip FAQ if not present"}
 8. Paragraphs should be 3-5 sentences each, developing a complete thought. No single-sentence paragraphs, no walls of text.
 9. KEYWORD DENSITY RULES:
    - Use the exact primary keyword "${keyword}" only 3-5 times in the ENTIRE article (intro, one H2, final section, and 1-2 body mentions). NO MORE.

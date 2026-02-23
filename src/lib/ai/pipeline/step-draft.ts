@@ -108,7 +108,19 @@ ${opts.includeTableOfContents ? `- Table of Contents with CLICKABLE anchor links
 Each entry MUST be a markdown link with the heading text as anchor text and a #slug as the URL. The slug is the heading in lowercase with spaces replaced by hyphens and special characters removed.` : "- Do NOT include a Table of Contents"}
 - Main sections following the outline
 ${opts.isComparisonArticle ? `- Include a markdown comparison table where it makes sense (usually early in the article).` : ""}
-${opts.includeFAQ ? "- FAQ section (4-5 questions with detailed answers)" : ""}
+${opts.includeFAQ ? `- FAQ section at the END with 4-5 questions. STRICT FORMAT — the ### question heading MUST come BEFORE its answer every single time. NEVER write an answer without the ### heading above it:
+
+## Frequently Asked Questions
+### First question written exactly as a user would search it?
+Answer in 2-3 complete sentences.
+
+### Second question written exactly as a user would search it?
+Answer in 2-3 complete sentences.
+
+### Third question written exactly as a user would search it?
+Answer in 2-3 complete sentences.
+
+CRITICAL: The pattern is ALWAYS: ### Question? → Answer. NEVER write an answer before its ### question heading. NEVER skip the ### heading for any entry.` : ""}
 - Do NOT add a "Conclusion", "Final Thoughts", "Wrapping Up" or similar ending section. End the article naturally after covering all content.${ctx.ctaText ? ` Weave the CTA naturally into the last content section.` : ""}
 
 **Content personality for THIS article:**
@@ -236,13 +248,28 @@ Output ONLY this section in Markdown. Start with ## ${section.heading}`,
       const faqResult = await generateWithContinuation(
         `Write a FAQ section for a blog post about "${keyword}" for ${ctx.brandName}.
 
-Write 4-5 frequently asked questions with detailed answers (2-3 sentences each).
-Format as:
-## Frequently Asked Questions
-### Question here?
-Answer here.
+Write 4-5 frequently asked questions with detailed, specific answers (2-3 sentences each).
 
-Output ONLY the FAQ section in Markdown.`,
+STRICT FORMAT — you MUST write the ### question heading BEFORE its answer every time.
+NEVER write an answer without its question. NEVER write a paragraph before the first ### heading.
+The ONLY correct pattern is: ### Question? followed immediately by its answer.
+
+Example of the EXACT format required:
+## Frequently Asked Questions
+### How long does the process take?
+Answer to question 1 in 2-3 complete sentences. Be specific and practical.
+
+### What documents do I need?
+Answer to question 2 in 2-3 complete sentences.
+
+### Can I sell a car that still has a loan?
+Answer to question 3 in 2-3 complete sentences.
+
+### What affects the offer price?
+Answer to question 4 in 2-3 complete sentences.
+
+CRITICAL: ### heading FIRST, then answer. Every single time. Zero exceptions.
+Output ONLY the FAQ section in Markdown. Start with ## Frequently Asked Questions.`,
         systemPrompt,
         { temperature: 0.7, maxTokens: 2048 },
         "faq-section",

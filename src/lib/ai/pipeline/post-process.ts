@@ -99,19 +99,25 @@ export function postProcess(
 
   // Fix orphaned sentence fragments: paragraphs that start with a lowercase letter or a
   // conjunction (and, but, or, so, because, which) indicate a sentence was accidentally split.
-  // Merge them with the previous paragraph by replacing the blank line separator.
+  // Only merge SHORT fragments (< 12 words) — longer paragraphs starting with "If", "When",
+  // "As", etc. are independent sentences (e.g. FAQ answers) and must NOT be merged.
   finalContent = finalContent.replace(
     /(\S[ \t]*)\n\n((?:and|but|or|so|because|which|that|while|although|since|where|when|as|if|though)\b[^#\n])/gi,
-    (_, prevEnd, fragStart) => `${prevEnd} ${fragStart}`
+    (fullMatch, prevEnd, fragStart) => {
+      const fragWords = fragStart.trim().split(/\s+/).length;
+      if (fragWords > 12) return fullMatch; // independent sentence — keep as its own paragraph
+      return `${prevEnd} ${fragStart}`;
+    }
   );
   // Also catch raw lowercase paragraph starts (not headings, lists, code, images, or tables)
   finalContent = finalContent.replace(
     /(\S[ \t]*)\n\n([a-z][^#\n*`|!])/g,
     (fullMatch, prevEnd, fragStart) => {
-      // Only merge if the fragment looks like a mid-sentence continuation (short word start)
       const startsWithConjunction = /^(and|but|or|so|because|which|that|while|although|since|where|when|as|if|though)\b/i.test(fragStart);
-      if (startsWithConjunction) return `${prevEnd} ${fragStart}`;
-      return fullMatch; // leave other lowercase starts alone (could be intentional)
+      if (!startsWithConjunction) return fullMatch;
+      const fragWords = fragStart.trim().split(/\s+/).length;
+      if (fragWords > 12) return fullMatch; // independent sentence — keep separate
+      return `${prevEnd} ${fragStart}`;
     }
   );
 
@@ -197,6 +203,9 @@ export function postProcess(
   finalContent = cleanOrphanedUrlFragments(finalContent);
   finalContent = finalContent.replace(/  +/g, " ");
   finalContent = finalContent.replace(/ ([.,;:!?])/g, "$1");
+
+  // Fix FAQ structure — remove any orphaned answers that appear before the first ### question
+  finalContent = fixFaqStructure(finalContent);
 
   // Fix TOC
   finalContent = fixTableOfContents(finalContent);
@@ -375,6 +384,71 @@ function fixOutdatedYears(content: string): string {
       match.replace(lastYearStr, currentYearStr)
     );
   }).join("\n");
+}
+
+/**
+ * Validates FAQ structure: removes any content that appears between the ## FAQ heading
+ * and the first ### question heading (orphaned answers with no question).
+ * This catches the AI bug where it writes an answer before the first question.
+ */
+function fixFaqStructure(content: string): string {
+  const lines = content.split("\n");
+  let inFaq = false;
+  let seenFirstQuestion = false;
+  const result: string[] = [];
+  let orphanedCount = 0;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Detect FAQ section start (## or ### heading)
+    if (/^#{1,3}\s+(?:frequently asked questions|faq\b)/i.test(trimmed)) {
+      inFaq = true;
+      seenFirstQuestion = false;
+      result.push(line);
+      continue;
+    }
+
+    // Detect end of FAQ section: H1 or H2 heading (not an H3 inside FAQ)
+    if (inFaq && /^#{1,2}\s/.test(trimmed) && !/^###/.test(trimmed)) {
+      inFaq = false;
+      result.push(line);
+      continue;
+    }
+
+    if (!inFaq) {
+      result.push(line);
+      continue;
+    }
+
+    // Inside FAQ: track the first ### question heading
+    if (/^###\s+/.test(trimmed)) {
+      seenFirstQuestion = true;
+      result.push(line);
+      continue;
+    }
+
+    // Empty lines always kept (needed for spacing between Q&A pairs)
+    if (trimmed === "") {
+      result.push(line);
+      continue;
+    }
+
+    // Non-empty content line before the first ### question = orphaned answer, remove it
+    if (!seenFirstQuestion) {
+      orphanedCount++;
+      console.warn(`[content-gen] FAQ: removed orphaned pre-question content: "${trimmed.slice(0, 80)}"`);
+      continue;
+    }
+
+    result.push(line);
+  }
+
+  if (orphanedCount > 0) {
+    console.log(`[content-gen] FAQ structure fix: removed ${orphanedCount} orphaned line(s) before first question`);
+  }
+
+  return result.join("\n");
 }
 
 function fixTableOfContents(content: string): string {
