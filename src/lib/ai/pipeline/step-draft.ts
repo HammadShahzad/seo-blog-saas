@@ -65,14 +65,14 @@ ${opts.research.rawResearch.substring(0, 3500)}
 **HOOK (most important rule):**
 Your opening MUST be unique. Use this specific hook style: ${(() => {
   const hookStyles = [
-    { style: "CONTRARIAN", instruction: `Open with a bold, contrarian statement that challenges conventional wisdom about "${keyword}". State something surprising that makes the reader think 'Wait, really?' Do NOT use "Most advice about X is wrong." Be original. Make a specific, testable claim.` },
-    { style: "DATA-LEAD", instruction: `Open with a specific number or statistic. ${opts.research.keyStatistics[0] ? `Use this real data: "${opts.research.keyStatistics[0]}"` : "Pull a compelling number from the research below."} Frame it as: "[Number]. That's [what it means]. Here's why that matters to you."` },
-    { style: "QUESTION-CHAIN", instruction: `Open with 3 increasingly specific questions about "${keyword}" that ${ctx.targetAudience} are asking right now. Make the third question surprisingly specific. Then answer with: "The answer to all three is the same."` },
-    { style: "CASE-STUDY-OPEN", instruction: `Open with a real 2-sentence result. Name a real company, tool, or person from the research data. "[Name] achieved [specific measurable result] by [specific action]. Most ${ctx.targetAudience} do the exact opposite."` },
-    { style: "MYTH-BUSTER", instruction: `Name the single biggest misconception about "${keyword}" in the ${ctx.niche} space. State it as fact, then immediately contradict it with evidence. "Everyone tells you [myth]. ${opts.research.keyStatistics[1] ? `The data says otherwise: ${opts.research.keyStatistics[1]}` : "The data tells a completely different story."}"` },
-    { style: "COST-OF-INACTION", instruction: `Open with what "${keyword}" done wrong actually costs. Be specific: dollars, hours, lost customers, or missed opportunities. "${ctx.targetAudience} who ignore [aspect of ${keyword}] lose [specific amount] per [time period]. Here's the math."` },
-    { style: "PREDICTION", instruction: `Open with a forward-looking prediction about "${keyword}" that's backed by research. "By [timeframe], [specific change will happen]. The ${ctx.targetAudience} who prepare now will [benefit]. The rest will [consequence]."` },
-    { style: "DIRECT-ADDRESS", instruction: `Open by directly telling the reader what they're doing wrong, with zero preamble. "You're spending too much time on [wrong thing] and not enough on [right thing]. ${opts.research.contentGaps[0] ? `And the biggest gap? ${opts.research.contentGaps[0]}` : "Here's proof."}"` },
+    { style: "CONTRARIAN", instruction: `Write a 2-3 sentence opening that challenges a common assumption about "${keyword}". Begin with a COMPLETE sentence that names the misconception and immediately refutes it with a specific, surprising claim. NEVER start with just a number, statistic, or fragment — the first word must be a real subject (a noun or pronoun), not a digit.` },
+    { style: "DATA-LEAD", instruction: `Open with a statistic woven into a COMPLETE sentence — never start with a bare number. Example structure: "Non-surgical body contouring procedures [grew/declined/changed] by [X]% in [year], according to [source] — and the reason has nothing to do with marketing." ${opts.research.keyStatistics[0] ? `Use this real data point naturally in the sentence: "${opts.research.keyStatistics[0]}"` : "Pull a compelling number from the research and embed it in a full sentence."} CRITICAL: The first word must NOT be a digit or percentage. Start with the subject of the sentence.` },
+    { style: "QUESTION-CHAIN", instruction: `Write a 2-3 sentence opening that poses one sharp, specific question that ${ctx.targetAudience} are actually struggling with right now — then immediately pivot to why the answer matters. Make the question specific to the real problem, not generic. The first sentence must be the question, followed by the setup for the article's answer.` },
+    { style: "CASE-STUDY-OPEN", instruction: `Write a 2-sentence opening based on a real, named result from the research data. Structure: "[Specific person/company/clinic] [achieved specific measurable outcome] by [specific action]. Most ${ctx.targetAudience} do the exact opposite — and pay for it." Both sentences must be grammatically complete. Do NOT start with a fragment.` },
+    { style: "MYTH-BUSTER", instruction: `Open with 2 complete sentences that name and immediately bust the biggest misconception about "${keyword}" in the ${ctx.niche} space. First sentence: state the myth as fact (what most people believe). Second sentence: contradict it directly with evidence${opts.research.keyStatistics[1] ? ` — use this data: "${opts.research.keyStatistics[1]}"` : ""}. NEVER start with just a number or fragment.` },
+    { style: "COST-OF-INACTION", instruction: `Write a 2-sentence opening that names what poor or no action on "${keyword}" actually costs ${ctx.targetAudience} — in specific dollars, hours, customers, or missed outcomes. First sentence states the cost concretely. Second sentence frames why the article solves it. Both must be grammatically complete sentences starting with a subject, not a number.` },
+    { style: "PREDICTION", instruction: `Open with a 2-sentence forward-looking statement about where "${keyword}" is heading in 2026 and what that means for ${ctx.targetAudience}. First sentence: a specific, research-backed prediction. Second sentence: the practical implication. NEVER start with a number or fragment — begin with a real subject.` },
+    { style: "DIRECT-ADDRESS", instruction: `Open with 2 complete sentences that directly address the reader's specific struggle with "${keyword}". First sentence: name the exact wrong approach most ${ctx.targetAudience} take. Second sentence: state what they should be doing instead${opts.research.contentGaps[0] ? `, referencing this gap: "${opts.research.contentGaps[0]}"` : ""}. NEVER start with a fragment or a number.` },
   ];
   let hash = 0;
   for (let i = 0; i < keyword.length; i++) hash = ((hash << 5) - hash + keyword.charCodeAt(i)) | 0;
@@ -81,12 +81,14 @@ Your opening MUST be unique. Use this specific hook style: ${(() => {
 })()}
 
 BANNED OPENING PATTERNS (never use these):
+- Starting the article with a bare number, percentage, or statistic fragment like "25%." or "47." or "$3,000." — ALWAYS embed numbers in a complete sentence.
 - "It is [time] on a [day]. You are [doing something]..." — this is the most cliché AI opening. NEVER use it.
 - "Picture this..." or "Imagine this..."
 - "In today's [anything]..."
 - "You're sitting at your desk..." or any "You are..." second-person scene-setting
 - Starting with a time of day or day of the week
 - Generic scene descriptions where someone is frustrated at a computer
+- Abbreviations or acronyms as the first word (e.g. "ASAPS states..." or "U.S. data shows...")
 
 **Structure:**
 ${opts.customDirection ? `- CUSTOM DIRECTION FROM USER: "${opts.customDirection}" — use this to guide how the blog opens and the overall direction/angle of the content.` : ""}

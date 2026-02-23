@@ -70,6 +70,21 @@ export function postProcess(
 
   let finalContent = best.content;
 
+  // Guard: strip a mangled opening fragment (bare number/stat/abbreviation as first word)
+  // e.g. content starts with "25%." or "47." or "S. in 2026" — strip through the first real sentence
+  const firstLine = finalContent.trimStart().split("\n")[0] || "";
+  const looksFragmented =
+    /^\d[\d,.$%]*[.!?]?\s/.test(firstLine) ||           // starts with digit: "25%.", "3,000 "
+    /^[A-Z]{1,4}\.\s/.test(firstLine) ||                 // starts with abbreviation: "S. ", "U.S. "
+    /^[A-Z]{1,4}\.[A-Z]\.\s/.test(firstLine);            // "U.S. " pattern
+  if (looksFragmented) {
+    const firstSentenceEnd = finalContent.search(/[.!?]\s+[A-Z]/);
+    if (firstSentenceEnd > 0 && firstSentenceEnd < 300) {
+      console.warn(`[content-gen] Stripped mangled opening fragment (first ${firstSentenceEnd} chars): "${finalContent.slice(0, 60)}..."`);
+      finalContent = finalContent.slice(firstSentenceEnd + 2).trimStart();
+    }
+  }
+
   // Replace leftover [INTERNAL_LINK: ...] placeholders
   if (ctx.internalLinks?.length) {
     finalContent = finalContent.replace(
