@@ -137,13 +137,15 @@ ${ctx.competitors?.length ? `Main competitors: ${ctx.competitors.join(", ")} —
 
 RULES:
 - Write in a ${ctx.tone} style${styleGuidance ? `, applying the ${ctx.writingStyle} writing approach described above` : ""}
-- Naturally mention ${ctx.brandName} where relevant (not forced)
-${ctx.uniqueValueProp ? `- When recommending tools or solutions, position ${ctx.brandName} using its unique value: "${ctx.uniqueValueProp}"` : ""}
-${ctx.ctaText && ctx.ctaUrl ? `- Include a call-to-action: "${ctx.ctaText}" linking to ${ctx.ctaUrl}` : ""}
+- Mention ${ctx.brandName} NO MORE THAN 2-3 times in the entire article. One in the intro/conclusion, one mid-article. Never in consecutive sections.
+${ctx.uniqueValueProp ? `- Reference ${ctx.brandName}'s value proposition ONCE, naturally: "${ctx.uniqueValueProp}"` : ""}
+${ctx.ctaText && ctx.ctaUrl ? `- Include ONE primary CTA: "${ctx.ctaText}" (${ctx.ctaUrl}) — make it specific, time-sensitive, and benefit-driven. Do NOT repeat the same CTA text. Vary the phrasing each time (e.g. "Book a free assessment", "See pricing", "Talk to a specialist").` : ""}
 ${ctx.avoidTopics?.length ? `- Never mention: ${ctx.avoidTopics.join(", ")}` : ""}
 - Format: Markdown with proper H2/H3 hierarchy
 - Write for humans first, search engines second
 - Use active voice, very short paragraphs (2-3 sentences max, under 60 words), and clear language
+- Use bullet points and numbered lists liberally — at least 1 list per H2 section
+- Add visual breaks: bold key phrases, use blockquotes for expert tips, include comparison tables where appropriate
 
 OPENING PARAGRAPH RULE:
 - NEVER start a blog post with "It is [time] on a [day]" or any time-based scene-setting
@@ -151,11 +153,13 @@ OPENING PARAGRAPH RULE:
 - Every article should open DIFFERENTLY — with data, a question, a contrarian take, or a micro case study
 
 EEAT (Experience, Expertise, Authority, Trust) RULES:
-- Write from the perspective of an expert with 10+ years of hands-on experience
-- Use first-person experience phrases like "In my testing," "I've found that," "From my experience," "What I noticed," "After working with X for years"
-- Share specific observations and personal insights — not generic advice
-- Include practical "pro-tips" that only someone with real experience would know
-- Reference specific scenarios you've encountered and how you solved them
+- Write from the perspective of an experienced professional, but VARY your phrasing
+- Use first-person sparingly — MAX 3-4 times in the whole article, spread across different sections
+- NEVER repeat the same first-person phrase twice (e.g. don't use "From my experience" more than once)
+- Instead of saying "from my experience," demonstrate expertise through specific details, data, process descriptions, and tool references
+- Reference industry certifications, standards, and methodologies (e.g. I-CAR, ASE, OEM procedures, ISO standards) to build authority through credentials, not just claims
+- Include real statistics, case study results, or industry data — not just opinions
+- When mentioning competitors or alternatives, be objective and fair. Elevate your standards rather than attacking others. Avoid fear-based language like "terrifying," "dangerous oversight," "scare tactic"
 
 BANNED AI PHRASES (NEVER USE):
 - "Delve" or "delve into"
@@ -790,9 +794,15 @@ Audience: ${ctx.targetAudience}
 - If any two sections have the same rhythm/structure, change one of them
 
 **Add genuine personality:**
-- One well-placed pop culture reference, analogy, or moment of deadpan humor per 500 words (don't force it — only where it fits naturally)
+- One well-placed analogy or relatable comparison per 500 words (don't force it)
 - Use relatable comparisons specific to ${ctx.targetAudience}
-- Where the draft states a generic opinion, replace it with a specific observation: "In my testing X happened" beats "experts say X is good"
+- Where the draft states a generic opinion, replace it with specific data, process details, or industry standards
+
+**BRAND & VOICE LIMITS (critical):**
+- ${ctx.brandName} should appear NO MORE THAN 2-3 times in the entire article. If the draft mentions it more, CUT the extras.
+- First-person phrases ("I've found", "From my experience", "In my testing", "What I noticed") — use MAX 3-4 total across the whole article, each with DIFFERENT wording. Replace the rest with objective expertise (data, process descriptions, certifications).
+- Do NOT use fear-based or aggressive language about competitors. Replace words like "terrifying," "dangerous oversight," "corporate scare tactic" with neutral, standards-focused language. Elevate your approach, don't attack alternatives.
+- CTAs: If the same CTA text appears more than twice, vary the phrasing (e.g. "Get your free assessment", "Book a consultation", "See our process").
 
 **Tighten language:**
 - Eliminate all em-dashes (—) — replace with commas or periods
@@ -878,16 +888,23 @@ ${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONL
    - Spread links throughout ALL sections — every H2 section should contain at least 1-2 internal links where relevant.
    - Use descriptive anchor text that matches the context.
    - Use REAL markdown links only: [anchor text](url).` : `5. Do NOT add any internal links. There are no published posts to link to yet. Do NOT invent or hallucinate any URLs.`}
-6. Make sure the intro paragraph contains the keyword
+6. Make sure the intro paragraph contains the keyword naturally
 ${includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common questions (format as proper ## FAQ heading with ### for each question — this helps with Google's FAQ rich snippets)` : "7. Skip FAQ if not present"}
 8. CRITICAL: Every paragraph MUST be under 60 words (2-3 sentences max). Split any longer paragraph into two. Short paragraphs dramatically improve readability scores.
-9. DO NOT stuff keywords — keep it natural
+9. KEYWORD DENSITY RULES:
+   - Use the exact primary keyword "${keyword}" only 3-5 times in the ENTIRE article (intro, one H2, conclusion, and 1-2 body mentions). NO MORE.
+   - Use VARIATIONS and LSI keywords instead of repeating the exact phrase. Examples: synonyms, related terms, long-tail variations.
+   - NEVER use the exact keyword in consecutive paragraphs
+   - H2 headings should use keyword VARIATIONS, not the exact keyword repeatedly
 10. Preserve the humor and conversational tone, do not make it robotic
 11a. REMOVE any remaining AI phrases: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "realm," "robust," "cutting-edge," "embark," "navigate the complexities," "unlock the power"
 11b. REMOVE all em-dash characters (—) and replace with commas or periods
-11c. Ensure first-person expert voice is present: "In my testing," "I've found," "From my experience"
-11. If there's a table of contents, ensure it matches the actual headings
-12. Keep the article length at ${targetWords} words
+11c. BRAND MENTIONS: ${ctx.brandName} should appear NO MORE THAN 2-3 times total. If it appears more, remove the extras. Never mention the brand in consecutive sections.
+11d. FIRST-PERSON LIMIT: Use "I" or "my" phrases (e.g. "I've found", "From my experience") MAX 3-4 times total, each with DIFFERENT phrasing. Demonstrate expertise through data, process details, and specific technical knowledge instead.
+11e. TONE: Do NOT use fear-based or aggressive language toward competitors. Replace "terrifying," "dangerous," "scare tactic" with factual, standards-based language. Elevate your approach rather than attacking alternatives.
+12. If there's a table of contents, ensure it matches the actual headings
+13. Keep the article length at ${targetWords} words
+14. READABILITY: Include at least one bullet list or numbered list per H2 section. Use bold text for key terms. Add blockquotes for expert tips.
 
 ## Blog Post (${toneToUseWords} words — preserve this length):
 ${toneToUse}
@@ -1189,6 +1206,42 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
       .join("\n\n");
   }
   finalContent = splitLongParagraphs(finalContent);
+
+  // Post-process: limit brand mentions to max 3 occurrences
+  if (ctx.brandName && ctx.brandName.length > 2) {
+    let brandCount = 0;
+    const brandRegex = new RegExp(ctx.brandName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g");
+    finalContent = finalContent.replace(brandRegex, (match) => {
+      brandCount++;
+      if (brandCount <= 3) return match;
+      return "";
+    });
+    // Clean up empty sentences left behind (e.g. " is family-owned..." → remove whole sentence)
+    finalContent = finalContent.replace(/\.\s*is\s[^.]*\./g, ".");
+    finalContent = finalContent.replace(/\n\s*\n\s*\n/g, "\n\n");
+    if (brandCount > 3) {
+      console.log(`[content-gen] Trimmed brand mentions from ${brandCount} to 3`);
+    }
+  }
+
+  // Post-process: deduplicate repeated first-person phrases
+  const firstPersonPhrases = [
+    "from my experience", "in my experience", "in my testing",
+    "i've found that", "i have found that", "what i noticed",
+    "after working with", "i've seen", "i have seen",
+    "i always", "i recently", "i regularly",
+  ];
+  for (const phrase of firstPersonPhrases) {
+    const phraseRegex = new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
+    let count = 0;
+    finalContent = finalContent.replace(phraseRegex, (match) => {
+      count++;
+      if (count <= 1) return match;
+      // Replace subsequent occurrences with neutral alternatives
+      const neutrals = ["Based on industry data,", "Evidence shows", "In practice,", "Research indicates", "The data confirms"];
+      return neutrals[count % neutrals.length];
+    });
+  }
 
   // ─── STEP 6: METADATA ────────────────────────────────────────────
   await progress("metadata", "Generating SEO metadata, schema, and social captions...");
