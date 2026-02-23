@@ -220,7 +220,7 @@ export default function ClustersPage() {
     fetchClusters();
   }, [fetchClusters]);
 
-  const { addJob, updateJob, removeJob, getJob } = useGlobalJobs();
+  const { addJob, updateJob, removeJob, getJob, registerCancel, unregisterCancel } = useGlobalJobs();
   const clusterJobId = `cluster-gen-${websiteId}`;
   const clusterSteps = ["crawling", "analyzing", "generating", "saving"];
   const clusterAbortRef = useRef<AbortController | null>(null);
@@ -250,6 +250,7 @@ export default function ClustersPage() {
 
     setIsGenerating(true);
     setStepStatus(null);
+    registerCancel(clusterJobId, () => controller.abort());
 
     const label = seedTopic.trim()
       ? `Clusters: "${seedTopic.trim()}"`
@@ -314,6 +315,7 @@ export default function ClustersPage() {
     } finally {
       clusterAbortRef.current = null;
       setIsGenerating(false);
+      unregisterCancel(clusterJobId);
     }
   };
 

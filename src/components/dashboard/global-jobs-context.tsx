@@ -32,6 +32,9 @@ interface GlobalJobsContextValue {
   updateJob: (id: string, patch: Partial<GlobalJob>) => void;
   removeJob: (id: string) => void;
   getJob: (id: string) => GlobalJob | undefined;
+  registerCancel: (id: string, fn: () => void) => void;
+  unregisterCancel: (id: string) => void;
+  cancelJob: (id: string) => void;
 }
 
 const GlobalJobsContext = createContext<GlobalJobsContextValue | null>(null);
@@ -155,9 +158,26 @@ export function GlobalJobsProvider({ children }: { children: ReactNode }) {
     []
   );
 
+  const cancelFnsRef = useRef<Map<string, () => void>>(new Map());
+
+  const registerCancel = useCallback((id: string, fn: () => void) => {
+    cancelFnsRef.current.set(id, fn);
+  }, []);
+
+  const unregisterCancel = useCallback((id: string) => {
+    cancelFnsRef.current.delete(id);
+  }, []);
+
+  const cancelJob = useCallback((id: string) => {
+    const fn = cancelFnsRef.current.get(id);
+    if (fn) fn();
+    cancelFnsRef.current.delete(id);
+    removeJob(id);
+  }, [removeJob]);
+
   return (
     <GlobalJobsContext.Provider
-      value={{ jobs, addJob, updateJob, removeJob, getJob }}
+      value={{ jobs, addJob, updateJob, removeJob, getJob, registerCancel, unregisterCancel, cancelJob }}
     >
       {children}
     </GlobalJobsContext.Provider>

@@ -45,7 +45,7 @@ const STEP_LABELS: Record<string, string> = {
 };
 
 export function GlobalJobsWidget() {
-  const { jobs, removeJob } = useGlobalJobs();
+  const { jobs, removeJob, cancelJob } = useGlobalJobs();
   const [expanded, setExpanded] = useState(true);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [visible, setVisible] = useState(false);
@@ -162,7 +162,15 @@ export function GlobalJobsWidget() {
                         <ArrowRight className="h-2.5 w-2.5" />
                       </Link>
                     </Button>
-                    {!isRunning && (
+                    {isRunning ? (
+                      <button
+                        onClick={() => cancelJob(job.id)}
+                        className="p-0.5 rounded hover:bg-red-100"
+                        title="Cancel"
+                      >
+                        <X className="h-3 w-3 text-red-500" />
+                      </button>
+                    ) : (
                       <button
                         onClick={() => handleDismiss(job.id)}
                         className="p-0.5 rounded hover:bg-muted"

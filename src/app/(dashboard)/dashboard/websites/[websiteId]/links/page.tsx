@@ -124,7 +124,7 @@ export default function InternalLinksPage() {
   const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
   const [isSavingSuggestions, setIsSavingSuggestions] = useState(false);
 
-  const { addJob, updateJob, removeJob, getJob } = useGlobalJobs();
+  const { addJob, updateJob, removeJob, getJob, registerCancel, unregisterCancel } = useGlobalJobs();
   const linksJobId = `links-gen-${websiteId}`;
   const linksAbortRef = useRef<AbortController | null>(null);
 
@@ -214,6 +214,7 @@ export default function InternalLinksPage() {
     setSuggestions([]);
     setSelectedSuggestions(new Set());
     setStepStatus(null);
+    registerCancel(linksJobId, () => controller.abort());
 
     addJob({
       id: linksJobId,
@@ -268,6 +269,7 @@ export default function InternalLinksPage() {
     } finally {
       linksAbortRef.current = null;
       setIsGenerating(false);
+      unregisterCancel(linksJobId);
     }
   };
 

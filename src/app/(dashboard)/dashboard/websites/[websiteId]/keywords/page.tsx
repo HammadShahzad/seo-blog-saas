@@ -125,7 +125,7 @@ export default function KeywordsPage() {
   const [isAddingSuggestions, setIsAddingSuggestions] = useState(false);
   const [suggestSeedKeyword, setSuggestSeedKeyword] = useState("");
 
-  const { addJob, updateJob, removeJob, getJob } = useGlobalJobs();
+  const { addJob, updateJob, removeJob, getJob, registerCancel, unregisterCancel } = useGlobalJobs();
   const suggestJobId = `kw-suggest-${websiteId}`;
   const suggestAbortRef = useRef<AbortController | null>(null);
 
@@ -235,6 +235,7 @@ export default function KeywordsPage() {
     setIsLoadingSuggestions(true);
     setSuggestions([]);
     setSelectedSuggestions(new Set());
+    registerCancel(suggestJobId, () => controller.abort());
 
     const label = suggestSeedKeyword.trim()
       ? `Keywords: "${suggestSeedKeyword.trim()}"`
@@ -288,6 +289,7 @@ export default function KeywordsPage() {
     } finally {
       suggestAbortRef.current = null;
       setIsLoadingSuggestions(false);
+      unregisterCancel(suggestJobId);
     }
   };
 
