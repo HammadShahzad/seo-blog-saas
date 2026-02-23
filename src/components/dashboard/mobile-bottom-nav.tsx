@@ -148,7 +148,7 @@ export function MobileBottomNav({ websites, currentWebsiteId: defaultWebsiteId, 
   return (
     <>
       {/* Bottom nav bar — mobile only */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background border-t safe-bottom">
+      <nav className="safe-bottom-nav fixed bottom-0 left-0 right-0 z-40 md:hidden bg-background border-t">
         <div className="flex items-stretch h-16">
           {primaryTabs.map((tab) => (
             <Link
@@ -267,8 +267,8 @@ export function MobileBottomNav({ websites, currentWebsiteId: defaultWebsiteId, 
                 Sign out
               </button>
             </div>
-            {/* Safe area spacer for iOS home indicator */}
-            <div className="h-safe-bottom bg-background" />
+            {/* iOS home indicator spacer */}
+            <div className="h-safe-bottom" />
           </div>
         </SheetContent>
       </Sheet>

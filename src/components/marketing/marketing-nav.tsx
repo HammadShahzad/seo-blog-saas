@@ -24,7 +24,7 @@ export function MarketingNav() {
   const { data: session, status } = useSession();
 
   return (
-    <nav className="border-b bg-background/80 backdrop-blur-md sticky top-0 z-50">
+    <nav className="border-b bg-background/80 backdrop-blur-md sticky top-0 z-50 safe-top">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}

@@ -28,7 +28,7 @@ export function DashboardHeader({ hideTriggerOnMobile }: DashboardHeaderProps) {
   };
 
   return (
-    <header className="flex h-14 items-center gap-4 border-b bg-background px-4 sm:px-6">
+    <header className="h-safe-top flex items-center gap-4 border-b bg-background px-4 sm:px-6">
       <div className={hideTriggerOnMobile ? "hidden md:flex items-center gap-4" : "flex items-center gap-4"}>
         <SidebarTrigger />
         <Separator orientation="vertical" className="h-6" />

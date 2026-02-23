@@ -171,6 +171,44 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* ============================================================
+   PWA SAFE AREA — iOS notch / Dynamic Island / home indicator
+   Requires viewport-fit=cover in the viewport meta tag.
+   ============================================================ */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
+/* Top safe area — extends header behind status bar */
+.safe-top {
+  padding-top: var(--sat);
+}
+.h-safe-top {
+  /* header that absorbs the status bar area */
+  height: calc(3.5rem + var(--sat));
+  padding-top: var(--sat);
+}
+
+/* Bottom safe area — keeps content above home indicator */
+.safe-bottom {
+  padding-bottom: var(--sab);
+}
+.h-safe-bottom {
+  height: var(--sab);
+  min-height: var(--sab);
+}
+/* Bottom nav bar total height: 64px tab bar + home indicator */
+.safe-bottom-nav {
+  height: calc(4rem + var(--sab));
+}
+/* Main content bottom padding: clear the tab bar + home indicator */
+.pb-safe-nav {
+  padding-bottom: calc(5rem + var(--sab));
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
