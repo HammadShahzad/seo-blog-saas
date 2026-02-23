@@ -952,48 +952,74 @@ CRITICAL: Output the COMPLETE article — every section, every table, every para
   // If the winning version is NOT the SEO version but we have internal links,
   // inject them directly into the content. The SEO step is the only one that
   // adds links, so when tone/draft wins the ranking the content has zero links.
-  if (best.label !== "SEO" && consolidatedLinks.length > 0) {
-    console.log(`[content-gen] Best version is "${best.label}" — injecting ${consolidatedLinks.length} internal links post-hoc`);
+  // Also run when the SEO version won but no links were actually inserted.
+  const existingLinkCount = (finalContent.match(/\[[^\]]+\]\(https?:\/\/[^)]+\)/g) || []).length;
+  if (consolidatedLinks.length > 0 && (best.label !== "SEO" || existingLinkCount < 3)) {
+    console.log(`[content-gen] Injecting internal links post-hoc (version="${best.label}", existing=${existingLinkCount}, available=${consolidatedLinks.length})`);
     const usedUrls = new Set<string>();
     const lines = finalContent.split("\n");
     const linkedLines = new Set<number>();
 
-    for (const link of consolidatedLinks) {
+    // Build search phrases for each link: the anchor, plus keywords from URL path
+    type LinkWithPhrases = { anchor: string; url: string; phrases: string[] };
+    const linksWithPhrases: LinkWithPhrases[] = consolidatedLinks.map((link) => {
+      const phrases: string[] = [];
+      // 1. Original anchor (e.g. "professional collision repair")
+      phrases.push(link.anchor.toLowerCase());
+      // 2. Slug-derived phrase from URL path (e.g. "/collision-repair/" → "collision repair")
+      try {
+        const pathParts = new URL(link.url).pathname.split("/").filter(Boolean);
+        for (const part of pathParts) {
+          const slug = part.replace(/-/g, " ").trim();
+          if (slug.length >= 4 && slug !== "blog" && slug !== "services") {
+            phrases.push(slug);
+          }
+        }
+      } catch { /* not a valid URL */ }
+      // 3. Core words from the anchor (drop stop words, match 2+ consecutive content words)
+      const stopWords = new Set(["a", "an", "the", "our", "your", "of", "in", "for", "and", "to", "with", "about", "how", "get", "car", "auto"]);
+      const coreWords = link.anchor.toLowerCase().split(/\s+/).filter(w => !stopWords.has(w) && w.length > 2);
+      if (coreWords.length >= 2) {
+        phrases.push(coreWords.join(" "));
+        // Also try pairs of consecutive core words
+        for (let k = 0; k < coreWords.length - 1; k++) {
+          const pair = `${coreWords[k]} ${coreWords[k + 1]}`;
+          if (pair.length >= 8) phrases.push(pair);
+        }
+      }
+      // Deduplicate and sort longest first (prefer more specific matches)
+      const unique = [...new Set(phrases)].sort((a, b) => b.length - a.length);
+      return { anchor: link.anchor, url: link.url, phrases: unique };
+    });
+
+    for (const link of linksWithPhrases) {
       if (usedUrls.size >= Math.min(consolidatedLinks.length, 15)) break;
       const normalizedUrl = link.url.replace(/\/$/, "").toLowerCase();
       if (usedUrls.has(normalizedUrl)) continue;
 
-      const anchorWords = link.anchor.toLowerCase().split(/\s+/);
-      const anchorPattern = anchorWords.length >= 2
-        ? new RegExp(`\\b(${anchorWords.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+(?:\\w+\\s+){0,2}")})\\b`, "i")
-        : null;
+      let matched = false;
+      for (const phrase of link.phrases) {
+        if (matched) break;
+        // Build a regex that allows up to 1 extra word between each pair of phrase words
+        const words = phrase.split(/\s+/).filter(w => w.length > 0);
+        const pattern = words.length >= 2
+          ? new RegExp(`\\b(${words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(?:\\s+\\w+)?\\s+")})\\b`, "i")
+          : new RegExp(`\\b(${words[0]?.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})\\b`, "i");
 
-      for (let i = 0; i < lines.length; i++) {
-        if (linkedLines.has(i)) continue;
-        const line = lines[i];
-        // Skip headings, TOC entries, images, code blocks, and lines that already have links
-        if (/^(#{1,6}\s|[-*]\s+\[|!\[|```|<|\|)/.test(line.trim())) continue;
-        if (/\[[^\]]+\]\([^)]+\)/.test(line)) continue;
-        if (line.trim().length < 20) continue;
+        for (let i = 0; i < lines.length; i++) {
+          if (linkedLines.has(i)) continue;
+          const line = lines[i];
+          if (/^(#{1,6}\s|[-*]\s+\[|!\[|```|<|\|)/.test(line.trim())) continue;
+          if (/\[[^\]]+\]\([^)]+\)/.test(line)) continue;
+          if (line.trim().length < 20) continue;
 
-        // Try exact keyword match first
-        const exactIdx = line.toLowerCase().indexOf(link.anchor.toLowerCase());
-        if (exactIdx !== -1) {
-          const original = line.slice(exactIdx, exactIdx + link.anchor.length);
-          lines[i] = line.slice(0, exactIdx) + `[${original}](${link.url})` + line.slice(exactIdx + link.anchor.length);
-          usedUrls.add(normalizedUrl);
-          linkedLines.add(i);
-          break;
-        }
-
-        // Try partial/fuzzy match for multi-word anchors
-        if (anchorPattern) {
-          const match = line.match(anchorPattern);
-          if (match && match.index !== undefined) {
-            const original = match[0];
-            lines[i] = line.slice(0, match.index) + `[${original}](${link.url})` + line.slice(match.index + original.length);
+          const m = line.match(pattern);
+          if (m && m.index !== undefined) {
+            const original = m[1] || m[0];
+            lines[i] = line.slice(0, m.index) + `[${original}](${link.url})` + line.slice(m.index + original.length);
             usedUrls.add(normalizedUrl);
             linkedLines.add(i);
+            matched = true;
             break;
           }
         }
