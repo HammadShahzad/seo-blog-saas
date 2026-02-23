@@ -14,14 +14,14 @@ const GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview";
 const IMAGEN_FALLBACK_MODEL = "imagen-4.0-fast-generate-001";
 
 const IMAGE_STYLES = [
-  "flat vector illustration with bold colors and clean geometric shapes",
-  "isometric 3D render with soft pastel palette and depth shadows",
-  "cinematic photorealistic scene with dramatic studio lighting",
-  "modern minimalist line art with a single vivid accent color",
-  "editorial illustration with geometric abstract elements and bold typography feel",
-  "watercolor painting style with vibrant ink washes and organic shapes",
-  "retro vintage poster style with muted earth tones and grain texture",
-  "collage-style mixed media with layered paper textures and cut-out shapes",
+  "high-quality photorealistic scene with natural lighting and professional composition",
+  "cinematic photorealistic scene with dramatic studio lighting and shallow depth of field",
+  "professional editorial photography with clean background and natural colors",
+  "photojournalistic style with authentic real-world setting and candid feel",
+  "commercial photography with bright, clean lighting and polished look",
+  "lifestyle photography with warm tones, natural setting, and relatable subjects",
+  "professional stock photography style with sharp focus and modern aesthetic",
+  "documentary-style photo with rich detail, depth, and environmental context",
 ];
 
 /**
@@ -38,16 +38,18 @@ async function generateWithGemini3Pro(
   const style = IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
   let lastError: Error | null = null;
 
-  const prompt = `Generate a high-quality blog hero image for an article about "${keyword}" in the ${niche} industry.
+  const prompt = `Generate a photorealistic blog hero image for an article about "${keyword}" in the ${niche} industry.
 
-Art style: ${style}
+Photography style: ${style}
 
 CRITICAL RULES:
+- MUST look like a real photograph taken by a professional photographer — NOT a cartoon, illustration, vector, or digital art
 - DO NOT use generic "desk with laptop" or "office workspace" scenes
-- Visually represent the EXACT topic using metaphors, symbols, or creative conceptual scenes
+- Show realistic people, places, objects, or environments directly related to the topic
 - No text, no words, no letters, no watermarks anywhere in the image
-- Make it eye-catching, specific, and memorable — not generic stock photo imagery
+- Professional lighting, natural colors, realistic textures and materials
 - Wide landscape composition (16:9)
+- Should look like it belongs on a premium news site or business blog
 
 Blog context: ${blogContext.slice(0, 400)}`;
 
@@ -204,8 +206,7 @@ export async function generateBlogImage(
     imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, quality === "high" ? 3 : 2);
   } catch (err) {
     console.warn("[Image] Gemini 3 Pro failed, falling back to Imagen:", err instanceof Error ? err.message : err);
-    const style = IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
-    const fallbackPrompt = `Blog hero image for "${kw}" in ${nicheStr}. ${style}. No text or words. 16:9 landscape.`;
+    const fallbackPrompt = `Professional photorealistic blog hero image for "${kw}" in ${nicheStr}. Real photograph, natural lighting, no illustration or cartoon. No text or words. 16:9 landscape.`;
     imageBytes = await generateWithImagen(fallbackPrompt, apiKey);
   }
 
@@ -304,8 +305,7 @@ export async function generateInlineImage(
   try {
     imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, 2);
   } catch {
-    const style = IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
-    imageBytes = await generateWithImagen(`${prompt} ${style}. No text. 16:9.`, apiKey);
+    imageBytes = await generateWithImagen(`${prompt} Professional photorealistic style, real photograph, no illustration or cartoon. No text. 16:9.`, apiKey);
   }
 
   const processed = await sharp(imageBytes)

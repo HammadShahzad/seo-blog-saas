@@ -1285,7 +1285,7 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
       const sectionHeading = h2Matches[sectionIdx]?.text?.replace(/^## /, "") || keyword;
 
       try {
-        const inlinePrompt = `Create an illustrative image for the section "${sectionHeading}" of a blog post about "${keyword}" in ${ctx.niche}. Visual, conceptual, no text or words.`;
+        const inlinePrompt = `Create a photorealistic image for the section "${sectionHeading}" of a blog post about "${keyword}" in ${ctx.niche}. Must look like a real photograph, not a cartoon or illustration. No text or words.`;
         const inlineUrl = await generateInlineImage(
           inlinePrompt,
           postSlug,
