@@ -2,6 +2,13 @@ import { generateWithContinuation } from "./continuation";
 import type { WebsiteContext } from "./types";
 import { countWords, deduplicateContent, isCutOff, findMissingSections } from "./helpers";
 
+function truncateAtSentence(text: string, maxChars: number): string {
+  if (text.length <= maxChars) return text;
+  const cut = text.slice(0, maxChars);
+  const lastSentenceEnd = Math.max(cut.lastIndexOf(". "), cut.lastIndexOf(".\n"), cut.lastIndexOf("? "), cut.lastIndexOf("! "));
+  return lastSentenceEnd > maxChars * 0.5 ? cut.slice(0, lastSentenceEnd + 1) : cut;
+}
+
 interface DraftResult {
   content: string;
   words: number;
@@ -58,7 +65,7 @@ ${opts.research.contentGaps.slice(0, 5).map((g, i) => `${i + 1}. ${g}`).join("\n
 ${opts.research.missingSubtopics?.length ? "\nMissing subtopics that will make this article stand out:\n" + opts.research.missingSubtopics.slice(0, 3).map((s) => `- ${s}`).join("\n") : ""}
 
 ## Research Data
-${opts.research.rawResearch.substring(0, 3500)}
+${truncateAtSentence(opts.research.rawResearch, 3500)}
 
 ## Writing Guidelines:
 
@@ -125,6 +132,9 @@ ${(() => {
 - Include real statistics and data from the research with context
 - Include related entities naturally (tools, standards, organizations, people, places relevant to the topic) to build semantic richness
 - Use the keyword "${keyword}" naturally — in first 100 words, one H2, and in the final section
+${ctx.targetLocation && keyword.toLowerCase().includes(ctx.targetLocation.toLowerCase())
+  ? "- LOCATION RULE (critical for SEO): The keyword includes a specific location (\"" + ctx.targetLocation + "\"). You MUST use BOTH the core topic AND the exact location name \"" + ctx.targetLocation + "\" together in: (1) the first 2 sentences of the intro, and (2) at least one H2 heading. Do NOT substitute \"" + ctx.targetLocation + "\" with a broader area name — use the EXACT location name."
+  : ""}
 - Write from an EXPERT perspective using the personality above. Vary your expert voice phrases: "In my testing," "I've found," "From my experience," "What I noticed," "After running this for 6 months," "The data surprised me," "Here's what nobody mentions"
 - EXPERT CALLOUTS: use at most 2 total "Pro Tip:" callouts in the ENTIRE article. Make them count — share something non-obvious that only someone with real experience would know. DO NOT add a "Pro Tip" in every section.
 - Write focused paragraphs of 3-5 sentences. Each paragraph should develop a complete thought without padding.
@@ -164,6 +174,7 @@ CRITICAL: Write the COMPLETE article with ALL sections from the outline. Do NOT 
 
     const introResult = await generateWithContinuation(
       `Write the opening for a blog post about "${keyword}" for ${ctx.brandName}.
+IMPORTANT: The current year is ${currentYear}. All year references MUST use ${currentYear}, not ${currentYear - 1}.
 ${brandContext}
 
 Include:
@@ -191,6 +202,7 @@ Output only Markdown.`,
       const isLast = i === contentSections.length - 1;
       const sectionResult = await generateWithContinuation(
         `Write section ${i + 1} of a blog post about "${keyword}" for ${ctx.brandName}.
+IMPORTANT: The current year is ${currentYear}. All year references MUST use ${currentYear}, not ${currentYear - 1}.
 
 ## ${section.heading}
 Points to cover:

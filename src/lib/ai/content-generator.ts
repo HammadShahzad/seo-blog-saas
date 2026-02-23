@@ -117,7 +117,10 @@ async function _runPipeline(
   };
 
   const systemPrompt = buildSystemPrompt(ctx);
-  const isComparisonArticle = /\b(best|vs\.?|compare|comparison|top \d+|alternatives?|review|which|ranking|ranked|versus)\b/i.test(keyword);
+  // "best practices", "best time to", "best way to" are NOT comparison articles.
+  // Only trigger comparison mode for real comparisons: "X vs Y", "best tools", "top 5 X", "alternatives".
+  const isComparisonArticle = /\b(vs\.?|compare|comparison|top \d+|alternatives?|ranking|ranked|versus)\b/i.test(keyword)
+    || /\bbest\s+(?!practices?|ways?|time|approach|strategy|strategies|tips?|methods?|advice|guide)\w/i.test(keyword);
   const currentYear = new Date().getFullYear();
 
   // ─── STEP 1: RESEARCH ───────────────────────────────────────────
@@ -309,7 +312,9 @@ CRITICAL: Output the COMPLETE article with every section. Do NOT stop early or d
   console.log(`[content-gen] Tone polish: ${toneWords} words (draft was ${draftWords}), missing=${toneMissing.length}, cutoff=${toneCutOff}`);
 
   let toneToUse: string;
-  if (toneCutOff || toneWords < draftWords * 0.75 || toneMissing.length > draftMissing.length) {
+  // Only fall back to draft if tone is severely truncated (< 60% of draft), not just tighter prose.
+  // A good edit can easily cut 20-30% of fluff — don't penalise quality rewrites.
+  if (toneCutOff || toneWords < draftWords * 0.60 || toneMissing.length > draftMissing.length) {
     console.warn(`[content-gen] Tone degraded after continuation attempts. Falling back to draft.`);
     toneToUse = cleanDraft;
   } else {

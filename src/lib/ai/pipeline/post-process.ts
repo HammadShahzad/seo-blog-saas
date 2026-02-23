@@ -71,19 +71,49 @@ export function postProcess(
   let finalContent = best.content;
 
   // Guard: strip a mangled opening fragment (bare number/stat/abbreviation as first word)
-  // e.g. content starts with "25%." or "47." or "S. in 2026" — strip through the first real sentence
-  const firstLine = finalContent.trimStart().split("\n")[0] || "";
-  const looksFragmented =
-    /^\d[\d,.$%]*[.!?]?\s/.test(firstLine) ||           // starts with digit: "25%.", "3,000 "
-    /^[A-Z]{1,4}\.\s/.test(firstLine) ||                 // starts with abbreviation: "S. ", "U.S. "
-    /^[A-Z]{1,4}\.[A-Z]\.\s/.test(firstLine);            // "U.S. " pattern
-  if (looksFragmented) {
-    const firstSentenceEnd = finalContent.search(/[.!?]\s+[A-Z]/);
-    if (firstSentenceEnd > 0 && firstSentenceEnd < 300) {
-      console.warn(`[content-gen] Stripped mangled opening fragment (first ${firstSentenceEnd} chars): "${finalContent.slice(0, 60)}..."`);
-      finalContent = finalContent.slice(firstSentenceEnd + 2).trimStart();
+  // e.g. content starts with "25%." or "47." or "S. in 2026"
+  // IMPORTANT: only match SHORT first lines (< 60 chars) to avoid false-positives on legitimate
+  // sentences that start with an abbreviation like "SEO. That's the core of everything."
+  {
+    let stripped = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const firstLine = finalContent.trimStart().split("\n")[0] || "";
+      const isShortLine = firstLine.trim().length < 60;
+      const looksFragmented = isShortLine && (
+        /^\d[\d,.$%]*[.!?]?\s/.test(firstLine) ||    // bare digit: "25%.", "3,000 "
+        /^[A-Z]{1,5}\.\s/.test(firstLine) ||          // bare abbreviation: "S. ", "API. "
+        /^[A-Z]\.[A-Z]\.\s/.test(firstLine)           // "U.S. " pattern
+      );
+      if (!looksFragmented) break;
+      const firstSentenceEnd = finalContent.search(/[.!?]\s+[A-Z]/);
+      if (firstSentenceEnd > 0 && firstSentenceEnd < 300) {
+        console.warn(`[content-gen] Stripped mangled opening fragment (first ${firstSentenceEnd} chars): "${finalContent.slice(0, 60)}..."`);
+        finalContent = finalContent.slice(firstSentenceEnd + 2).trimStart();
+        stripped = true;
+      } else {
+        break;
+      }
     }
+    if (stripped) console.log(`[content-gen] Opening fragment removal complete`);
   }
+
+  // Fix orphaned sentence fragments: paragraphs that start with a lowercase letter or a
+  // conjunction (and, but, or, so, because, which) indicate a sentence was accidentally split.
+  // Merge them with the previous paragraph by replacing the blank line separator.
+  finalContent = finalContent.replace(
+    /(\S[ \t]*)\n\n((?:and|but|or|so|because|which|that|while|although|since|where|when|as|if|though)\b[^#\n])/gi,
+    (_, prevEnd, fragStart) => `${prevEnd} ${fragStart}`
+  );
+  // Also catch raw lowercase paragraph starts (not headings, lists, code, images, or tables)
+  finalContent = finalContent.replace(
+    /(\S[ \t]*)\n\n([a-z][^#\n*`|!])/g,
+    (fullMatch, prevEnd, fragStart) => {
+      // Only merge if the fragment looks like a mid-sentence continuation (short word start)
+      const startsWithConjunction = /^(and|but|or|so|because|which|that|while|although|since|where|when|as|if|though)\b/i.test(fragStart);
+      if (startsWithConjunction) return `${prevEnd} ${fragStart}`;
+      return fullMatch; // leave other lowercase starts alone (could be intentional)
+    }
+  );
 
   // Replace leftover [INTERNAL_LINK: ...] placeholders
   if (ctx.internalLinks?.length) {

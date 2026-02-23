@@ -53,11 +53,21 @@ export async function runSeoOptimization(
   const toneWords = countWords(toneContent);
   const seoRewriteTokens = Math.max(16384, Math.ceil(toneWords * 1.4 * 1.5));
 
+  const locationRule = (ctx.targetLocation && keyword.toLowerCase().includes(ctx.targetLocation.toLowerCase()))
+    ? [
+        "   LOCATION KEYWORD RULE: The keyword contains a specific city/location (\"" + ctx.targetLocation + "\"). VERIFY that:",
+        "   a) The exact location name \"" + ctx.targetLocation + "\" appears in the intro paragraph (first 100 words) — NOT replaced by a broader area name.",
+        "   b) At least one H2 heading contains BOTH a core topic term AND the exact location \"" + ctx.targetLocation + "\".",
+        "   If either is missing, rewrite the intro's first paragraph and the most relevant H2 heading to include them.",
+      ].join("\n")
+    : "";
+
   const seoResult = await generateWithContinuation(
     `You are an SEO expert. Optimize the following blog post for the keyword "${keyword}" while retaining the same writing style and tone.
 
 ## Rules:
-1. Use the exact keyword "${keyword}" in the first 100 words, at least one H2 heading, and the conclusion
+1. Use the exact keyword "${keyword}" in the first 100 words, at least one H2 heading, and the final content section (NOT in a "Conclusion" heading — there should be no conclusion heading)
+${locationRule}
 2. Naturally weave the primary keyword throughout (aim for 1-2% density — not stuffed, but present)
 3. Add related/LSI keywords naturally (synonyms, related terms people search for)
 4. Ensure proper heading hierarchy (H2, H3) — no heading level skips
@@ -75,7 +85,7 @@ ${consolidatedLinks.length > 0 ? `5. Add internal links from the list below. ONL
 ${opts.includeFAQ ? `7. Ensure there's a FAQ section at the end with 4-5 common questions (format as proper ## FAQ heading with ### for each question — this helps with Google's FAQ rich snippets)` : "7. Skip FAQ if not present"}
 8. Paragraphs should be 3-5 sentences each, developing a complete thought. No single-sentence paragraphs, no walls of text.
 9. KEYWORD DENSITY RULES:
-   - Use the exact primary keyword "${keyword}" only 3-5 times in the ENTIRE article (intro, one H2, conclusion, and 1-2 body mentions). NO MORE.
+   - Use the exact primary keyword "${keyword}" only 3-5 times in the ENTIRE article (intro, one H2, final section, and 1-2 body mentions). NO MORE.
    - Use VARIATIONS and LSI keywords instead of repeating the exact phrase. Examples: synonyms, related terms, long-tail variations.
    - NEVER use the exact keyword in consecutive paragraphs
    - H2 headings should use keyword VARIATIONS, not the exact keyword repeatedly
