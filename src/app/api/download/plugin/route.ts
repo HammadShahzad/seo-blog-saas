@@ -2,10 +2,16 @@ import { NextResponse } from "next/server";
 import AdmZip from "adm-zip";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session?.user) {
+    return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+  }
   try {
     const phpFilePath = join(process.cwd(), "public", "downloads", "stackserp-connector.php");
     const phpContent = readFileSync(phpFilePath);

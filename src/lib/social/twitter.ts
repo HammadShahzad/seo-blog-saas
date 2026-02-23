@@ -36,7 +36,7 @@ async function buildOAuthHeader(
 ): Promise<string> {
   const oauthParams: Record<string, string> = {
     oauth_consumer_key: config.apiKey,
-    oauth_nonce: Math.random().toString(36).slice(2) + Date.now().toString(36),
+    oauth_nonce: require("crypto").randomBytes(16).toString("hex"),
     oauth_signature_method: "HMAC-SHA256",
     oauth_timestamp: Math.floor(Date.now() / 1000).toString(),
     oauth_token: config.accessToken,

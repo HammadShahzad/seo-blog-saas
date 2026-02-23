@@ -21,7 +21,15 @@ export async function GET(req: Request) {
           { email: { contains: search, mode: "insensitive" } },
         ],
       },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        image: true,
+        role: true,
+
+        createdAt: true,
+        updatedAt: true,
         subscription: true,
       },
       orderBy: { createdAt: "desc" },

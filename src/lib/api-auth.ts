@@ -63,11 +63,9 @@ export function hasScope(ctx: ApiKeyContext, required: string): boolean {
 
 export function generateRawKey(): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "bf_";
-  for (let i = 0; i < 40; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return result;
+  const { randomBytes } = require("crypto") as typeof import("crypto");
+  const bytes = randomBytes(40);
+  return "bf_" + Array.from(bytes as Uint8Array, (b: number) => chars[b % chars.length]).join("");
 }
 
 export { hashKey };

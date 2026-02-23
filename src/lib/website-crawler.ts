@@ -3,6 +3,22 @@
  * to extract favicon, internal links, and sitemap entries.
  * No Perplexity / SERP wasted.
  */
+import { lookup } from "dns/promises";
+
+const PRIVATE_IP_RE = /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|127\.|169\.254\.|::1|fc00:|fe80:)/i;
+
+async function isSafeUrl(rawUrl: string): Promise<boolean> {
+  let parsed: URL;
+  try { parsed = new URL(rawUrl); } catch { return false; }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  const host = parsed.hostname.toLowerCase();
+  if (host === "localhost" || PRIVATE_IP_RE.test(host)) return false;
+  try {
+    const { address } = await lookup(host);
+    if (PRIVATE_IP_RE.test(address)) return false;
+  } catch { return false; }
+  return true;
+}
 
 export interface CrawlResult {
   favicon: string | null;
@@ -141,6 +157,11 @@ export async function crawlWebsite(url: string): Promise<CrawlResult> {
   const baseUrl = url.replace(/\/$/, "");
   const result: CrawlResult = { favicon: null, pages: [], sitemapUrls: [], pageText: "", metaDescription: "" };
 
+  if (!(await isSafeUrl(baseUrl))) {
+    console.warn(`[crawler] Blocked unsafe URL: ${baseUrl}`);
+    return result;
+  }
+
   const [htmlRes, sitemapUrls] = await Promise.all([
     fetch(baseUrl, {
       headers: {
@@ -183,6 +204,7 @@ export async function crawlWebsite(url: string): Promise<CrawlResult> {
  */
 export async function fetchFavicon(url: string): Promise<string | null> {
   const baseUrl = url.replace(/\/$/, "");
+  if (!(await isSafeUrl(baseUrl))) return null;
   try {
     const res = await fetch(baseUrl, {
       headers: {

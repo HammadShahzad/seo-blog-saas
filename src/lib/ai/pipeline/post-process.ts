@@ -187,7 +187,7 @@ export function postProcess(
       return "";
     });
   }
-  finalContent = finalContent.replace(/\s{2,}/g, " ");
+  finalContent = finalContent.replace(/ {2,}/g, " ");
 
   // Fix outdated year references — replace last year with current year in titles/headings/guides
   finalContent = fixOutdatedYears(finalContent);

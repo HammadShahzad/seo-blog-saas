@@ -67,7 +67,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({ sent: sent.length, emails: sent });
+    return NextResponse.json({ sent: sent.length });
   } catch (error) {
     console.error("Digest cron error:", error);
     return NextResponse.json({ error: "Digest failed" }, { status: 500 });

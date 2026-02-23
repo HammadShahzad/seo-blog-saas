@@ -6,7 +6,7 @@ import { checkIpRateLimit, validateEmail } from "@/lib/api-helpers";
 
 export async function POST(req: Request) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+    const ip = req.headers.get("x-real-ip") || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     const rl = checkIpRateLimit(`forgot-pw:${ip}`);
     if (!rl.allowed) {
       return NextResponse.json(
