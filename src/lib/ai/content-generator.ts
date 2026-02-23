@@ -1118,24 +1118,31 @@ CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the en
     (_, anchor: string, urlStart: string, urlEnd: string) => `[${anchor}](${urlStart}${urlEnd})`
   );
 
-  // Post-process: clean up orphaned URL fragments left by broken links
-  // e.g. lines like "com/case-studies/) that document..." where the [anchor](domain part was on previous line
-  finalContent = finalContent.replace(
-    /(?:^|\n)\s*com\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\)\s*/gim,
-    "\n"
-  );
-
-  // Also clean inline orphaned fragments: "some text. com/path/) more text"
-  finalContent = finalContent.replace(
-    /\.\s+com\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\)/gi,
-    "."
-  );
+  // Post-process: clean up ALL orphaned URL path fragments (com/path/) anywhere in the text.
+  // The AI sometimes generates links split across lines, leaving only "com/some-path/)" as text.
+  // Process each line — strip the fragment only if it's NOT inside a proper markdown link on that line.
+  finalContent = finalContent.split("\n").map((line) => {
+    // Temporarily mask all valid markdown links
+    const masks: string[] = [];
+    const masked = line.replace(/\[[^\]]+\]\([^)]+\)/g, (m) => {
+      masks.push(m);
+      return `__MDLINK${masks.length - 1}__`;
+    });
+    // Now strip orphaned com/path/) fragments from the unmasked text
+    const cleaned = masked.replace(/\s*\bcom\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\)/gi, "");
+    // Restore valid markdown links
+    return cleaned.replace(/__MDLINK(\d+)__/g, (_, i) => masks[parseInt(i)]);
+  }).join("\n");
 
   // Clean orphaned "txt " fragments (from split "robots.txt" etc.)
   finalContent = finalContent.replace(
     /(?:^|\n)\s*txt\s+(?=based|blocking|file)/gim,
     "\nrobots.txt "
   );
+
+  // Clean up double spaces and space-before-punctuation left by fragment removal
+  finalContent = finalContent.replace(/  +/g, " ");
+  finalContent = finalContent.replace(/ ([.,;:!?])/g, "$1");
 
   // Post-process: strip hallucinated links (URLs not in the provided list)
   const allowedUrls = new Set<string>();
@@ -1201,6 +1208,21 @@ CRITICAL: Do NOT repeat the article. Output it exactly ONCE. If you reach the en
       return fullMatch;
     }
   );
+
+  // Post-process (second pass): clean up orphaned URL fragments created by link stripping above
+  finalContent = finalContent.split("\n").map((line) => {
+    const masks: string[] = [];
+    const masked = line.replace(/\[[^\]]+\]\([^)]+\)/g, (m) => {
+      masks.push(m);
+      return `__MDLINK${masks.length - 1}__`;
+    });
+    const cleaned = masked.replace(/\s*\bcom\/[a-z0-9_-]+(?:\/[a-z0-9_-]+)*\/?\)/gi, "");
+    return cleaned.replace(/__MDLINK(\d+)__/g, (_, i) => masks[parseInt(i)]);
+  }).join("\n");
+
+  // Clean up double spaces and space-before-punctuation left by fragment removal
+  finalContent = finalContent.replace(/  +/g, " ");
+  finalContent = finalContent.replace(/ ([.,;:!?])/g, "$1");
 
   // Post-process: ensure TOC entries are proper clickable anchor links
   finalContent = (() => {
