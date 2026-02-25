@@ -157,29 +157,58 @@ export default function KeywordsPage() {
     });
 
     try {
-      updateJob(suggestJobId, { progress: 30, currentStep: "generating" });
+      // Step 1: Enqueue the job (fast — no AI call here)
       const res = await fetch(`/api/websites/${websiteId}/keywords/suggest`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          seedKeyword: suggestSeedKeyword.trim() || undefined,
-        }),
+        body: JSON.stringify({ seedKeyword: suggestSeedKeyword.trim() || undefined }),
         signal: controller.signal,
       });
-      updateJob(suggestJobId, { progress: 80, currentStep: "filtering" });
-      const data = await res.json();
-      if (res.ok) {
-        const fetched: Suggestion[] = data.suggestions || [];
-        setSuggestions(fetched);
-        setSelectedSuggestions(new Set(fetched.map((s) => s.keyword)));
-        updateJob(suggestJobId, {
-          status: "done",
-          progress: 100,
-          resultData: { suggestions: fetched },
-        });
-      } else {
-        toast.error(data.error || "Failed to generate suggestions");
-        updateJob(suggestJobId, { status: "failed", error: data.error || "Generation failed" });
+
+      const enqueueData = await res.json();
+      if (!res.ok) {
+        toast.error(enqueueData.error || "Failed to queue suggestion job");
+        updateJob(suggestJobId, { status: "failed", error: enqueueData.error || "Queue failed" });
+        return;
+      }
+
+      const { jobId } = enqueueData as { jobId: string };
+
+      // Step 2: Poll the job status until done (worker runs on Droplet — no timeout)
+      updateJob(suggestJobId, { progress: 20, currentStep: "generating" });
+
+      let done = false;
+      while (!done) {
+        if (controller.signal.aborted) break;
+
+        await new Promise(r => setTimeout(r, 2000));
+        if (controller.signal.aborted) break;
+
+        const pollRes = await fetch(`/api/jobs/${jobId}`, { signal: controller.signal });
+        if (!pollRes.ok) continue;
+
+        const pollData = await pollRes.json() as {
+          status: string; progress?: number; currentStep?: string;
+          output?: { suggestions: Suggestion[] }; error?: string;
+        };
+
+        if (pollData.currentStep === "generating") {
+          updateJob(suggestJobId, { progress: 40, currentStep: "generating" });
+        } else if (pollData.currentStep === "filtering") {
+          updateJob(suggestJobId, { progress: 75, currentStep: "filtering" });
+        }
+
+        if (pollData.status === "COMPLETED") {
+          done = true;
+          const fetched: Suggestion[] = pollData.output?.suggestions || [];
+          setSuggestions(fetched);
+          setSelectedSuggestions(new Set(fetched.map((s) => s.keyword)));
+          updateJob(suggestJobId, { status: "done", progress: 100, resultData: { suggestions: fetched } });
+        } else if (pollData.status === "FAILED") {
+          done = true;
+          toast.error(pollData.error || "Failed to generate suggestions");
+          updateJob(suggestJobId, { status: "failed", error: pollData.error || "Generation failed" });
+        }
       }
     } catch (err) {
       if ((err as Error).name === "AbortError") {
@@ -188,7 +217,7 @@ export default function KeywordsPage() {
         return;
       }
       toast.error("Failed to generate suggestions");
-      updateJob(suggestJobId, { status: "failed", error: "Network error" });
+      updateJob(suggestJobId, { status: "failed", error: "Request failed" });
     } finally {
       suggestAbortRef.current = null;
       setIsLoadingSuggestions(false);

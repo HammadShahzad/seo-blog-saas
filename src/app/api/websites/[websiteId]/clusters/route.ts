@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { verifyWebsiteAccess, checkAiRateLimit } from "@/lib/api-helpers";
 import { generateClusterPreview, type ClusterKeyword } from "@/lib/ai/cluster-generator";
+import { enqueueClusterGenerateJob, triggerWorker } from "@/lib/job-queue";
 
 export const maxDuration = 120;
 
@@ -61,61 +62,14 @@ export async function POST(
 
     const body = await req.json();
 
-    // ─── AI Generate: crawl website → research → build clusters ───
+    // ─── AI Generate: queue job → Droplet worker processes it ───
     if (body.generate) {
-      const [website, existingKws, publishedPosts] = await Promise.all([
-        prisma.website.findUnique({
-          where: { id: websiteId },
-          select: {
-            brandUrl: true, brandName: true, niche: true,
-            description: true, targetAudience: true,
-            uniqueValueProp: true, competitors: true,
-            keyProducts: true, targetLocation: true,
-            blogSettings: { select: { avoidTopics: true } },
-          },
-        }),
-        prisma.blogKeyword.findMany({
-          where: { websiteId },
-          select: { keyword: true },
-          take: 60,
-        }),
-        prisma.blogPost.findMany({
-          where: { websiteId, status: { in: ["PUBLISHED", "REVIEW"] } },
-          select: { title: true, focusKeyword: true, slug: true },
-          orderBy: { publishedAt: "desc" },
-          take: 100,
-        }),
-      ]);
-
-      if (!website) return NextResponse.json({ error: "Website not found" }, { status: 404 });
-
-      if (!website.brandUrl && !website.niche) {
-        return NextResponse.json({ error: "Set your website URL and niche in settings first" }, { status: 400 });
-      }
-
-      const seedTopic = body.seedTopic?.trim() || website.niche || "general";
-
-      const preview = await generateClusterPreview(
-        seedTopic,
-        website,
-        existingKws.map(k => k.keyword),
-        publishedPosts.map(p => ({ title: p.title, focusKeyword: p.focusKeyword || "" })),
-        website.blogSettings?.avoidTopics || [],
-      );
-
-      const suggestions = [{
-        pillarKeyword: preview.keywords.find(k => k.role === "pillar")?.keyword || seedTopic,
-        name: preview.pillarTitle,
-        supportingKeywords: preview.keywords
-          .filter(k => k.role === "supporting")
-          .map(k => k.keyword),
-        rationale: preview.description,
-      }];
-
-      return NextResponse.json({
-        suggestions,
-        steps: { crawl: "ok", ai: "ok" },
+      const jobId = await enqueueClusterGenerateJob({
+        websiteId,
+        seedTopic: body.seedTopic?.trim() || undefined,
       });
+      triggerWorker(jobId);
+      return NextResponse.json({ jobId, queued: true });
     }
 
     // ─── Preview with seed topic: research + generate cluster ─────

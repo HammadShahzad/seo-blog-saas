@@ -89,8 +89,7 @@ export function useClusters(websiteId: string) {
     });
 
     try {
-      updateJob(clusterJobId, { progress: 20, currentStep: "analyzing" });
-
+      // Step 1: Enqueue the job (fast — no AI call here)
       const res = await fetch(`/api/websites/${websiteId}/clusters`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -98,40 +97,70 @@ export function useClusters(websiteId: string) {
         signal: controller.signal,
       });
 
-      updateJob(clusterJobId, { progress: 80, currentStep: "generating" });
-
-      const data = await res.json();
+      const enqueueData = await res.json();
       if (!res.ok) {
-        toast.error(data.error || "Generation failed");
-        updateJob(clusterJobId, { status: "failed", error: data.error || "Generation failed" });
+        toast.error(enqueueData.error || "Generation failed");
+        updateJob(clusterJobId, { status: "failed", error: enqueueData.error || "Generation failed" });
         return;
       }
 
-      const newStepStatus = data.steps ?? null;
-      setStepStatus(newStepStatus);
+      const { jobId } = enqueueData as { jobId: string };
+      updateJob(clusterJobId, { progress: 20, currentStep: "analyzing" });
 
-      if (!data.suggestions?.length) {
-        setSuggestions([]);
-        setSelectedSuggestions(new Set());
-        updateJob(clusterJobId, { status: "done", progress: 100, resultData: { suggestions: [], stepStatus: newStepStatus } });
-        return;
+      // Step 2: Poll the job status until done (worker runs on Droplet — no timeout)
+      let done = false;
+      while (!done) {
+        if (controller.signal.aborted) break;
+
+        await new Promise(r => setTimeout(r, 2000));
+        if (controller.signal.aborted) break;
+
+        const pollRes = await fetch(`/api/jobs/${jobId}`, { signal: controller.signal });
+        if (!pollRes.ok) continue;
+
+        const pollData = await pollRes.json() as {
+          status: string; currentStep?: string;
+          output?: { suggestions: SuggestedCluster[]; steps?: StepStatus }; error?: string;
+        };
+
+        if (pollData.currentStep === "analyzing") {
+          updateJob(clusterJobId, { progress: 40, currentStep: "analyzing" });
+        } else if (pollData.currentStep === "generating") {
+          updateJob(clusterJobId, { progress: 75, currentStep: "generating" });
+        }
+
+        if (pollData.status === "COMPLETED") {
+          done = true;
+          const newStepStatus = (pollData.output?.steps as StepStatus) ?? null;
+          setStepStatus(newStepStatus);
+
+          if (!pollData.output?.suggestions?.length) {
+            setSuggestions([]);
+            setSelectedSuggestions(new Set());
+            updateJob(clusterJobId, { status: "done", progress: 100, resultData: { suggestions: [], stepStatus: newStepStatus } });
+          } else {
+            setSuggestions(pollData.output.suggestions);
+            setSelectedSuggestions(new Set(pollData.output.suggestions.map((_: SuggestedCluster, i: number) => i)));
+            updateJob(clusterJobId, {
+              status: "done",
+              progress: 100,
+              resultData: { suggestions: pollData.output.suggestions, stepStatus: newStepStatus },
+            });
+          }
+        } else if (pollData.status === "FAILED") {
+          done = true;
+          toast.error(pollData.error || "Generation failed");
+          updateJob(clusterJobId, { status: "failed", error: pollData.error || "Generation failed" });
+        }
       }
-
-      setSuggestions(data.suggestions);
-      setSelectedSuggestions(new Set(data.suggestions.map((_: SuggestedCluster, i: number) => i)));
-      updateJob(clusterJobId, {
-        status: "done",
-        progress: 100,
-        resultData: { suggestions: data.suggestions, stepStatus: newStepStatus },
-      });
     } catch (err) {
       if ((err as Error).name === "AbortError") {
         toast.info("Cluster generation cancelled");
         removeJob(clusterJobId);
         return;
       }
-      toast.error("Network error — please try again");
-      updateJob(clusterJobId, { status: "failed", error: "Network error" });
+      toast.error("Generation failed — please try again");
+      updateJob(clusterJobId, { status: "failed", error: "Request failed" });
     } finally {
       clusterAbortRef.current = null;
       setIsGenerating(false);
