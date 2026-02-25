@@ -1,32 +1,15 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-
-async function verifyAccess(websiteId: string, userId: string) {
-  const memberships = await prisma.organizationMember.findMany({
-    where: { userId },
-    select: { organizationId: true },
-  });
-  const orgIds = memberships.map((m) => m.organizationId);
-  return prisma.website.findFirst({
-    where: { id: websiteId, organizationId: { in: orgIds } },
-  });
-}
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     const { websiteId } = await params;
-    if (!await verifyAccess(websiteId, session.user.id)) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     const settings = await prisma.blogSettings.findUnique({ where: { websiteId } });
     return NextResponse.json(settings || {});
@@ -41,14 +24,9 @@ export async function PATCH(
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     const { websiteId } = await params;
-    if (!await verifyAccess(websiteId, session.user.id)) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     const body = await req.json();
 

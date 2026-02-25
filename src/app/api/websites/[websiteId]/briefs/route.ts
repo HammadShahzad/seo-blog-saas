@@ -4,38 +4,19 @@
  * POST /api/websites/:id/briefs     → Generate a new brief with AI
  */
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateJSON } from "@/lib/ai/gemini";
 import { researchKeyword } from "@/lib/ai/research";
-import { checkAiRateLimit } from "@/lib/api-helpers";
+import { verifyWebsiteAccess, checkAiRateLimit } from "@/lib/api-helpers";
 
 export const maxDuration = 60;
 
 type Params = { params: Promise<{ websiteId: string }> };
 
-async function verifyAccess(websiteId: string, userId: string) {
-  const memberships = await prisma.organizationMember.findMany({
-    where: { userId },
-    select: { organizationId: true },
-  });
-  const orgIds = memberships.map((m) => m.organizationId);
-  const website = await prisma.website.findFirst({
-    where: { id: websiteId, organizationId: { in: orgIds } },
-    select: { id: true },
-  });
-  return !!website;
-}
-
 export async function GET(req: Request, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { websiteId } = await params;
-  if (!(await verifyAccess(websiteId, session.user.id))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const access = await verifyWebsiteAccess(websiteId);
+  if ("error" in access) return access.error;
 
   const briefs = await prisma.contentBrief.findMany({
     where: { websiteId },
@@ -46,13 +27,10 @@ export async function GET(req: Request, { params }: Params) {
 }
 
 export async function POST(req: Request, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { websiteId } = await params;
-  if (!(await verifyAccess(websiteId, session.user.id))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const access = await verifyWebsiteAccess(websiteId);
+  if ("error" in access) return access.error;
+  const { session } = access;
 
   // Rate limit: 20 brief generations per hour per user
   const rateLimitErr = checkAiRateLimit(session.user.id, "briefs", 20);

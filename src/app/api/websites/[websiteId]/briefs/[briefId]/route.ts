@@ -5,33 +5,15 @@
  * DELETE /api/websites/:id/briefs/:briefId → Delete brief
  */
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 type Params = { params: Promise<{ websiteId: string; briefId: string }> };
 
-async function verifyAccess(websiteId: string, userId: string) {
-  const memberships = await prisma.organizationMember.findMany({
-    where: { userId },
-    select: { organizationId: true },
-  });
-  const orgIds = memberships.map((m) => m.organizationId);
-  const website = await prisma.website.findFirst({
-    where: { id: websiteId, organizationId: { in: orgIds } },
-    select: { id: true },
-  });
-  return !!website;
-}
-
 export async function GET(req: Request, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { websiteId, briefId } = await params;
-  if (!(await verifyAccess(websiteId, session.user.id))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const access = await verifyWebsiteAccess(websiteId);
+  if ("error" in access) return access.error;
 
   const brief = await prisma.contentBrief.findFirst({ where: { id: briefId, websiteId } });
   if (!brief) return NextResponse.json({ error: "Brief not found" }, { status: 404 });
@@ -39,13 +21,9 @@ export async function GET(req: Request, { params }: Params) {
 }
 
 export async function PATCH(req: Request, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { websiteId, briefId } = await params;
-  if (!(await verifyAccess(websiteId, session.user.id))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const access = await verifyWebsiteAccess(websiteId);
+  if ("error" in access) return access.error;
 
   const body = await req.json();
   const data: Record<string, unknown> = {};
@@ -63,13 +41,9 @@ export async function PATCH(req: Request, { params }: Params) {
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   const { websiteId, briefId } = await params;
-  if (!(await verifyAccess(websiteId, session.user.id))) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
-  }
+  const access = await verifyWebsiteAccess(websiteId);
+  if ("error" in access) return access.error;
 
   await prisma.contentBrief.delete({ where: { id: briefId } });
   return NextResponse.json({ success: true });

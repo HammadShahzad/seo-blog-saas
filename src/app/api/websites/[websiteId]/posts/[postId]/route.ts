@@ -1,34 +1,18 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 import { runPublishHook } from "@/lib/on-publish";
 import { calculateContentScore } from "@/lib/seo-scorer";
-
-async function verifyAccess(websiteId: string, userId: string) {
-  const memberships = await prisma.organizationMember.findMany({
-    where: { userId },
-    select: { organizationId: true },
-  });
-  const orgIds = memberships.map((m) => m.organizationId);
-  return prisma.website.findFirst({
-    where: { id: websiteId, organizationId: { in: orgIds } },
-  });
-}
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ websiteId: string; postId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     const { websiteId, postId } = await params;
-    if (!await verifyAccess(websiteId, session.user.id)) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+
     const post = await prisma.blogPost.findFirst({ where: { id: postId, websiteId } });
     if (!post) return NextResponse.json({ error: "Post not found" }, { status: 404 });
     return NextResponse.json(post);
@@ -42,14 +26,10 @@ export async function PATCH(
   { params }: { params: Promise<{ websiteId: string; postId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     const { websiteId, postId } = await params;
-    if (!await verifyAccess(websiteId, session.user.id)) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+    const { session } = access;
 
     const body = await req.json();
     const allowedFields = [
@@ -147,14 +127,9 @@ export async function DELETE(
   { params }: { params: Promise<{ websiteId: string; postId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
     const { websiteId, postId } = await params;
-    if (!await verifyAccess(websiteId, session.user.id)) {
-      return NextResponse.json({ error: "Not found" }, { status: 404 });
-    }
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     // Unlink keyword first (non-blocking on failure)
     await prisma.blogKeyword.updateMany({

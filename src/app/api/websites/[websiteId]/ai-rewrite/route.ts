@@ -1,22 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateText } from "@/lib/ai/gemini";
-import { checkAiRateLimit } from "@/lib/api-helpers";
+import { verifyWebsiteAccess, checkAiRateLimit } from "@/lib/api-helpers";
 
 export const maxDuration = 30;
-
-async function verifyAccess(websiteId: string, userId: string) {
-  const memberships = await prisma.organizationMember.findMany({
-    where: { userId },
-    select: { organizationId: true },
-  });
-  const orgIds = memberships.map((m) => m.organizationId);
-  return prisma.website.findFirst({
-    where: { id: websiteId, organizationId: { in: orgIds } },
-  });
-}
 
 /**
  * POST /api/websites/[websiteId]/ai-rewrite
@@ -27,16 +14,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
   const { websiteId } = await params;
-  const website = await verifyAccess(websiteId, session.user.id);
-  if (!website) {
-    return NextResponse.json({ error: "Website not found" }, { status: 404 });
-  }
+  const access = await verifyWebsiteAccess(websiteId);
+  if ("error" in access) return access.error;
+  const { session } = access;
 
   // Rate limit: 30 rewrites per hour per user
   const rateLimitErr = checkAiRateLimit(session.user.id, "ai-rewrite", 30);
@@ -50,6 +31,11 @@ export async function POST(
     return NextResponse.json({ error: "Text too long (max 20,000 characters)" }, { status: 400 });
   }
 
+  const fullWebsite = await prisma.website.findUnique({
+    where: { id: websiteId },
+    select: { brandName: true, niche: true },
+  });
+
   const actions: Record<string, string> = {
     rewrite: `Rewrite this text to be clearer and more engaging while keeping the same meaning and factual content. Maintain a professional yet conversational tone.`,
     expand: `Expand this text with more detail, concrete examples, statistics, and explanation. Add 2-3x more content while keeping it relevant and valuable.`,
@@ -62,7 +48,7 @@ export async function POST(
 
   const prompt = `${instruction}
 
-The blog is for ${website.brandName}, a ${website.niche} platform. Match its tone.
+The blog is for ${fullWebsite?.brandName ?? "the website"}, a ${fullWebsite?.niche ?? "general"} platform. Match its tone.
 
 ## Text to ${action}:
 ${text}
@@ -74,7 +60,7 @@ ${text}
 
   const result = await generateText(
     prompt,
-    `You are an expert blog editor for ${website.brandName}, a ${website.niche} platform.`,
+    `You are an expert blog editor for ${fullWebsite?.brandName ?? "the website"}, a ${fullWebsite?.niche ?? "general"} platform.`,
     { temperature: 0.7, maxTokens: 2048 }
   );
 

@@ -1,42 +1,17 @@
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-
-async function verifyAccess(websiteId: string, userId: string) {
-  const memberships = await prisma.organizationMember.findMany({
-    where: { userId },
-    select: { organizationId: true },
-  });
-  const orgIds = memberships.map((m) => m.organizationId);
-  return prisma.website.findFirst({
-    where: { id: websiteId, organizationId: { in: orgIds } },
-  });
-}
+import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
-    const isAdmin = (session.user as { systemRole?: string }).systemRole === "ADMIN";
-    let website = await verifyAccess(websiteId, session.user.id);
-    if (!website && isAdmin) {
-      website = await prisma.website.findFirst({
-        where: { id: websiteId, status: { not: "DELETED" } },
-      });
-    }
-    if (!website) {
-      return NextResponse.json({ error: "Website not found" }, { status: 404 });
-    }
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
-    return NextResponse.json(website);
+    return NextResponse.json(access.website);
   } catch (error) {
     console.error("Error fetching website:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -48,22 +23,10 @@ export async function PATCH(
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
-    const isAdmin = (session.user as { systemRole?: string }).systemRole === "ADMIN";
-    let website = await verifyAccess(websiteId, session.user.id);
-    if (!website && isAdmin) {
-      website = await prisma.website.findFirst({
-        where: { id: websiteId, status: { not: "DELETED" } },
-      });
-    }
-    if (!website) {
-      return NextResponse.json({ error: "Website not found" }, { status: 404 });
-    }
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
+    const { website } = access;
 
     const body = await req.json();
 
@@ -119,22 +82,9 @@ export async function DELETE(
   { params }: { params: Promise<{ websiteId: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
     const { websiteId } = await params;
-    const isAdmin = (session.user as { systemRole?: string }).systemRole === "ADMIN";
-    let website = await verifyAccess(websiteId, session.user.id);
-    if (!website && isAdmin) {
-      website = await prisma.website.findFirst({
-        where: { id: websiteId, status: { not: "DELETED" } },
-      });
-    }
-    if (!website) {
-      return NextResponse.json({ error: "Website not found" }, { status: 404 });
-    }
+    const access = await verifyWebsiteAccess(websiteId);
+    if ("error" in access) return access.error;
 
     // Soft delete
     await prisma.website.update({
