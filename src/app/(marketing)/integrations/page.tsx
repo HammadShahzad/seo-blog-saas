@@ -158,7 +158,7 @@ export default function IntegrationsPage() {
                 Connect Your CMS Free <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base text-zinc-300 border-white/15 hover:bg-white/5 hover:text-white">
+            <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base text-zinc-300 border-white/15 bg-transparent hover:bg-white/5 hover:text-white">
               <Link href="/features">See All Features</Link>
             </Button>
           </div>

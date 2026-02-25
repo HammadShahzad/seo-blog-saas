@@ -136,7 +136,7 @@ export default function UseCasesPage() {
                 Start Free <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base text-zinc-300 border-white/15 hover:bg-white/5 hover:text-white">
+            <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base text-zinc-300 border-white/15 bg-transparent hover:bg-white/5 hover:text-white">
               <Link href="/pricing">View Pricing</Link>
             </Button>
           </div>
