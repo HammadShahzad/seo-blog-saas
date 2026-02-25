@@ -481,9 +481,9 @@ export default function GeneratorPage() {
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-3">
         {/* Left Column */}
-        <div className="md:col-span-1 lg:col-span-2 space-y-4">
+        <div className="lg:col-span-2 space-y-4">
 
           {/* All Active Jobs */}
           {runningJobs.length > 0 && (
