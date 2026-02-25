@@ -99,8 +99,8 @@ export default function PostEditorPage() {
     if (post.externalUrl) return post.externalUrl;
     if (!post.slug || post.status !== "PUBLISHED") return null;
     if (integrations.customDomain) return `https://${integrations.customDomain}/${post.slug}`;
-    if (integrations.subdomain) return `https://${integrations.subdomain}.stackserp.com/${post.slug}`;
     if (integrations.brandUrl) return `${integrations.brandUrl.replace(/\/$/, "")}/blog/${post.slug}`;
+    if (integrations.subdomain) return `https://${integrations.subdomain}.stackserp.com/${post.slug}`;
     return null;
   })();
 
