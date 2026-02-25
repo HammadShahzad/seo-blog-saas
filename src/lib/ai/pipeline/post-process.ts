@@ -57,7 +57,8 @@ export function postProcess(
   candidates: { label: string; content: string; words: number; missing: number; cutoff: boolean }[],
   ctx: WebsiteContext,
   consolidatedLinks: ConsolidatedLink[],
-  contentSections: { heading: string }[]
+  contentSections: { heading: string }[],
+  verifiedCitations?: string[]
 ): string {
   candidates.sort((a, b) => {
     if (a.cutoff !== b.cutoff) return a.cutoff ? 1 : -1;
@@ -182,8 +183,8 @@ export function postProcess(
   finalContent = finalContent.replace(/  +/g, " ");
   finalContent = finalContent.replace(/ ([.,;:!?])/g, "$1");
 
-  // Strip hallucinated links
-  finalContent = stripHallucinatedLinks(finalContent, ctx, consolidatedLinks);
+  // Strip hallucinated links (internal links not in approved list + external links not from research)
+  finalContent = stripHallucinatedLinks(finalContent, ctx, consolidatedLinks, verifiedCitations);
 
   // Remove excessive duplicate links (allow each URL up to 2 times)
   const linkedUrlCounts = new Map<string, number>();
@@ -326,44 +327,62 @@ function injectInternalLinks(content: string, consolidatedLinks: ConsolidatedLin
   return lines.join("\n");
 }
 
-function stripHallucinatedLinks(content: string, ctx: WebsiteContext, consolidatedLinks: ConsolidatedLink[]): string {
-  const allowedUrls = new Set<string>();
-  for (const l of consolidatedLinks) allowedUrls.add(l.url.replace(/\/$/, "").toLowerCase());
-  if (ctx.ctaUrl) allowedUrls.add(ctx.ctaUrl.replace(/\/$/, "").toLowerCase());
-  let brandHost = "";
-  try { if (ctx.brandUrl) brandHost = new URL(ctx.brandUrl).hostname; } catch { /* malformed brandUrl */ }
+function stripHallucinatedLinks(
+  content: string,
+  ctx: WebsiteContext,
+  consolidatedLinks: ConsolidatedLink[],
+  verifiedCitations?: string[]
+): string {
+  // Build sets of allowed URLs
+  const allowedInternalUrls = new Set<string>();
+  for (const l of consolidatedLinks) allowedInternalUrls.add(l.url.replace(/\/$/, "").toLowerCase());
+  if (ctx.ctaUrl) allowedInternalUrls.add(ctx.ctaUrl.replace(/\/$/, "").toLowerCase());
 
-  if (consolidatedLinks.length > 0) {
-    content = content.replace(
-      /\[([^\]]+)\]\(([^)]+)\)/g,
-      (fullMatch, anchor: string, url: string) => {
-        if (url.startsWith("#")) return fullMatch;
-        const normalizedUrl = url.replace(/\/$/, "").toLowerCase();
-        if (allowedUrls.has(normalizedUrl)) return fullMatch;
-        try {
-          const linkHost = new URL(url).hostname;
-          if (brandHost && linkHost !== brandHost) return fullMatch;
-        } catch { /* Not a valid URL — strip it */ }
-        console.log(`[content-gen] Stripped hallucinated link: ${url}`);
+  // Verified external URLs from Perplexity research
+  const allowedExternalHosts = new Set<string>();
+  const allowedExternalUrls = new Set<string>();
+  if (verifiedCitations?.length) {
+    for (const c of verifiedCitations) {
+      allowedExternalUrls.add(c.replace(/\/$/, "").toLowerCase());
+      try { allowedExternalHosts.add(new URL(c).hostname.toLowerCase()); } catch { /* skip */ }
+    }
+  }
+
+  let brandHost = "";
+  try { if (ctx.brandUrl) brandHost = new URL(ctx.brandUrl).hostname.toLowerCase(); } catch { /* malformed brandUrl */ }
+
+  content = content.replace(
+    /\[([^\]]+)\]\(([^)]+)\)/g,
+    (fullMatch, anchor: string, url: string) => {
+      if (url.startsWith("#")) return fullMatch;
+      const normalizedUrl = url.replace(/\/$/, "").toLowerCase();
+
+      // Allow approved internal links
+      if (allowedInternalUrls.has(normalizedUrl)) return fullMatch;
+
+      // Check if this is an external link
+      let linkHost = "";
+      try { linkHost = new URL(url).hostname.toLowerCase(); } catch {
+        console.log(`[content-gen] Stripped invalid URL: ${url}`);
         return anchor;
       }
-    );
-  } else {
-    content = content.replace(
-      /\[([^\]]+)\]\(([^)]+)\)/g,
-      (fullMatch, anchor: string, url: string) => {
-        if (url.startsWith("#")) return fullMatch;
-        try {
-          const linkHost = new URL(url).hostname;
-          if (brandHost && linkHost === brandHost) {
-            console.log(`[content-gen] Stripped hallucinated link (no approved list): ${url}`);
-            return anchor;
-          }
-        } catch { /* Not a valid URL — keep as is */ }
-        return fullMatch;
+
+      // Same-origin (brand) links: only allow if in approved internal list
+      if (brandHost && linkHost === brandHost) {
+        console.log(`[content-gen] Stripped hallucinated internal link: ${url}`);
+        return anchor;
       }
-    );
-  }
+
+      // External links: allow if URL or host matches a verified citation
+      if (allowedExternalUrls.has(normalizedUrl)) return fullMatch;
+      if (allowedExternalHosts.has(linkHost)) return fullMatch;
+
+      // No verified citations at all? Strip ALL external links (AI hallucinated them)
+      console.log(`[content-gen] Stripped unverified external link: ${url}`);
+      return anchor;
+    }
+  );
+
   return content;
 }
 

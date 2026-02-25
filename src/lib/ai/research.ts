@@ -15,6 +15,8 @@ export interface ResearchResult {
   commonQuestions: string[];
   rawResponse: string;
   researchFailed?: boolean;
+  /** Verified citation URLs from Perplexity (real, existing pages) */
+  citations?: string[];
 }
 
 export async function researchKeyword(
@@ -117,6 +119,18 @@ Look for: contrarian takes, more specific use cases, more recent data, underserv
       return { ...getMockResearch(keyword, websiteContext), researchFailed: true };
     }
 
+    // Extract verified citation URLs from Perplexity response
+    const citations: string[] = [];
+    if (Array.isArray(data.citations)) {
+      for (const c of data.citations) {
+        if (typeof c === "string" && c.startsWith("http")) citations.push(c);
+        else if (c?.url && typeof c.url === "string") citations.push(c.url);
+      }
+    }
+    if (citations.length > 0) {
+      console.log(`[research] Perplexity returned ${citations.length} citation URLs`);
+    }
+
     return {
       rawResearch,
       topRankingContent: extractSection(rawResearch, "competitor", "ranking", "top article", "part 1").join("\n") || rawResearch.substring(0, 1000),
@@ -128,6 +142,7 @@ Look for: contrarian takes, more specific use cases, more recent data, underserv
       suggestedAngle: extractSection(rawResearch, "winning angle", "unique angle", "contrarian", "underexplored", "part 3")[0] || "",
       commonQuestions: extractSection(rawResearch, "question", "ask", "faq", "paa", "people also", "quora", "reddit"),
       rawResponse: rawResearch,
+      citations,
     };
   } catch (error) {
     console.error("Research error:", error);

@@ -40,6 +40,7 @@ export async function runSeoOptimization(
   opts: {
     targetWords: string;
     includeFAQ: boolean;
+    verifiedCitations?: string[];
   }
 ): Promise<SeoResult> {
   const cappedLinks = consolidatedLinks.slice(0, 25);
@@ -105,14 +106,10 @@ ${opts.includeFAQ ? `7. Ensure the FAQ section exists at the end. CRITICAL FORMA
 14. READABILITY: Include bullet lists or numbered lists where they genuinely help. Use bold text for key terms. Add blockquotes for expert tips.
 15. ENDING: Do NOT add "Final Thoughts", "Conclusion", "Wrapping Up" or any concluding section heading. The article should end naturally.
 16. ENTITIES: Ensure related entities (tools, standards, organizations, people, places) are naturally present for semantic richness.
-17. EXTERNAL REFERENCE LINKS: Add 1-2 external reference links to high-authority, non-competitor websites that support claims or data in the article. Use sources like:
-   - Government sites (.gov)
-   - News outlets (Reuters, BBC, Forbes, Bloomberg, etc.)
-   - Educational institutions (.edu)
-   - Wikipedia
-   - Industry associations and standards bodies
-   - Research organizations and journals
-   RULES: The linked site MUST be directly relevant to the content it supports. NEVER link to competitors of ${ctx.brandName}. Use real, well-known domains only. Format as standard markdown links: [descriptive anchor text](https://example.gov/page).
+17. EXTERNAL REFERENCE LINKS: ${opts.verifiedCitations?.length ? `Add 1-2 external reference links ONLY from this verified source list:
+${opts.verifiedCitations.slice(0, 8).map((url) => `   - ${url}`).join("\n")}
+   RULES: ONLY use URLs from the list above. Do NOT invent, guess, or modify any URLs. Pick the 1-2 most relevant to the article content. Use descriptive anchor text. Format: [descriptive anchor text](exact-url-from-list).` : `Do NOT add any external reference links. Do NOT invent or hallucinate any external URLs.`}
+   NEVER link to competitors of ${ctx.brandName}.
 18. HORIZONTAL RULES: Remove ALL horizontal rules (---, ***, ___) from the content. Sections should be separated by headings only, never by divider lines.
 
 ## Blog Post (${toneWords} words):

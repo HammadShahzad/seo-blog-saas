@@ -331,6 +331,7 @@ CRITICAL: Output the COMPLETE article with every section. Do NOT stop early or d
   const seoResult = await runSeoOptimization(keyword, ctx, toneToUse, contentSections, consolidatedLinks, systemPrompt, {
     targetWords,
     includeFAQ,
+    verifiedCitations: research.citations || [],
   });
 
   const toneToUseMissing = findMissingSections(toneToUse, contentSections);
@@ -343,7 +344,7 @@ CRITICAL: Output the COMPLETE article with every section. Do NOT stop early or d
     { label: "draft", content: cleanDraft,          words: draftWords,       missing: draftMissing.length,    cutoff: draftTruncated || isCutOff(cleanDraft) },
   ];
 
-  let finalContent = postProcess(candidates, ctx, consolidatedLinks, contentSections);
+  let finalContent = postProcess(candidates, ctx, consolidatedLinks, contentSections, research.citations);
 
   // ─── STEP 6: METADATA ────────────────────────────────────────────
   await progress("metadata", "Generating SEO metadata, schema, and social captions...");
