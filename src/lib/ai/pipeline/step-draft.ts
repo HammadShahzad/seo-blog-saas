@@ -29,6 +29,7 @@ export async function generateDraft(
     contentLength: string;
     includeTableOfContents: boolean;
     includeFAQ: boolean;
+    includeProTips: boolean;
     isComparisonArticle: boolean;
     customDirection?: string;
     research: { contentGaps: string[]; missingSubtopics?: string[]; keyStatistics: string[]; rawResearch: string };
@@ -148,7 +149,7 @@ ${ctx.targetLocation && keyword.toLowerCase().includes(ctx.targetLocation.toLowe
   ? "- LOCATION RULE (critical for SEO): The keyword includes a specific location (\"" + ctx.targetLocation + "\"). You MUST use BOTH the core topic AND the exact location name \"" + ctx.targetLocation + "\" together in: (1) the first 2 sentences of the intro, and (2) at least one H2 heading. Do NOT substitute \"" + ctx.targetLocation + "\" with a broader area name — use the EXACT location name."
   : ""}
 - Write from an EXPERT perspective using the personality above. Vary your expert voice phrases: "In my testing," "I've found," "From my experience," "What I noticed," "After running this for 6 months," "The data surprised me," "Here's what nobody mentions"
-- EXPERT CALLOUTS: use at most 2 total "Pro Tip:" callouts in the ENTIRE article. Make them count — share something non-obvious that only someone with real experience would know. DO NOT add a "Pro Tip" in every section.
+${opts.includeProTips ? '- EXPERT CALLOUTS: use at most 2 total "Pro Tip:" callouts in the ENTIRE article. Make them count — share something non-obvious that only someone with real experience would know. DO NOT add a "Pro Tip" in every section.' : '- Do NOT include any "Pro Tip:" callout boxes in the article. Share expert insights naturally within the prose instead.'}
 - Vary paragraph lengths naturally throughout the article. Mix short punchy paragraphs (2-3 sentences) with medium ones (4-5 sentences) and occasionally longer detailed ones (5-6 sentences). NEVER write paragraphs of the same length back-to-back. The rhythm should feel natural, not uniform.
 - Use active voice, concrete examples, and specific numbers. Clear language that provides genuine value.
 - Do NOT use horizontal rules (---, ***, ___) anywhere in the article. Sections are separated by headings, not divider lines.

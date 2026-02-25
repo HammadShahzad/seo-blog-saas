@@ -68,6 +68,7 @@ export default function GeneratorPage() {
   const [contentLength, setContentLength] = useState("MEDIUM");
   const [includeImages, setIncludeImages] = useState(true);
   const [includeFAQ, setIncludeFAQ] = useState(true);
+  const [includeProTips, setIncludeProTips] = useState(true);
   const [includeTableOfContents, setIncludeTableOfContents] = useState(true);
   const [autoPublish, setAutoPublish] = useState(false);
   const [customDirection, setCustomDirection] = useState("");
@@ -293,6 +294,7 @@ export default function GeneratorPage() {
           contentLength,
           includeImages,
           includeFAQ,
+          includeProTips,
           includeTableOfContents,
           autoPublish,
           customDirection: customDirection.trim() || undefined,
@@ -658,6 +660,14 @@ export default function GeneratorPage() {
                   <p className="text-xs text-muted-foreground">4-5 Q&A pairs</p>
                 </div>
                 <Switch checked={includeFAQ} onCheckedChange={setIncludeFAQ} />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Pro Tips</Label>
+                  <p className="text-xs text-muted-foreground">Expert callout boxes</p>
+                </div>
+                <Switch checked={includeProTips} onCheckedChange={setIncludeProTips} />
               </div>
 
               <div className="flex items-center justify-between">

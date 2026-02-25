@@ -33,7 +33,7 @@ export async function PATCH(
     const allowedFields = [
       "ctaText", "ctaUrl", "avoidTopics", "requiredSections",
       "writingStyle", "contentLength", "includeImages",
-      "includeFAQ", "includeTableOfContents", "preferredModel",
+      "includeFAQ", "includeProTips", "includeTableOfContents", "preferredModel",
     ];
 
     const data: Record<string, unknown> = {};

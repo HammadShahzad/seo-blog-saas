@@ -242,6 +242,10 @@ export function ContentSettings({
             <Switch checked={blogSettings.includeFAQ} onCheckedChange={(v) => setBlogSettings((p) => ({ ...p, includeFAQ: v }))} />
           </div>
           <div className="flex items-center justify-between">
+            <Label>Pro Tips</Label>
+            <Switch checked={blogSettings.includeProTips} onCheckedChange={(v) => setBlogSettings((p) => ({ ...p, includeProTips: v }))} />
+          </div>
+          <div className="flex items-center justify-between">
             <Label>Table of Contents</Label>
             <Switch checked={blogSettings.includeTableOfContents} onCheckedChange={(v) => setBlogSettings((p) => ({ ...p, includeTableOfContents: v }))} />
           </div>

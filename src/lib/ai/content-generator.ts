@@ -40,6 +40,7 @@ export async function generateBlogPost(
   options: {
     includeImages?: boolean;
     includeFAQ?: boolean;
+    includeProTips?: boolean;
     includeTableOfContents?: boolean;
     onProgress?: ProgressCallback;
     existingPosts?: { title: string; slug: string; url: string; focusKeyword: string }[];
@@ -47,7 +48,7 @@ export async function generateBlogPost(
     customDirection?: string;
   } = {}
 ): Promise<GeneratedPost> {
-  const { includeImages = true, includeFAQ = true, includeTableOfContents = true, onProgress } = options;
+  const { includeImages = true, includeFAQ = true, includeProTips = true, includeTableOfContents = true, onProgress } = options;
 
   const preferredModel = website.blogSettings?.preferredModel;
   if (preferredModel && preferredModel !== "gemini-3.1-pro-preview") {
@@ -55,7 +56,7 @@ export async function generateBlogPost(
   }
 
   try {
-  return await _runPipeline(keyword, website, contentLength, options, { includeImages, includeFAQ, includeTableOfContents, onProgress });
+  return await _runPipeline(keyword, website, contentLength, options, { includeImages, includeFAQ, includeProTips, includeTableOfContents, onProgress });
   } finally {
     setModelOverride(null);
   }
@@ -68,15 +69,16 @@ async function _runPipeline(
   options: {
     includeImages?: boolean;
     includeFAQ?: boolean;
+    includeProTips?: boolean;
     includeTableOfContents?: boolean;
     onProgress?: ProgressCallback;
     existingPosts?: { title: string; slug: string; url: string; focusKeyword: string }[];
     internalLinks?: { keyword: string; url: string }[];
     customDirection?: string;
   },
-  resolved: { includeImages: boolean; includeFAQ: boolean; includeTableOfContents: boolean; onProgress?: ProgressCallback }
+  resolved: { includeImages: boolean; includeFAQ: boolean; includeProTips: boolean; includeTableOfContents: boolean; onProgress?: ProgressCallback }
 ): Promise<GeneratedPost> {
-  const { includeImages, includeFAQ, includeTableOfContents, onProgress } = resolved;
+  const { includeImages, includeFAQ, includeProTips, includeTableOfContents, onProgress } = resolved;
 
   const ctx: WebsiteContext = {
     id: website.id,
@@ -234,6 +236,7 @@ Return JSON: { "title": "...", "sections": [{ "heading": "...", "points": ["..."
     contentLength,
     includeTableOfContents,
     includeFAQ,
+    includeProTips,
     isComparisonArticle,
     customDirection: options.customDirection,
     research,
@@ -259,7 +262,7 @@ Audience: ${ctx.targetAudience}
 **Kill generic patterns:**
 - CHECK THE OPENING FIRST: If it starts with "It is [time]...", "Picture this...", "Imagine...", "You're sitting at...", or any time-based scene-setting, COMPLETELY rewrite it. Replace with a bold stat, contrarian claim, or 2-sentence case study.
 - If the opening paragraph sounds like every other article on this topic, rewrite it with a shocking stat, a provocative question, or a counterintuitive insight
-- Count the "Pro Tip:" labels. If there are more than 2, delete the weakest ones and fold those insights naturally into the surrounding prose
+${includeProTips ? '- Count the "Pro Tip:" labels. If there are more than 2, delete the weakest ones and fold those insights naturally into the surrounding prose' : '- Remove ALL "Pro Tip:" callout boxes. Fold any useful insights from them naturally into the surrounding prose'}
 - If any paragraph starts with "It is important to...", "In today's...", "As a [profession]...", or "With the rise of...", rewrite it completely
 - If any two sections have the same rhythm/structure, change one of them
 

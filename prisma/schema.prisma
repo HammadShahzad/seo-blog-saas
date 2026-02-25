@@ -394,6 +394,7 @@ model BlogSettings {
   contentLength          ContentLength @default(MEDIUM)
   includeImages          Boolean @default(true)
   includeFAQ             Boolean @default(true)
+  includeProTips         Boolean @default(true)
   includeTableOfContents Boolean @default(true)
 
   // Style Settings

@@ -82,6 +82,7 @@ export async function POST(
       contentLength: (input?.contentLength as "SHORT" | "MEDIUM") || "MEDIUM",
       includeImages: (input?.includeImages as boolean) ?? true,
       includeFAQ: (input?.includeFAQ as boolean) ?? true,
+      includeProTips: (input?.includeProTips as boolean) ?? true,
       autoPublish: (input?.autoPublish as boolean) ?? false,
     });
 

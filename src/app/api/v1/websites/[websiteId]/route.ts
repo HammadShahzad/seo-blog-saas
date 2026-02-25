@@ -84,6 +84,7 @@ export async function GET(req: Request, { params }: Params) {
             contentLength: website.blogSettings.contentLength,
             includeImages: website.blogSettings.includeImages,
             includeFAQ: website.blogSettings.includeFAQ,
+            includeProTips: website.blogSettings.includeProTips,
             includeTableOfContents:
               website.blogSettings.includeTableOfContents,
             writingStyle: website.blogSettings.writingStyle,

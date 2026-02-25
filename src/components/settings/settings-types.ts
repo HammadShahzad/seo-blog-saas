@@ -37,6 +37,7 @@ export interface BlogSettingsData {
   writingStyle: string;
   contentLength: string;
   includeFAQ: boolean;
+  includeProTips: boolean;
   includeTableOfContents: boolean;
 }
 

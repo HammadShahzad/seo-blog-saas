@@ -35,7 +35,7 @@ export default function WebsiteSettingsPage() {
   const [website, setWebsite] = useState<WebsiteData | null>(null);
   const [blogSettings, setBlogSettings] = useState<BlogSettingsData>({
     ctaText: null, ctaUrl: null, avoidTopics: [], writingStyle: "informative",
-    contentLength: "MEDIUM", includeFAQ: true, includeTableOfContents: true,
+    contentLength: "MEDIUM", includeFAQ: true, includeProTips: true, includeTableOfContents: true,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);

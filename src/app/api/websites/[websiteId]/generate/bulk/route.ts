@@ -90,6 +90,7 @@ export async function POST(
           contentLength,
           includeImages: true,
           includeFAQ: true,
+          includeProTips: true,
           autoPublish,
         });
 

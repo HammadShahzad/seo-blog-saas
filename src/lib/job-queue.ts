@@ -18,6 +18,7 @@ export interface JobInput {
   contentLength?: "SHORT" | "MEDIUM" | "LONG" | "PILLAR";
   includeImages?: boolean;
   includeFAQ?: boolean;
+  includeProTips?: boolean;
   includeTableOfContents?: boolean;
   autoPublish?: boolean;
   customDirection?: string;
@@ -153,6 +154,7 @@ export async function processJob(jobId: string): Promise<void> {
       {
         includeImages: input.includeImages ?? true,
         includeFAQ: input.includeFAQ ?? true,
+        includeProTips: input.includeProTips ?? true,
         includeTableOfContents: input.includeTableOfContents ?? true,
         onProgress,
         existingPosts: postLinks,

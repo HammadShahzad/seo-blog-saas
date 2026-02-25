@@ -101,6 +101,7 @@ export async function POST(req: Request, { params }: Params) {
     contentLength: (["SHORT", "MEDIUM"].includes(website?.blogSettings?.contentLength || "") ? website?.blogSettings?.contentLength : "MEDIUM") as "SHORT" | "MEDIUM",
     includeImages: website?.blogSettings?.includeImages ?? true,
     includeFAQ: website?.blogSettings?.includeFAQ ?? true,
+    includeProTips: website?.blogSettings?.includeProTips ?? true,
     autoPublish: website?.autoPublish ?? false,
   });
 
