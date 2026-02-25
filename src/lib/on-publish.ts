@@ -145,8 +145,8 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     );
   }
 
-  // 5. Shopify auto-push (if configured and auto or scheduled)
-  if (website.shopifyConfig && (triggeredBy === "auto" || triggeredBy === "scheduled")) {
+  // 5. Shopify push (on any publish trigger)
+  if (website.shopifyConfig) {
     tasks.push((async () => {
       const config = JSON.parse(website.shopifyConfig as string) as ShopifyConfig;
       const result = await pushToShopify({
@@ -165,8 +165,8 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     })().catch(e => console.error("[Shopify] error:", e)));
   }
 
-  // 7. Ghost auto-push (if configured and auto or scheduled)
-  if (website.ghostConfig && (triggeredBy === "auto" || triggeredBy === "scheduled")) {
+  // 7. Ghost push (on any publish trigger)
+  if (website.ghostConfig) {
     tasks.push((async () => {
       const config = JSON.parse(website.ghostConfig as string);
       const result = await pushToGhost({
@@ -185,8 +185,8 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     })().catch(e => console.error("[Ghost] error:", e)));
   }
 
-  // 8. Webflow auto-push (if cmsType is WEBFLOW and auto or scheduled)
-  if (website.cmsType === "WEBFLOW" && website.cmsApiKey && (triggeredBy === "auto" || triggeredBy === "scheduled")) {
+  // 8. Webflow push (on any publish trigger)
+  if (website.cmsType === "WEBFLOW" && website.cmsApiKey) {
     tasks.push((async () => {
       const config = JSON.parse(website.cmsApiKey as string) as WebflowConfig;
       const result = await pushToWebflow({
@@ -202,8 +202,8 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     })().catch(e => console.error("[Webflow] error:", e)));
   }
 
-  // 6. WordPress auto-push (if configured and auto or scheduled)
-  if (website.cmsApiUrl && website.cmsApiKey && website.cmsType !== "WEBFLOW" && (triggeredBy === "auto" || triggeredBy === "scheduled")) {
+  // 6. WordPress push (on any publish trigger)
+  if (website.cmsApiUrl && website.cmsApiKey && website.cmsType !== "WEBFLOW") {
     tasks.push((async () => {
       const wpConfig = decodeWordPressConfig(website.cmsApiUrl!, website.cmsApiKey!);
       const result = await pushToWordPress({
