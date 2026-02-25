@@ -2,45 +2,17 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { sendWebhook } from "@/lib/cms/webhook";
 import { verifyWebsiteAccess } from "@/lib/api-helpers";
+import { isSafeUrl } from "@/lib/url-safety";
 
-/** SSRF protection: reject URLs that resolve to private/loopback/link-local ranges. */
-function isAllowedWebhookUrl(raw: string): boolean {
-  let url: URL;
+/** SSRF protection: DNS-resolves the URL and rejects private/loopback/link-local ranges. */
+async function isAllowedWebhookUrl(raw: string): Promise<boolean> {
   try {
-    url = new URL(raw);
+    const url = new URL(raw);
+    if (url.protocol !== "https:" && process.env.NODE_ENV === "production") return false;
   } catch {
     return false;
   }
-
-  // Only HTTPS in production
-  if (url.protocol !== "https:" && process.env.NODE_ENV === "production") {
-    return false;
-  }
-
-  const hostname = url.hostname.toLowerCase();
-
-  // Block localhost variants
-  if (hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1") {
-    return false;
-  }
-
-  // Block private RFC1918 ranges, link-local, and metadata endpoints
-  const privatePatterns = [
-    /^10\./,
-    /^172\.(1[6-9]|2\d|3[01])\./,
-    /^192\.168\./,
-    /^169\.254\./,               // link-local
-    /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,  // CGNAT
-    /^0\./,
-    /^metadata\.google\.internal$/,
-    /^169\.254\.169\.254$/,      // AWS/GCP instance metadata
-  ];
-
-  if (privatePatterns.some((re) => re.test(hostname))) {
-    return false;
-  }
-
-  return true;
+  return isSafeUrl(raw);
 }
 
 type Params = { params: Promise<{ websiteId: string }> };
@@ -80,7 +52,7 @@ export async function POST(req: Request, { params }: Params) {
         where: { id: websiteId },
         select: { brandName: true, domain: true },
       });
-      if (!webhookUrl || typeof webhookUrl !== "string" || !isAllowedWebhookUrl(webhookUrl)) {
+      if (!webhookUrl || typeof webhookUrl !== "string" || !(await isAllowedWebhookUrl(webhookUrl))) {
         return NextResponse.json({ success: false, error: "A valid, publicly accessible HTTPS webhook URL is required" }, { status: 400 });
       }
 
@@ -104,7 +76,7 @@ export async function POST(req: Request, { params }: Params) {
       return NextResponse.json(result);
     }
 
-    if (!webhookUrl || typeof webhookUrl !== "string" || !isAllowedWebhookUrl(webhookUrl)) {
+    if (!webhookUrl || typeof webhookUrl !== "string" || !(await isAllowedWebhookUrl(webhookUrl))) {
       return NextResponse.json({ error: "A valid, publicly accessible HTTPS webhook URL is required" }, { status: 400 });
     }
 

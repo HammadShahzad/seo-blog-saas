@@ -4,6 +4,7 @@
  */
 import crypto from "crypto";
 import dns from "dns/promises";
+import { isSafeUrl } from "./url-safety";
 
 const VERIFICATION_PREFIX = "stackserp-verify";
 
@@ -39,9 +40,10 @@ export async function verifyDnsTxt(domain: string, token: string): Promise<boole
 export async function verifyMetaTag(domain: string, token: string): Promise<boolean> {
   try {
     const url = domain.startsWith("http") ? domain : `https://${domain}`;
+    if (!(await isSafeUrl(url))) return false;
     const res = await fetch(url, {
       headers: { "User-Agent": "StackSerp-Verifier/1.0" },
-      redirect: "follow",
+      redirect: "manual",
       signal: AbortSignal.timeout(10000),
     });
 

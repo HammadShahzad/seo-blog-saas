@@ -96,7 +96,11 @@ export async function PATCH(
 
     const updatedUser = await prisma.user.findUnique({
       where: { id: userId },
-      include: { subscription: true },
+      select: {
+        id: true, email: true, name: true, role: true,
+        createdAt: true, updatedAt: true,
+        subscription: true,
+      },
     });
 
     return NextResponse.json(updatedUser);

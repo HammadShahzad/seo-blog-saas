@@ -171,6 +171,8 @@ export function EditorHeader({
     try {
       const { Marked } = await import("marked");
       const md = new Marked({ gfm: true, breaks: false });
+      // Strip raw HTML blocks from markdown to prevent XSS via document.write
+      md.use({ renderer: { html: () => "" } });
       const htmlContent = md.parse(post.content) as string;
 
       const slug = post.slug || post.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60) || "blog-post";
@@ -225,7 +227,7 @@ export function EditorHeader({
       ${post.wordCount ? `${post.wordCount.toLocaleString()} words &middot; ${post.readingTime || Math.ceil(post.wordCount / 200)} min read` : ""}
     </div>
   </div>
-  ${post.featuredImage ? `<img src="${post.featuredImage}" alt="${safeTitle}" style="max-width:100%; height:auto; margin: 0 0 28px; border-radius: 6px; display:block;" />` : ""}
+  ${post.featuredImage ? `<img src="${post.featuredImage.replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}" alt="${safeTitle}" style="max-width:100%; height:auto; margin: 0 0 28px; border-radius: 6px; display:block;" />` : ""}
   ${htmlContent}
   <script>
     window.onload = function() {
