@@ -171,9 +171,15 @@ export function EditorHeader({
     try {
       const { Marked } = await import("marked");
       const md = new Marked({ gfm: true, breaks: false });
-      // Strip raw HTML blocks from markdown to prevent XSS via document.write
+      // Strip ALL raw HTML (block + inline) from markdown to prevent XSS via document.write
       md.use({ renderer: { html: () => "" } });
-      const htmlContent = md.parse(post.content) as string;
+      const rawHtml = md.parse(post.content) as string;
+      // Secondary pass: strip any remaining script tags, event handlers, javascript:/data: URIs
+      const htmlContent = rawHtml
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script\s*>/gi, "")
+        .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)/gi, "")
+        .replace(/href\s*=\s*["']?\s*javascript:/gi, 'href="#"')
+        .replace(/src\s*=\s*["']?\s*data:/gi, 'src="#"');
 
       const slug = post.slug || post.title?.toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 60) || "blog-post";
       const safeTitle = (post.title || "Untitled").replace(/</g, "&lt;").replace(/>/g, "&gt;");

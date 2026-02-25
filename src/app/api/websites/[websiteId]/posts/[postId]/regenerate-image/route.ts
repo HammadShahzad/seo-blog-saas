@@ -74,7 +74,7 @@ export async function POST(req: Request, { params }: Params) {
       });
 
       const updated = await prisma.blogPost.update({
-        where: { id: postId },
+        where: { id: postId, websiteId },
         data: { content: updatedContent },
         select: { content: true },
       });
@@ -83,7 +83,7 @@ export async function POST(req: Request, { params }: Params) {
     }
 
     const updated = await prisma.blogPost.update({
-      where: { id: postId },
+      where: { id: postId, websiteId },
       data: { featuredImage: imageUrl },
       select: { featuredImage: true },
     });

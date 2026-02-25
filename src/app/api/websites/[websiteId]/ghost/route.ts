@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { testGhostConnection } from "@/lib/cms/ghost";
 import { verifyWebsiteAccess } from "@/lib/api-helpers";
+import { isSafeUrl } from "@/lib/url-safety";
 
 type Params = { params: Promise<{ websiteId: string }> };
 
@@ -49,6 +50,10 @@ export async function POST(req: Request, { params }: Params) {
     if (action === "test") {
       const result = await testGhostConnection({ siteUrl, adminApiKey });
       return NextResponse.json(result);
+    }
+
+    if (!(await isSafeUrl(siteUrl))) {
+      return NextResponse.json({ error: "The Ghost site URL is not reachable or points to an internal network." }, { status: 400 });
     }
 
     await prisma.website.update({

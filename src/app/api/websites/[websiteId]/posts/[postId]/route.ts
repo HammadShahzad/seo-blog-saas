@@ -127,6 +127,13 @@ export async function DELETE(
     const access = await verifyWebsiteAccess(websiteId);
     if ("error" in access) return access.error;
 
+    // Verify post belongs to this website before touching any records
+    const postToDelete = await prisma.blogPost.findUnique({
+      where: { id: postId, websiteId },
+      select: { id: true },
+    });
+    if (!postToDelete) return NextResponse.json({ error: "Post not found" }, { status: 404 });
+
     // Unlink keyword first (non-blocking on failure)
     await prisma.blogKeyword.updateMany({
       where: { blogPostId: postId },
