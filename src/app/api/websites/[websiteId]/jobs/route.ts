@@ -110,6 +110,7 @@ export async function GET(
     const jobs = await prisma.generationJob.findMany({
       where: {
         websiteId,
+        type: "BLOG_GENERATION",
         OR: [
           { status: { in: ["QUEUED", "PROCESSING"] } },
           { status: "COMPLETED", completedAt: { gte: oneHourAgo } },
