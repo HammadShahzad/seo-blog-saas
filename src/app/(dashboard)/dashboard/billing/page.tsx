@@ -10,19 +10,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Check,
-  X,
-  Globe,
-  FileText,
-  Image,
-  Users,
-  Zap,
-  Crown,
-} from "lucide-react";
-import { UpgradeButton, ManageButton } from "./billing-client";
+import { Globe, FileText, Image, Zap } from "lucide-react";
+import { ManageButton, BillingPlansSection } from "./billing-client";
 
 export default async function BillingPage() {
   const { organization } = await getCurrentOrganization();
@@ -95,116 +85,30 @@ export default async function BillingPage() {
       )}
 
       {/* Pricing Plans */}
-      <div>
-        <h3 className="text-xl font-semibold mb-4">Available Plans</h3>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-          {planOrder.map((planKey) => {
-            const plan = PLANS[planKey];
-            const isCurrent = currentPlan === planKey;
-            const isPopular = planKey === "GROWTH";
-
-            return (
-              <Card
-                key={planKey}
-                className={`relative ${
-                  isPopular ? "border-primary shadow-lg" : ""
-                } ${isCurrent ? "ring-2 ring-primary" : ""}`}
-              >
-                {isPopular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge className="bg-primary">Most Popular</Badge>
-                  </div>
-                )}
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    {planKey === "AGENCY" && <Crown className="h-5 w-5 text-yellow-500" />}
-                    {plan.name}
-                  </CardTitle>
-                  <div className="mt-2">
-                    <span className="text-3xl font-bold">
-                      ${plan.price}
-                    </span>
-                    {plan.price > 0 && (
-                      <span className="text-muted-foreground">/mo</span>
-                    )}
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <PlanFeature
-                    icon={<Globe className="h-4 w-4" />}
-                    text={`${plan.features.maxWebsites} website${plan.features.maxWebsites !== 1 ? "s" : ""}`}
-                  />
-                  <PlanFeature
-                    icon={<FileText className="h-4 w-4" />}
-                    text={`${plan.features.maxPostsPerMonth} posts/month`}
-                  />
-                  <PlanFeature
-                    icon={<Image className="h-4 w-4" />}
-                    text={`${plan.features.maxImagesPerMonth} AI images/month`}
-                  />
-                  <PlanFeature
-                    icon={plan.features.apiAccess ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />}
-                    text="API Access"
-                    enabled={plan.features.apiAccess}
-                  />
-                  <PlanFeature
-                    icon={plan.features.cmsPush ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />}
-                    text="CMS Push"
-                    enabled={plan.features.cmsPush}
-                  />
-                  <PlanFeature
-                    icon={plan.features.socialPublishing ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />}
-                    text="Social Publishing"
-                    enabled={plan.features.socialPublishing}
-                  />
-                  <PlanFeature
-                    icon={<Users className="h-4 w-4" />}
-                    text={`${plan.features.teamMembers === -1 ? "Unlimited" : plan.features.teamMembers} team member${plan.features.teamMembers !== 1 ? "s" : ""}`}
-                  />
-                </CardContent>
-                <CardFooter>
-                  {isCurrent ? (
-                    <Button className="w-full" variant="outline" disabled>
-                      Current Plan
-                    </Button>
-                  ) : planKey === "FREE" ? (
-                    <ManageButton />
-                  ) : (
-                    <UpgradeButton
-                      planKey={planKey}
-                      isUpgrade={
-                        planOrder.indexOf(planKey) >
-                        planOrder.indexOf(currentPlan as typeof planOrder[number])
-                      }
-                    />
-                  )}
-                </CardFooter>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PlanFeature({
-  icon,
-  text,
-  enabled = true,
-}: {
-  icon: React.ReactNode;
-  text: string;
-  enabled?: boolean;
-}) {
-  return (
-    <div
-      className={`flex items-center gap-2 text-sm ${
-        enabled ? "" : "text-muted-foreground"
-      }`}
-    >
-      {icon}
-      <span>{text}</span>
+      <BillingPlansSection
+        currentPlan={currentPlan}
+        plans={planOrder.map((planKey) => {
+          const plan = PLANS[planKey];
+          const annualPrices: Record<string, number> = {
+            STARTER: 23, GROWTH: 63, AGENCY: 159,
+          };
+          return {
+            planKey,
+            name: plan.name,
+            price: plan.price,
+            annualPrice: annualPrices[planKey] ?? 0,
+            features: {
+              maxWebsites: plan.features.maxWebsites,
+              maxPostsPerMonth: plan.features.maxPostsPerMonth,
+              maxImagesPerMonth: plan.features.maxImagesPerMonth,
+              apiAccess: plan.features.apiAccess,
+              cmsPush: Boolean(plan.features.cmsPush),
+              socialPublishing: Boolean(plan.features.socialPublishing),
+              teamMembers: plan.features.teamMembers,
+            },
+          };
+        })}
+      />
     </div>
   );
 }

@@ -34,6 +34,7 @@ export const PLANS = {
     name: "Starter",
     price: 29,
     priceId: process.env.STRIPE_STARTER_PRICE_ID,
+    annualPriceId: process.env.STRIPE_STARTER_ANNUAL_PRICE_ID,
     features: {
       maxWebsites: 3,
       maxPostsPerMonth: 20,
@@ -51,6 +52,7 @@ export const PLANS = {
     name: "Growth",
     price: 79,
     priceId: process.env.STRIPE_GROWTH_PRICE_ID,
+    annualPriceId: process.env.STRIPE_GROWTH_ANNUAL_PRICE_ID,
     features: {
       maxWebsites: 10,
       maxPostsPerMonth: 60,
@@ -68,6 +70,7 @@ export const PLANS = {
     name: "Agency",
     price: 199,
     priceId: process.env.STRIPE_AGENCY_PRICE_ID,
+    annualPriceId: process.env.STRIPE_AGENCY_ANNUAL_PRICE_ID,
     features: {
       maxWebsites: 50,
       maxPostsPerMonth: 200,

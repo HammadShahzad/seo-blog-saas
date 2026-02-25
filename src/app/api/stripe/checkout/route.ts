@@ -13,14 +13,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { planKey } = (await req.json()) as { planKey: string };
+    const { planKey, billing } = (await req.json()) as { planKey: string; billing?: string };
 
     if (!planKey || !PLANS[planKey as PlanKey]) {
       return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
 
     const plan = PLANS[planKey as PlanKey];
-    if (!plan.priceId) {
+    const isAnnual = billing === "annual";
+    const priceId = isAnnual
+      ? (plan as { annualPriceId?: string }).annualPriceId ?? plan.priceId
+      : plan.priceId;
+
+    if (!priceId) {
       return NextResponse.json(
         { error: "Cannot checkout for the free plan" },
         { status: 400 },
@@ -82,7 +87,7 @@ export async function POST(req: NextRequest) {
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,
       mode: "subscription",
-      line_items: [{ price: plan.priceId, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${origin}/dashboard/billing?success=true`,
       cancel_url: `${origin}/dashboard/billing?canceled=true`,
       metadata: {

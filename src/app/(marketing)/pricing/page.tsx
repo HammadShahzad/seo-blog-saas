@@ -266,7 +266,15 @@ export default function PricingPage() {
                           : "bg-zinc-900 hover:bg-zinc-800 text-white border-0"
                       }`}
                     >
-                      <Link href="/register">{plan.cta}</Link>
+                      <Link
+                        href={
+                          plan.monthlyPrice === 0
+                            ? "/register"
+                            : `/register?plan=${plan.name.toUpperCase()}&billing=${annual ? "annual" : "monthly"}`
+                        }
+                      >
+                        {plan.cta}
+                      </Link>
                     </Button>
                   </div>
                 </div>
