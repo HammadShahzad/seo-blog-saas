@@ -158,7 +158,7 @@ export default async function WebsiteDashboard({
       )}
 
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {stats.map((stat) => (
           <Card key={stat.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -173,7 +173,7 @@ export default async function WebsiteDashboard({
       </div>
 
       {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
         <Card className="hover:shadow-md transition-shadow">
           <CardContent className="p-6">
             <Bot className="h-8 w-8 text-primary mb-3" />
@@ -225,7 +225,7 @@ export default async function WebsiteDashboard({
 
       {/* Recent Posts */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <CardTitle>Recent Posts</CardTitle>
             <CardDescription>Latest blog posts for this website</CardDescription>
@@ -247,7 +247,7 @@ export default async function WebsiteDashboard({
               {recentPosts.map((post) => (
                 <div
                   key={post.id}
-                  className="flex items-center justify-between rounded-lg border p-3 hover:bg-accent/50 transition-colors"
+                  className="flex items-start sm:items-center justify-between rounded-lg border p-3 hover:bg-accent/50 transition-colors gap-2"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{post.title}</p>

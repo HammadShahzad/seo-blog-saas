@@ -110,15 +110,16 @@ export function PostsTable({ posts: initialPosts, websiteId }: Props) {
   };
 
   return (
+    <div className="overflow-x-auto w-full">
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-[40%]">Title</TableHead>
-          <TableHead>Status</TableHead>
-          <TableHead>Keyword</TableHead>
-          <TableHead className="text-right">Views</TableHead>
-          <TableHead className="text-right">Score</TableHead>
-          <TableHead>Created</TableHead>
+          <TableHead className="w-[40%] min-w-[180px]">Title</TableHead>
+          <TableHead className="min-w-[110px]">Status</TableHead>
+          <TableHead className="min-w-[120px]">Keyword</TableHead>
+          <TableHead className="text-right min-w-[70px]">Views</TableHead>
+          <TableHead className="text-right min-w-[60px]">Score</TableHead>
+          <TableHead className="min-w-[100px]">Created</TableHead>
           <TableHead className="w-[50px]"></TableHead>
         </TableRow>
       </TableHeader>
@@ -250,5 +251,6 @@ export function PostsTable({ posts: initialPosts, websiteId }: Props) {
         ))}
       </TableBody>
     </Table>
+    </div>
   );
 }

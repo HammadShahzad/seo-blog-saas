@@ -202,7 +202,7 @@ export default function WebsiteSettingsPage() {
       </div>
 
       {website.status === "PAUSED" && (
-        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-3 flex items-center justify-between">
+        <div className="rounded-lg border border-yellow-300 bg-yellow-50 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <p className="text-sm text-yellow-800 font-medium">Website is paused — content generation is stopped.</p>
           <Button variant="outline" size="sm" onClick={handlePause} disabled={isPausing}>
             {isPausing && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}

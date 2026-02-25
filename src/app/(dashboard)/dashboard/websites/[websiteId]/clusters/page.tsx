@@ -72,7 +72,7 @@ export default function ClustersPage() {
         onRemoveSuggestion={handleRemoveSuggestion}
       />
 
-      <div className="flex items-start justify-between">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <Network className="h-6 w-6" />

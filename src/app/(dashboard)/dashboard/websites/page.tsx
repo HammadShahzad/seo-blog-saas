@@ -90,7 +90,7 @@ export default async function WebsitesPage() {
           </Button>
         </div>
       ) : (
-        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
           {websitesWithStats.map((website) => {
             const color = website.primaryColor || "#4F46E5";
             return (

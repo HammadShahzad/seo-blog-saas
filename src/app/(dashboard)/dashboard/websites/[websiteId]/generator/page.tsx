@@ -467,7 +467,7 @@ export default function GeneratorPage() {
             <Network className="h-4 w-4" />
             Topic Clusters
           </h3>
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-2">
             {clusters.map(cluster => (
               <ClusterCard
                 key={cluster.id}
@@ -481,9 +481,9 @@ export default function GeneratorPage() {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Left Column */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="md:col-span-1 lg:col-span-2 space-y-4">
 
           {/* All Active Jobs */}
           {runningJobs.length > 0 && (
@@ -544,7 +544,7 @@ export default function GeneratorPage() {
                   <p className="text-sm text-muted-foreground mb-4">
                     Add keywords manually or create a topic cluster to get started
                   </p>
-                  <div className="flex gap-2 justify-center">
+                  <div className="flex gap-2 justify-center flex-wrap">
                     <Button variant="outline" asChild>
                       <Link href={`/dashboard/websites/${websiteId}/keywords`}>
                         Add Keywords
