@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { Logo } from "@/components/ui/logo";
 import { NavAuthButtons } from "@/components/marketing/nav-auth-buttons";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, X, LayoutDashboard, ArrowRight } from "lucide-react";
 
 const navLinks = [
@@ -67,6 +67,7 @@ export function MarketingNav() {
                 </Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-72 pt-16">
+                <SheetTitle className="sr-only">Navigation menu</SheetTitle>
                 <div className="flex flex-col gap-1">
                   {navLinks.map((link) => (
                     <Link

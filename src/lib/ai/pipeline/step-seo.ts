@@ -88,7 +88,7 @@ ${opts.includeFAQ ? `7. Ensure the FAQ section exists at the end. CRITICAL FORMA
    ### Next Question?
    Answer.
    NEVER write an answer without a ### question heading immediately above it. NEVER write any text between the ## FAQ heading and the first ### question. If any answer is missing its question, ADD the question as a ### heading before it.` : "7. Skip FAQ if not present"}
-8. Paragraphs should be 3-5 sentences each, developing a complete thought. No single-sentence paragraphs, no walls of text.
+8. Vary paragraph lengths naturally: mix short punchy paragraphs (2-3 sentences) with medium ones (4-5 sentences) and occasionally longer detailed ones (5-6 sentences). NEVER have consecutive paragraphs of the same length. The rhythm should feel like natural human writing, not a uniform wall of text.
 9. KEYWORD DENSITY RULES:
    - Use the exact primary keyword "${keyword}" only 3-5 times in the ENTIRE article (intro, one H2, final section, and 1-2 body mentions). NO MORE.
    - Use VARIATIONS and LSI keywords instead of repeating the exact phrase. Examples: synonyms, related terms, long-tail variations.
@@ -105,6 +105,15 @@ ${opts.includeFAQ ? `7. Ensure the FAQ section exists at the end. CRITICAL FORMA
 14. READABILITY: Include bullet lists or numbered lists where they genuinely help. Use bold text for key terms. Add blockquotes for expert tips.
 15. ENDING: Do NOT add "Final Thoughts", "Conclusion", "Wrapping Up" or any concluding section heading. The article should end naturally.
 16. ENTITIES: Ensure related entities (tools, standards, organizations, people, places) are naturally present for semantic richness.
+17. EXTERNAL REFERENCE LINKS: Add 1-2 external reference links to high-authority, non-competitor websites that support claims or data in the article. Use sources like:
+   - Government sites (.gov)
+   - News outlets (Reuters, BBC, Forbes, Bloomberg, etc.)
+   - Educational institutions (.edu)
+   - Wikipedia
+   - Industry associations and standards bodies
+   - Research organizations and journals
+   RULES: The linked site MUST be directly relevant to the content it supports. NEVER link to competitors of ${ctx.brandName}. Use real, well-known domains only. Format as standard markdown links: [descriptive anchor text](https://example.gov/page).
+18. HORIZONTAL RULES: Remove ALL horizontal rules (---, ***, ___) from the content. Sections should be separated by headings only, never by divider lines.
 
 ## Blog Post (${toneWords} words):
 ${toneContent}

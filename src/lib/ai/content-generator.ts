@@ -279,7 +279,8 @@ Audience: ${ctx.targetAudience}
 - No "Furthermore," "Moreover," "Additionally" — use normal transitions
 - No starting sentences with "So," or "Well,"
 - Kill every instance of: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "realm," "robust," "cutting-edge," "embark on a journey," "navigate the complexities," "unlock the power"
-- Ensure paragraphs are focused: 3-5 sentences each. Merge single-sentence paragraphs. Cut filler and fluff.
+- Vary paragraph lengths: mix short punchy paragraphs (2-3 sentences) with medium (4-5 sentences) and occasionally longer detailed ones (5-6 sentences). NEVER have consecutive paragraphs of the same length. Merge single-sentence paragraphs. Cut filler and fluff.
+- Remove ALL horizontal rules (---, ***, ___). Sections are separated by headings only.
 - Ensure zero grammar mistakes.
 
 **Kill conclusion patterns:**

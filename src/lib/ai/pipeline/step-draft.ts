@@ -149,8 +149,9 @@ ${ctx.targetLocation && keyword.toLowerCase().includes(ctx.targetLocation.toLowe
   : ""}
 - Write from an EXPERT perspective using the personality above. Vary your expert voice phrases: "In my testing," "I've found," "From my experience," "What I noticed," "After running this for 6 months," "The data surprised me," "Here's what nobody mentions"
 - EXPERT CALLOUTS: use at most 2 total "Pro Tip:" callouts in the ENTIRE article. Make them count — share something non-obvious that only someone with real experience would know. DO NOT add a "Pro Tip" in every section.
-- Write focused paragraphs of 3-5 sentences. Each paragraph should develop a complete thought without padding.
+- Vary paragraph lengths naturally throughout the article. Mix short punchy paragraphs (2-3 sentences) with medium ones (4-5 sentences) and occasionally longer detailed ones (5-6 sentences). NEVER write paragraphs of the same length back-to-back. The rhythm should feel natural, not uniform.
 - Use active voice, concrete examples, and specific numbers. Clear language that provides genuine value.
+- Do NOT use horizontal rules (---, ***, ___) anywhere in the article. Sections are separated by headings, not divider lines.
 - Zero grammar mistakes. Write clean, polished prose.
 - NEVER use: "delve," "dive deep," "game-changer," "leverage," "utilize," "tapestry," "landscape" (metaphorical), "realm," "robust," "cutting-edge," "embark on a journey," "navigating the complexities," "unlock the power"
 - NEVER use em-dash (—). Use commas or periods instead.

@@ -210,6 +210,9 @@ export function postProcess(
   // Fix TOC
   finalContent = fixTableOfContents(finalContent);
 
+  // Remove horizontal rules (---, ***, ___) — sections use headings, not dividers
+  finalContent = finalContent.replace(/^\s*[-*_]{3,}\s*$/gm, "");
+
   // Split long paragraphs
   finalContent = splitLongParagraphs(finalContent);
 
