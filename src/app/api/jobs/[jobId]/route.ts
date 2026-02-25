@@ -2,10 +2,10 @@
  * GET /api/jobs/[jobId]  — Poll generation job status
  * POST /api/jobs/[jobId] — Retry a failed or stuck job
  */
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { getJobStatus, processJob } from "@/lib/job-queue";
+import { getJobStatus, triggerWorker } from "@/lib/job-queue";
 import prisma from "@/lib/prisma";
 
 const STUCK_THRESHOLD_MS = 20 * 60 * 1000; // 20 minutes
@@ -133,13 +133,8 @@ export async function POST(
       });
     }
 
-    after(async () => {
-      try {
-        await processJob(jobId);
-      } catch (err) {
-        console.error("Retry job failed:", err);
-      }
-    });
+    // Notify the Droplet worker to pick up the retried job.
+    triggerWorker(jobId);
 
     return NextResponse.json({ success: true, message: "Job restarted" });
   } catch (error) {

@@ -1,8 +1,8 @@
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
-import { enqueueGenerationJob, processJob } from "@/lib/job-queue";
+import { enqueueGenerationJob, triggerWorker } from "@/lib/job-queue";
 import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 export async function POST(
@@ -105,14 +105,9 @@ export async function POST(
           autoPublish,
         });
 
-        // Use after() to keep function alive post-response
-        after(async () => {
-          try {
-            await processJob(jobId);
-          } catch (err) {
-            console.error(`Bulk generation error for keyword ${kw.keyword}:`, err);
-          }
-        });
+        // Notify the Droplet worker to pick up the job (fire-and-forget).
+        // Worker polls every 5s as backup if trigger fails.
+        triggerWorker(jobId);
 
         return { jobId, keyword: kw.keyword };
       })

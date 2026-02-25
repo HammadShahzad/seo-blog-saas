@@ -9,7 +9,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import {
   checkGenerationLimit,
   enqueueGenerationJob,
-  processJob,
+  triggerWorker,
 } from "@/lib/job-queue";
 
 type Params = { params: Promise<{ websiteId: string }> };
@@ -106,8 +106,9 @@ export async function POST(req: Request, { params }: Params) {
     autoPublish: website?.autoPublish ?? false,
   });
 
-  // Fire-and-forget: process the job asynchronously
-  processJob(jobId).catch(console.error);
+  // Notify the Droplet worker to pick up the job (fire-and-forget).
+  // Worker polls every 5s as backup if trigger fails.
+  triggerWorker(jobId);
 
   return NextResponse.json(
     {

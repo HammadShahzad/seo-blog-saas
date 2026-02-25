@@ -3,9 +3,9 @@
  * Enqueue a blog generation job for the next pending keyword (or a specific one).
  * The job is picked up and processed by the Droplet worker — NOT by Vercel.
  */
-import { NextResponse, after } from "next/server";
+import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
-import { enqueueGenerationJob, checkGenerationLimit, triggerWorker, processJob } from "@/lib/job-queue";
+import { enqueueGenerationJob, checkGenerationLimit, triggerWorker } from "@/lib/job-queue";
 import { verifyWebsiteAccess } from "@/lib/api-helpers";
 
 export async function POST(
@@ -92,19 +92,9 @@ export async function POST(
       customDirection: typeof customDirection === "string" ? customDirection.trim() : undefined,
     });
 
-    // Notify the Droplet worker to pick up the job (fire-and-forget)
+    // Notify the Droplet worker to pick up the job (fire-and-forget).
+    // Even if this fails, the worker polls every 5s and will find the QUEUED job.
     triggerWorker(jobId);
-
-    // Local dev fallback: process inline when no worker is configured
-    if (!process.env.WORKER_URL) {
-      after(async () => {
-        try {
-          await processJob(jobId);
-        } catch (err) {
-          console.error("Local processJob error:", err);
-        }
-      });
-    }
 
     return NextResponse.json({
       jobId,
