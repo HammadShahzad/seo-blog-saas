@@ -72,6 +72,14 @@ jobs:
           rsync -avz --delete -e "$R" public/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/public/
           rsync -avz -e "$R" ecosystem.config.js worker.js package.json prisma ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/
 
+      - name: Install linux sharp on Droplet
+        env:
+          DEPLOY_PASS: ${{ secrets.DROPLET_PASSWORD }}
+        run: |
+          sshpass -p "$DEPLOY_PASS" ssh -o StrictHostKeyChecking=no \
+            ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} \
+            "cd ${{ env.DEPLOY_PATH }}/.next/standalone && npm install --platform=linux --arch=x64 --libc=glibc sharp@'^0.34.5' 2>&1 | tail -5"
+
       - name: Sync DB schema on droplet
         env:
           DEPLOY_PASS: ${{ secrets.DROPLET_PASSWORD }}
