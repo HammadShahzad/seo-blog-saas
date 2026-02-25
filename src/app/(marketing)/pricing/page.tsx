@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
 import {
   Zap,
   ArrowRight,
@@ -149,7 +147,7 @@ const faqs = [
   {
     question: "How do team members work?",
     answer:
-      "Each plan includes a set number of team seats: Free (1), Starter (3), Growth (10), Agency (unlimited). Team members share the same workspace — websites, posts, and keywords are all accessible to everyone on the team. You can assign roles: Owner (full access including billing), Admin (manage team and settings), or Member (view and edit content). Adding someone requires they have a StackSerp account — just enter their email in Team settings.",
+      "Each plan includes a set number of team seats: Free (1), Starter (3), Growth (10), Agency (unlimited). Team members share the same workspace — websites, posts, and keywords are all accessible to everyone on the team.",
   },
   {
     question: "Can I give different permissions to team members?",
@@ -164,105 +162,91 @@ export default function PricingPage() {
 
   return (
     <>
-      {/* Navigation */}
-      {/* Hero */}
-      <section className="py-20 px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <Badge variant="outline" className="mb-6 px-4 py-1.5 text-sm">
-            <Sparkles className="mr-1 h-3 w-3" />
+      {/* ── HERO ── dark */}
+      <section className="bg-zinc-950 pt-24 pb-20 px-4 relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[800px] rounded-full bg-indigo-600/15 blur-[120px]" />
+        </div>
+        <div className="relative max-w-4xl mx-auto text-center">
+          <span className="inline-block rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-1 text-sm font-medium text-indigo-400 mb-6">
+            <Sparkles className="inline h-3 w-3 mr-1 -mt-0.5" />
             Simple Pricing
-          </Badge>
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+          </span>
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white mb-6">
             Plans that scale with{" "}
-            <span className="text-primary">your growth</span>
+            <span className="text-indigo-400">your growth</span>
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto mb-10">
-            Start free. Upgrade when you&apos;re ready. No hidden fees, no
-            surprises.
+          <p className="text-xl text-zinc-400 max-w-2xl mx-auto mb-10">
+            Start free. Upgrade when you&apos;re ready. No hidden fees, no surprises.
           </p>
 
           {/* Billing Toggle */}
           <div className="flex items-center justify-center gap-3">
-            <span
-              className={`text-sm font-medium ${!annual ? "text-foreground" : "text-muted-foreground"}`}
+            <span className={`text-sm font-medium ${!annual ? "text-white" : "text-zinc-500"}`}>Monthly</span>
+            <button
+              onClick={() => setAnnual(!annual)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${annual ? "bg-indigo-600" : "bg-zinc-700"}`}
             >
-              Monthly
-            </span>
-            <Switch checked={annual} onCheckedChange={setAnnual} />
-            <span
-              className={`text-sm font-medium ${annual ? "text-foreground" : "text-muted-foreground"}`}
-            >
-              Annual
-            </span>
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${annual ? "translate-x-6" : "translate-x-1"}`} />
+            </button>
+            <span className={`text-sm font-medium ${annual ? "text-white" : "text-zinc-500"}`}>Annual</span>
             {annual && (
-              <Badge variant="secondary" className="ml-1 text-xs">
+              <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-xs font-medium text-emerald-400">
                 Save 20%
-              </Badge>
+              </span>
             )}
           </div>
         </div>
       </section>
 
-      {/* Pricing Cards */}
-      <section className="pb-20 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4 max-w-6xl mx-auto">
+      {/* ── PRICING CARDS ── light */}
+      <section className="py-16 px-4 bg-zinc-50 border-b border-zinc-200">
+        <div className="max-w-6xl mx-auto">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             {plans.map((plan) => {
               const price = annual ? plan.annualPrice : plan.monthlyPrice;
               return (
                 <div
                   key={plan.name}
-                  className={`bg-background rounded-xl border flex flex-col ${
+                  className={`rounded-2xl flex flex-col relative transition-shadow ${
                     plan.highlight
-                      ? "border-primary shadow-lg shadow-primary/10 relative scale-[1.02]"
-                      : "hover:shadow-md transition-shadow"
+                      ? "border-2 border-indigo-500 shadow-xl shadow-indigo-900/20 bg-white"
+                      : "border border-zinc-200 bg-white hover:shadow-md"
                   }`}
                 >
                   {plan.highlight && (
-                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                      <Badge className="bg-primary">Most Popular</Badge>
+                    <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                      <span className="rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white">
+                        Most Popular
+                      </span>
                     </div>
                   )}
 
-                  <div className="p-6 pb-0">
-                    <h3 className="text-lg font-semibold">{plan.name}</h3>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      {plan.description}
-                    </p>
-                    <div className="mt-4 mb-6">
-                      <span className="text-4xl font-bold">${price}</span>
-                      {price > 0 && (
-                        <span className="text-muted-foreground">/mo</span>
-                      )}
+                  {/* Plan header */}
+                  <div className={`rounded-t-2xl p-6 pb-5 ${plan.highlight ? "bg-indigo-600" : "bg-zinc-50 border-b border-zinc-100"}`}>
+                    <h3 className={`text-lg font-semibold ${plan.highlight ? "text-white" : "text-zinc-900"}`}>{plan.name}</h3>
+                    <p className={`text-sm mt-1 ${plan.highlight ? "text-indigo-200" : "text-zinc-500"}`}>{plan.description}</p>
+                    <div className="mt-4">
+                      <span className={`text-4xl font-bold ${plan.highlight ? "text-white" : "text-zinc-900"}`}>${price}</span>
+                      {price > 0 && <span className={`text-sm ${plan.highlight ? "text-indigo-200" : "text-zinc-500"}`}>/mo</span>}
                       {annual && price > 0 && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Billed annually
-                        </p>
+                        <p className={`text-xs mt-1 ${plan.highlight ? "text-indigo-200" : "text-zinc-400"}`}>Billed annually</p>
                       )}
                     </div>
                   </div>
 
-                  <div className="px-6 flex-1">
+                  <div className="p-6 flex-1">
                     <ul className="space-y-3 mb-6">
                       {Object.entries(plan.features).map(([key, value]) => {
                         const isBoolean = typeof value === "boolean";
                         return (
-                          <li
-                            key={key}
-                            className="flex items-center gap-2 text-sm"
-                          >
+                          <li key={key} className="flex items-center gap-2 text-sm">
                             {isBoolean && !value ? (
-                              <X className="h-4 w-4 text-muted-foreground/50 shrink-0" />
+                              <X className="h-4 w-4 text-zinc-300 shrink-0" />
                             ) : (
-                              <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                             )}
-                            <span
-                              className={
-                                isBoolean && !value
-                                  ? "text-muted-foreground/50"
-                                  : ""
-                              }
-                            >
+                            <span className={isBoolean && !value ? "text-zinc-300" : "text-zinc-600"}>
                               {isBoolean
                                 ? featureLabels[key]
                                 : `${value} ${featureLabels[key]?.toLowerCase() || key}`}
@@ -276,8 +260,11 @@ export default function PricingPage() {
                   <div className="p-6 pt-0">
                     <Button
                       asChild
-                      className="w-full"
-                      variant={plan.highlight ? "default" : "outline"}
+                      className={`w-full h-10 font-semibold ${
+                        plan.highlight
+                          ? "bg-indigo-600 hover:bg-indigo-500 text-white border-0"
+                          : "bg-zinc-900 hover:bg-zinc-800 text-white border-0"
+                      }`}
                     >
                       <Link href="/register">{plan.cta}</Link>
                     </Button>
@@ -289,42 +276,35 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* FAQ Section */}
-      <section className="py-20 bg-muted/30 px-4">
+      {/* ── FAQ ── light */}
+      <section className="py-20 px-4 bg-white border-b border-zinc-200">
         <div className="max-w-3xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+          <div className="text-center mb-14">
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-zinc-900 mb-3">
               Frequently asked questions
             </h2>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-zinc-500">
               Everything you need to know about billing and plans
             </p>
           </div>
-          <div className="space-y-3">
+          <div className="divide-y divide-zinc-200">
             {faqs.map((faq, index) => (
-              <div
-                key={index}
-                className="bg-background border rounded-lg overflow-hidden"
-              >
+              <div key={index} className="py-5">
                 <button
-                  onClick={() =>
-                    setOpenFaq(openFaq === index ? null : index)
-                  }
-                  className="w-full flex items-center justify-between p-5 text-left hover:bg-muted/50 transition-colors"
+                  onClick={() => setOpenFaq(openFaq === index ? null : index)}
+                  className="w-full flex items-center justify-between text-left group"
                 >
-                  <span className="font-medium text-sm md:text-base pr-4">
+                  <span className="font-semibold text-zinc-900 text-sm md:text-base pr-4 group-hover:text-indigo-600 transition-colors">
                     {faq.question}
                   </span>
                   <ChevronDown
-                    className={`h-5 w-5 text-muted-foreground shrink-0 transition-transform ${
-                      openFaq === index ? "rotate-180" : ""
+                    className={`h-5 w-5 text-zinc-400 shrink-0 transition-transform ${
+                      openFaq === index ? "rotate-180 text-indigo-500" : ""
                     }`}
                   />
                 </button>
                 {openFaq === index && (
-                  <div className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed">
-                    {faq.answer}
-                  </div>
+                  <p className="mt-3 text-sm text-zinc-500 leading-relaxed">{faq.answer}</p>
                 )}
               </div>
             ))}
@@ -332,19 +312,22 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="py-20 px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+      {/* ── CTA ── dark */}
+      <section className="py-24 px-4 bg-zinc-950 relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[400px] w-[700px] rounded-full bg-indigo-600/15 blur-[100px]" />
+        </div>
+        <div className="relative max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-4">
             Ready to automate your content marketing?
           </h2>
-          <p className="text-lg text-muted-foreground mb-8">
+          <p className="text-lg text-zinc-400 mb-10 max-w-xl mx-auto">
             Join thousands of businesses using AI to grow their organic traffic.
           </p>
-          <Button asChild size="lg" className="text-lg px-8 h-12">
+          <Button asChild size="lg" className="h-12 px-8 text-base font-semibold bg-indigo-600 hover:bg-indigo-500 text-white border-0 shadow-lg shadow-indigo-900/40">
             <Link href="/register">
               Start for Free
-              <ArrowRight className="ml-2 h-5 w-5" />
+              <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
         </div>

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import type { LucideIcon } from "lucide-react";
 import { ArrowRight, Rocket, Building2, Newspaper, Globe, CheckCircle2 } from "lucide-react";
 
@@ -26,8 +25,10 @@ const useCases: {
   description: string;
   benefits: string[];
   cta: { label: string; href: string };
-  color: string;
+  iconBg: string;
+  iconColor: string;
   badge: string;
+  badgeStyle: string;
 }[] = [
   {
     icon: Rocket,
@@ -42,8 +43,10 @@ const useCases: {
       "Free tier lets you start before you raise a Series A",
     ],
     cta: { label: "Startups Guide", href: "/use-cases/startups" },
-    color: "from-primary/10 to-primary/5",
+    iconBg: "bg-indigo-600/20",
+    iconColor: "text-indigo-400",
     badge: "Most Popular",
+    badgeStyle: "bg-indigo-500/15 border-indigo-500/30 text-indigo-400",
   },
   {
     icon: Building2,
@@ -58,8 +61,10 @@ const useCases: {
       "API access for custom workflow integrations",
     ],
     cta: { label: "Agencies Guide", href: "/use-cases/agencies" },
-    color: "from-purple-500/10 to-purple-500/5",
+    iconBg: "bg-purple-600/20",
+    iconColor: "text-purple-400",
     badge: "Best ROI",
+    badgeStyle: "bg-purple-500/15 border-purple-500/30 text-purple-400",
   },
   {
     icon: Globe,
@@ -74,8 +79,10 @@ const useCases: {
       "IndexNow integration for instant Google indexing",
     ],
     cta: { label: "SaaS Guide", href: "/use-cases/saas" },
-    color: "from-blue-500/10 to-blue-500/5",
+    iconBg: "bg-blue-600/20",
+    iconColor: "text-blue-400",
     badge: "High Intent",
+    badgeStyle: "bg-blue-500/15 border-blue-500/30 text-blue-400",
   },
   {
     icon: Newspaper,
@@ -90,8 +97,10 @@ const useCases: {
       "WordPress and Shopify direct publishing integration",
     ],
     cta: { label: "Publishers Guide", href: "/use-cases/publishers" },
-    color: "from-green-500/10 to-green-500/5",
+    iconBg: "bg-emerald-600/20",
+    iconColor: "text-emerald-400",
     badge: "High Volume",
+    badgeStyle: "bg-emerald-500/15 border-emerald-500/30 text-emerald-400",
   },
 ];
 
@@ -105,104 +114,115 @@ const stats = [
 export default function UseCasesPage() {
   return (
     <>
-      {/* Hero */}
-      <section className="py-20 md:py-28 px-4 text-center">
-        <div className="max-w-4xl mx-auto">
-          <Badge className="mb-6 px-4 py-1.5 text-sm bg-primary/10 text-primary border-none">
+      {/* ── HERO ── dark */}
+      <section className="bg-zinc-950 pt-24 pb-20 px-4 relative overflow-hidden text-center">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[800px] rounded-full bg-indigo-600/15 blur-[120px]" />
+        </div>
+        <div className="relative max-w-4xl mx-auto">
+          <span className="inline-block rounded-full border border-indigo-500/30 bg-indigo-500/10 px-4 py-1 text-sm font-medium text-indigo-400 mb-6">
             Who Uses StackSerp
-          </Badge>
-          <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 leading-tight">
+          </span>
+          <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-white mb-6 leading-tight">
             Built for Teams That <br className="hidden md:block" />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-purple-500">
-              Grow with SEO
-            </span>
+            <span className="text-indigo-400">Grow with SEO</span>
           </h1>
-          <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-10">
+          <p className="text-xl text-zinc-400 max-w-2xl mx-auto leading-relaxed mb-10">
             Whether you&apos;re a solo founder or running a 50-person agency, StackSerp adapts to your workflow and scales with your ambition.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild size="lg" className="h-12 px-8 rounded-full">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button asChild size="lg" className="h-12 px-8 text-base font-semibold bg-indigo-600 hover:bg-indigo-500 text-white border-0 shadow-lg shadow-indigo-900/40">
               <Link href="/register">
-                Start Free <ArrowRight className="ml-2 h-5 w-5" />
+                Start Free <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild variant="outline" size="lg" className="h-12 px-8 rounded-full">
+            <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base text-zinc-300 border-white/15 hover:bg-white/5 hover:text-white">
               <Link href="/pricing">View Pricing</Link>
             </Button>
           </div>
         </div>
       </section>
 
-      {/* Stats */}
-      <section className="py-12 px-4 border-y bg-muted/30">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-          {stats.map((stat) => (
-            <div key={stat.label}>
-              <p className="text-4xl font-black text-primary mb-1">{stat.value}</p>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-            </div>
-          ))}
+      {/* ── STATS BAR ── dark */}
+      <section className="bg-zinc-900 border-y border-white/6 py-8">
+        <div className="max-w-5xl mx-auto px-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            {stats.map((stat) => (
+              <div key={stat.label}>
+                <p className="text-3xl font-bold text-white mb-1">{stat.value}</p>
+                <p className="text-sm text-zinc-500">{stat.label}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
-      {/* Use Cases Grid */}
-      <section className="py-20 px-4">
-        <div className="max-w-7xl mx-auto space-y-8">
-          {useCases.map((uc, i) => {
+      {/* ── USE CASES ── light */}
+      <section className="py-20 px-4 bg-zinc-50 border-b border-zinc-200">
+        <div className="max-w-5xl mx-auto space-y-6">
+          {useCases.map((uc) => {
             const Icon = uc.icon;
             return (
-            <div
-              key={uc.title}
-              className={`rounded-2xl border bg-gradient-to-br ${uc.color} p-8 md:p-12`}
-            >
-              <div className={`flex flex-col ${i % 2 === 0 ? "md:flex-row" : "md:flex-row-reverse"} gap-10 items-start`}>
-                <div className="flex-1 space-y-5">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                      <Icon className="h-6 w-6" />
+              <div
+                key={uc.title}
+                className="rounded-2xl border border-zinc-200 bg-white p-8 md:p-10 hover:shadow-md transition-shadow"
+              >
+                <div className="flex flex-col md:flex-row gap-10 items-start">
+                  <div className="flex-1 space-y-4">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${uc.iconBg}`}>
+                        <Icon className={`h-6 w-6 ${uc.iconColor}`} />
+                      </div>
+                      <span className={`rounded-full border px-3 py-0.5 text-xs font-medium ${uc.badgeStyle}`}>
+                        {uc.badge}
+                      </span>
                     </div>
-                    <Badge variant="outline" className="text-xs font-medium">{uc.badge}</Badge>
-                  </div>
-                  <div>
-                    <h2 className="text-3xl font-bold mb-1">{uc.title}</h2>
-                    <p className="text-primary font-medium">{uc.subtitle}</p>
-                  </div>
-                  <p className="text-muted-foreground leading-relaxed">{uc.description}</p>
-                  <Button asChild className="rounded-full">
-                    <Link href={uc.cta.href}>
-                      {uc.cta.label} <ArrowRight className="ml-2 h-4 w-4" />
-                    </Link>
-                  </Button>
-                </div>
-                <div className="flex-1 space-y-3">
-                  <p className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-4">Key Benefits</p>
-                  {uc.benefits.map((b) => (
-                    <div key={b} className="flex items-start gap-3">
-                      <CheckCircle2 className="h-5 w-5 text-primary shrink-0 mt-0.5" />
-                      <span className="text-sm leading-relaxed">{b}</span>
+                    <div>
+                      <h2 className="text-2xl font-bold text-zinc-900 mb-1">{uc.title}</h2>
+                      <p className={`font-medium text-sm ${uc.iconColor}`}>{uc.subtitle}</p>
                     </div>
-                  ))}
+                    <p className="text-zinc-500 leading-relaxed text-sm">{uc.description}</p>
+                    <Button
+                      asChild
+                      className="h-10 px-5 font-semibold bg-zinc-900 hover:bg-zinc-800 text-white border-0"
+                    >
+                      <Link href={uc.cta.href}>
+                        {uc.cta.label} <ArrowRight className="ml-2 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  </div>
+                  <div className="flex-1 space-y-3">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-4">Key Benefits</p>
+                    {uc.benefits.map((b) => (
+                      <div key={b} className="flex items-start gap-3">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" />
+                        <span className="text-sm text-zinc-600 leading-relaxed">{b}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
-            </div>
             );
           })}
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="py-24 px-4 border-t bg-primary/5">
-        <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-4xl font-black mb-4">Ready to Start Ranking?</h2>
-          <p className="text-xl text-muted-foreground mb-8">
+      {/* ── CTA ── dark */}
+      <section className="py-24 px-4 bg-zinc-950 relative overflow-hidden">
+        <div className="pointer-events-none absolute inset-0">
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[400px] w-[700px] rounded-full bg-indigo-600/15 blur-[100px]" />
+        </div>
+        <div className="relative max-w-3xl mx-auto text-center">
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-white mb-4">Ready to Start Ranking?</h2>
+          <p className="text-lg text-zinc-400 mb-10 max-w-xl mx-auto">
             Join thousands of teams using StackSerp to automate their SEO content engine.
           </p>
-          <Button asChild size="lg" className="h-14 px-12 text-lg rounded-full shadow-xl">
+          <Button asChild size="lg" className="h-12 px-8 text-base font-semibold bg-indigo-600 hover:bg-indigo-500 text-white border-0 shadow-lg shadow-indigo-900/40">
             <Link href="/register">
-              Create Free Account <ArrowRight className="ml-2 h-5 w-5" />
+              Create Free Account <ArrowRight className="ml-2 h-4 w-4" />
             </Link>
           </Button>
-          <p className="text-sm text-muted-foreground mt-4">No credit card required</p>
+          <p className="text-sm text-zinc-500 mt-4">No credit card required</p>
         </div>
       </section>
     </>
