@@ -225,11 +225,12 @@ export function EditorHeader({
       ${post.wordCount ? `${post.wordCount.toLocaleString()} words &middot; ${post.readingTime || Math.ceil(post.wordCount / 200)} min read` : ""}
     </div>
   </div>
+  ${post.featuredImage ? `<img src="${post.featuredImage}" alt="${safeTitle}" style="max-width:100%; height:auto; margin: 0 0 28px; border-radius: 6px; display:block;" />` : ""}
   ${htmlContent}
   <script>
     window.onload = function() {
       document.title = ${JSON.stringify(slug)};
-      setTimeout(function() { window.print(); }, 400);
+      setTimeout(function() { window.print(); }, 800);
     };
   <\/script>
 </body>
