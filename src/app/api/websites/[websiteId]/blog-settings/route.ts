@@ -32,7 +32,7 @@ export async function PATCH(
 
     const allowedFields = [
       "ctaText", "ctaUrl", "avoidTopics", "requiredSections",
-      "writingStyle", "contentLength", "includeImages",
+      "writingStyle", "contentLength", "includeImages", "imageSource",
       "includeFAQ", "includeProTips", "includeTableOfContents", "preferredModel",
     ];
 

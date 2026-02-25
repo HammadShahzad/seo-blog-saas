@@ -58,7 +58,6 @@ export async function POST(req: Request, { params }: Params) {
       basePrompt,
       `${post.slug}-${imageType === "inline" ? `inline-${body.inlineIndex ?? 0}` : "featured"}`,
       websiteId,
-      undefined,
       post.focusKeyword || post.title,
       website?.niche || "business",
       "high",

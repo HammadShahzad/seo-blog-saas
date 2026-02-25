@@ -19,6 +19,7 @@ export interface JobInput {
   websiteId: string;
   contentLength?: "SHORT" | "MEDIUM" | "LONG" | "PILLAR";
   includeImages?: boolean;
+  imageSource?: "AI_GENERATED" | "WEB_IMAGES" | "ILLUSTRATION";
   includeFAQ?: boolean;
   includeProTips?: boolean;
   includeTableOfContents?: boolean;
@@ -205,6 +206,7 @@ export async function processJob(jobId: string): Promise<void> {
       input.contentLength || "MEDIUM",
       {
         includeImages: input.includeImages ?? true,
+        imageSource: input.imageSource || "AI_GENERATED",
         includeFAQ: input.includeFAQ ?? true,
         includeProTips: input.includeProTips ?? true,
         includeTableOfContents: input.includeTableOfContents ?? true,
@@ -287,10 +289,10 @@ export async function processJob(jobId: string): Promise<void> {
           imgPrompt,
           blogPost.slug,
           input.websiteId,
-          undefined,
           input.keyword,
           website.niche || "business",
           "fast",
+          input.imageSource || "AI_GENERATED",
         );
         await prisma.blogPost.update({
           where: { id: blogPost.id },

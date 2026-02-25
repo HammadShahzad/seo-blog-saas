@@ -67,6 +67,7 @@ export default function GeneratorPage() {
   const [selectedKeywordId, setSelectedKeywordId] = useState<string>("");
   const [contentLength, setContentLength] = useState("MEDIUM");
   const [includeImages, setIncludeImages] = useState(true);
+  const [imageSource, setImageSource] = useState<"AI_GENERATED" | "WEB_IMAGES" | "ILLUSTRATION">("AI_GENERATED");
   const [includeFAQ, setIncludeFAQ] = useState(true);
   const [includeProTips, setIncludeProTips] = useState(true);
   const [includeTableOfContents, setIncludeTableOfContents] = useState(true);
@@ -86,12 +87,15 @@ export default function GeneratorPage() {
   const [isSavingCluster, setIsSavingCluster] = useState(false);
   const [expandedCluster, setExpandedCluster] = useState<string | null>(null);
 
-  // Load saved model preference
+  // Load saved model + image source preference
   useEffect(() => {
     fetch(`/api/websites/${websiteId}/blog-settings`)
       .then((r) => r.json())
       .then((data) => {
         if (data.preferredModel) setSelectedModel(data.preferredModel);
+        if (data.imageSource && ["AI_GENERATED", "WEB_IMAGES", "ILLUSTRATION"].includes(data.imageSource)) {
+          setImageSource(data.imageSource);
+        }
       })
       .catch(() => {});
   }, [websiteId]);
@@ -293,6 +297,7 @@ export default function GeneratorPage() {
           keywordId: selectedKeywordId || undefined,
           contentLength,
           includeImages,
+          imageSource,
           includeFAQ,
           includeProTips,
           includeTableOfContents,
@@ -648,11 +653,37 @@ export default function GeneratorPage() {
 
               <div className="flex items-center justify-between">
                 <div>
-                  <Label>Include AI Image</Label>
-                  <p className="text-xs text-muted-foreground">AI-generated featured image</p>
+                  <Label>Include Images</Label>
+                  <p className="text-xs text-muted-foreground">Featured + 2 inline images</p>
                 </div>
                 <Switch checked={includeImages} onCheckedChange={setIncludeImages} />
               </div>
+
+              {includeImages && (
+                <div className="space-y-2">
+                  <Label className="text-xs text-muted-foreground">Image Style</Label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {([
+                      { value: "AI_GENERATED" as const, label: "AI Images" },
+                      { value: "WEB_IMAGES" as const, label: "Web Images" },
+                      { value: "ILLUSTRATION" as const, label: "Illustrations" },
+                    ]).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setImageSource(opt.value)}
+                        className={`rounded-md border px-2 py-1.5 text-xs font-medium transition-colors ${
+                          imageSource === opt.value
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:border-primary/40"
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center justify-between">
                 <div>

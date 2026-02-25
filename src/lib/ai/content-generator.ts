@@ -6,7 +6,7 @@
  */
 import { generateJSON, setModelOverride } from "./gemini";
 import { researchKeyword } from "./research";
-import { generateBlogImage, generateInlineImage } from "../storage/image-generator";
+import { generateBlogImage, generateInlineImage, resetPexelsTracking, type ImageSourceType } from "../storage/image-generator";
 import { generateWithContinuation } from "./pipeline/continuation";
 import { buildSystemPrompt, slugify, countWords, deduplicateContent, isCutOff, findMissingSections } from "./pipeline/helpers";
 import { buildConsolidatedLinks, runSeoOptimization } from "./pipeline/step-seo";
@@ -39,6 +39,7 @@ export async function generateBlogPost(
   contentLength: "SHORT" | "MEDIUM" | "LONG" | "PILLAR" = "MEDIUM",
   options: {
     includeImages?: boolean;
+    imageSource?: ImageSourceType;
     includeFAQ?: boolean;
     includeProTips?: boolean;
     includeTableOfContents?: boolean;
@@ -48,7 +49,7 @@ export async function generateBlogPost(
     customDirection?: string;
   } = {}
 ): Promise<GeneratedPost> {
-  const { includeImages = true, includeFAQ = true, includeProTips = true, includeTableOfContents = true, onProgress } = options;
+  const { includeImages = true, imageSource = "AI_GENERATED", includeFAQ = true, includeProTips = true, includeTableOfContents = true, onProgress } = options;
 
   const preferredModel = website.blogSettings?.preferredModel;
   if (preferredModel && preferredModel !== "gemini-3.1-pro-preview") {
@@ -56,7 +57,7 @@ export async function generateBlogPost(
   }
 
   try {
-  return await _runPipeline(keyword, website, contentLength, options, { includeImages, includeFAQ, includeProTips, includeTableOfContents, onProgress });
+  return await _runPipeline(keyword, website, contentLength, options, { includeImages, imageSource, includeFAQ, includeProTips, includeTableOfContents, onProgress });
   } finally {
     setModelOverride(null);
   }
@@ -68,6 +69,7 @@ async function _runPipeline(
   contentLength: "SHORT" | "MEDIUM" | "LONG" | "PILLAR",
   options: {
     includeImages?: boolean;
+    imageSource?: ImageSourceType;
     includeFAQ?: boolean;
     includeProTips?: boolean;
     includeTableOfContents?: boolean;
@@ -76,9 +78,9 @@ async function _runPipeline(
     internalLinks?: { keyword: string; url: string }[];
     customDirection?: string;
   },
-  resolved: { includeImages: boolean; includeFAQ: boolean; includeProTips: boolean; includeTableOfContents: boolean; onProgress?: ProgressCallback }
+  resolved: { includeImages: boolean; imageSource: ImageSourceType; includeFAQ: boolean; includeProTips: boolean; includeTableOfContents: boolean; onProgress?: ProgressCallback }
 ): Promise<GeneratedPost> {
-  const { includeImages, includeFAQ, includeProTips, includeTableOfContents, onProgress } = resolved;
+  const { includeImages, imageSource, includeFAQ, includeProTips, includeTableOfContents, onProgress } = resolved;
 
   const ctx: WebsiteContext = {
     id: website.id,
@@ -420,10 +422,11 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
 
   if (includeImages && process.env.GOOGLE_AI_API_KEY) {
     await progress("image", "Generating featured image + 2 inline images…");
+    resetPexelsTracking();
 
     try {
       const featPrompt = `Create an image that directly represents the concept of "${keyword}" for a ${ctx.niche} business. The image should clearly relate to "${outline.title}". No text, words, letters, or watermarks.`;
-      featuredImageUrl = await generateBlogImage(featPrompt, `${postSlug}-featured`, website.id, outline.title, keyword, ctx.niche, "fast");
+      featuredImageUrl = await generateBlogImage(featPrompt, `${postSlug}-featured`, website.id, keyword, ctx.niche, "fast", imageSource);
       featuredImageAlt = metadata.featuredImageAlt || `${keyword} - ${outline.title}`;
       console.log(`[content-gen] Featured image generated: ${featuredImageUrl}`);
     } catch (err) {
@@ -444,8 +447,10 @@ Output ONLY valid JSON (no markdown code fences) with this exact structure:
       const sectionIdx = insertAfterIndices[imgIdx];
       const sectionHeading = h2Matches[sectionIdx]?.text?.replace(/^## /, "") || keyword;
       try {
-        const inlinePrompt = `Create a photorealistic image for the section "${sectionHeading}" of a blog post about "${keyword}" in ${ctx.niche}. Must look like a real photograph, not a cartoon or illustration. No text or words.`;
-        const inlineUrl = await generateInlineImage(inlinePrompt, postSlug, imgIdx + 1, website.id, keyword, ctx.niche);
+        const inlinePrompt = imageSource === "ILLUSTRATION"
+          ? `Create a modern illustration for the section "${sectionHeading}" of a blog post about "${keyword}" in ${ctx.niche}. Stylized vector art, clean design. No text or words.`
+          : `Create a photorealistic image for the section "${sectionHeading}" of a blog post about "${keyword}" in ${ctx.niche}. Must look like a real photograph, not a cartoon or illustration. No text or words.`;
+        const inlineUrl = await generateInlineImage(inlinePrompt, postSlug, imgIdx + 1, website.id, keyword, ctx.niche, imageSource, sectionHeading);
         const sectionStart = h2Matches[sectionIdx].index;
         const nextH2 = h2Matches[sectionIdx + 1]?.index ?? finalContent.length;
         const sectionContent = finalContent.slice(sectionStart, nextH2);

@@ -29,7 +29,7 @@ export async function POST(
       );
     }
 
-    const { keywordIds, count = 3, contentLength = "MEDIUM", autoPublish = false } = await req.json();
+    const { keywordIds, count = 3, contentLength = "MEDIUM", imageSource = "AI_GENERATED", autoPublish = false } = await req.json();
 
     // Validate inputs
     if (count !== undefined && (typeof count !== "number" || count < 1 || count > 10)) {
@@ -38,6 +38,8 @@ export async function POST(
     if (!["SHORT", "MEDIUM", "LONG", "PILLAR"].includes(contentLength)) {
       return NextResponse.json({ error: "Invalid contentLength" }, { status: 400 });
     }
+    const validImageSources = ["AI_GENERATED", "WEB_IMAGES", "ILLUSTRATION"];
+    const safeImageSource = validImageSources.includes(imageSource) ? imageSource : "AI_GENERATED";
 
     // Check for an already-active generation job for this website
     const activeJob = await prisma.generationJob.findFirst({
@@ -100,6 +102,7 @@ export async function POST(
           websiteId,
           contentLength,
           includeImages: true,
+          imageSource: safeImageSource,
           includeFAQ: true,
           includeProTips: true,
           autoPublish,

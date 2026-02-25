@@ -100,6 +100,7 @@ export async function POST(req: Request, { params }: Params) {
     websiteId,
     contentLength: (["SHORT", "MEDIUM", "LONG", "PILLAR"].includes(website?.blogSettings?.contentLength || "") ? website?.blogSettings?.contentLength : "MEDIUM") as "SHORT" | "MEDIUM" | "LONG" | "PILLAR",
     includeImages: website?.blogSettings?.includeImages ?? true,
+    imageSource: (website?.blogSettings?.imageSource as "AI_GENERATED" | "WEB_IMAGES" | "ILLUSTRATION") || "AI_GENERATED",
     includeFAQ: website?.blogSettings?.includeFAQ ?? true,
     includeProTips: website?.blogSettings?.includeProTips ?? true,
     includeTableOfContents: website?.blogSettings?.includeTableOfContents ?? true,

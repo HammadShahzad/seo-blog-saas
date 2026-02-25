@@ -81,6 +81,7 @@ export async function POST(
       websiteId,
       contentLength: (input?.contentLength as "SHORT" | "MEDIUM") || "MEDIUM",
       includeImages: (input?.includeImages as boolean) ?? true,
+      imageSource: (input?.imageSource as "AI_GENERATED" | "WEB_IMAGES" | "ILLUSTRATION") || "AI_GENERATED",
       includeFAQ: (input?.includeFAQ as boolean) ?? true,
       includeProTips: (input?.includeProTips as boolean) ?? true,
       autoPublish: (input?.autoPublish as boolean) ?? false,

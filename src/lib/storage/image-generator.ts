@@ -6,9 +6,12 @@
  * Supports 4K output, ~94% text rendering accuracy, up to 14 reference images.
  *
  * Falls back to Imagen 4.0 if Gemini 3 Pro image gen fails.
+ * Also supports web stock images (Pexels) and illustration style.
  */
 import sharp from "sharp";
 import { uploadToB2 } from "./backblaze";
+
+export type ImageSourceType = "AI_GENERATED" | "WEB_IMAGES" | "ILLUSTRATION";
 
 const GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview";
 const IMAGEN_FALLBACK_MODEL = "imagen-4.0-fast-generate-001";
@@ -24,6 +27,17 @@ const IMAGE_STYLES = [
   "documentary-style photo with rich detail, depth, and environmental context",
 ];
 
+const ILLUSTRATION_STYLES = [
+  "clean modern flat illustration with bold colors and simple geometric shapes",
+  "minimalist line art illustration with accent colors and clean whitespace",
+  "isometric 3D illustration with soft shadows and vibrant gradient colors",
+  "hand-drawn sketch style illustration with watercolor washes and organic lines",
+  "modern vector illustration with smooth gradients and rounded shapes",
+  "editorial illustration with bold composition, limited color palette, and conceptual metaphor",
+  "infographic-style illustration with icons, clean typography elements, and structured layout",
+  "playful cartoon-style illustration with bright colors and friendly characters",
+];
+
 /**
  * Generate an image using Gemini 3 Pro native image generation.
  * One API call — the model understands context and generates the image directly.
@@ -34,11 +48,30 @@ async function generateWithGemini3Pro(
   blogContext: string,
   apiKey: string,
   retries = 3,
+  imageSource: ImageSourceType = "AI_GENERATED",
 ): Promise<Buffer> {
-  const style = IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
+  const isIllustration = imageSource === "ILLUSTRATION";
+  const style = isIllustration
+    ? ILLUSTRATION_STYLES[Math.floor(Math.random() * ILLUSTRATION_STYLES.length)]
+    : IMAGE_STYLES[Math.floor(Math.random() * IMAGE_STYLES.length)];
   let lastError: Error | null = null;
 
-  const prompt = `Generate a photorealistic blog hero image for an article about "${keyword}" in the ${niche} industry.
+  const prompt = isIllustration
+    ? `Generate a modern illustration for a blog article about "${keyword}" in the ${niche} industry.
+
+Illustration style: ${style}
+
+CRITICAL RULES:
+- MUST be a stylized illustration, NOT a photograph
+- Use a cohesive color palette with 3-5 main colors
+- Clean, modern aesthetic suitable for a tech/business blog
+- Visual metaphors and conceptual imagery related to the topic
+- No text, no words, no letters, no watermarks anywhere in the image
+- Wide landscape composition (16:9)
+- Should look like it belongs on a premium SaaS or design blog
+
+Blog context: ${blogContext.slice(0, 400)}`
+    : `Generate a photorealistic blog hero image for an article about "${keyword}" in the ${niche} industry.
 
 Photography style: ${style}
 
@@ -184,39 +217,111 @@ async function generateWithImagen(
   throw lastError || new Error("Imagen fallback failed");
 }
 
+// Track used Pexels photo IDs within a single blog generation to avoid duplicates.
+const _usedPexelsIds = new Set<number>();
+
+/** Call before starting a new blog post to reset duplicate tracking. */
+export function resetPexelsTracking() {
+  _usedPexelsIds.clear();
+}
+
+/**
+ * Search Pexels for a stock photo matching the keyword.
+ * Returns the raw image bytes or throws if no result / API key missing.
+ * Automatically avoids photos already used in the current blog post.
+ */
+async function searchPexelsImage(
+  keyword: string,
+  niche: string,
+  orientation: "landscape" | "portrait" = "landscape",
+  extraQuery?: string,
+): Promise<Buffer> {
+  const apiKey = process.env.PEXELS_API_KEY;
+  if (!apiKey) throw new Error("PEXELS_API_KEY not configured");
+
+  const searchTerms = extraQuery ? `${keyword} ${extraQuery}` : `${keyword} ${niche}`;
+  const query = encodeURIComponent(searchTerms);
+  const url = `https://api.pexels.com/v1/search?query=${query}&orientation=${orientation}&per_page=10&size=large`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: apiKey },
+    signal: AbortSignal.timeout(15000),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Pexels API error (${res.status})`);
+  }
+
+  const data = await res.json();
+  const photos = data.photos;
+  if (!photos?.length) {
+    throw new Error(`No Pexels results for "${searchTerms}"`);
+  }
+
+  // Filter out already-used photos
+  const available = photos.filter((p: { id: number }) => !_usedPexelsIds.has(p.id));
+  const pool = available.length > 0 ? available : photos;
+
+  // Pick a random photo from top results for variety
+  const photo = pool[Math.floor(Math.random() * Math.min(pool.length, 3))];
+  _usedPexelsIds.add(photo.id);
+
+  const imageUrl = photo.src?.large2x || photo.src?.large || photo.src?.original;
+  if (!imageUrl) throw new Error("No usable image URL from Pexels");
+
+  console.log(`[Pexels] Found image #${photo.id} by ${photo.photographer}: ${imageUrl.slice(0, 80)}…`);
+
+  const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
+  if (!imgRes.ok) throw new Error(`Failed to download Pexels image (${imgRes.status})`);
+  const arrayBuf = await imgRes.arrayBuffer();
+  return Buffer.from(arrayBuf);
+}
+
 export async function generateBlogImage(
   prompt: string,
   slug: string,
   websiteId: string,
-  overlayText?: string,
   keyword?: string,
   niche?: string,
   quality: "fast" | "high" = "fast",
+  imageSource: ImageSourceType = "AI_GENERATED",
 ): Promise<string> {
-  let apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
-  apiKey = apiKey.replace(/\\n/g, "").trim();
-
   const kw = keyword || slug.replace(/-/g, " ");
   const nicheStr = niche || "business";
 
   let imageBytes: Buffer;
 
-  try {
-    imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, quality === "high" ? 3 : 2);
-  } catch (err) {
-    console.warn("[Image] Gemini 3 Pro failed, falling back to Imagen:", err instanceof Error ? err.message : err);
-    const fallbackPrompt = `Professional photorealistic blog hero image for "${kw}" in ${nicheStr}. Real photograph, natural lighting, no illustration or cartoon. No text or words. 16:9 landscape.`;
-    imageBytes = await generateWithImagen(fallbackPrompt, apiKey);
+  if (imageSource === "WEB_IMAGES") {
+    // Try Pexels first, fall back to AI generation
+    try {
+      imageBytes = await searchPexelsImage(kw, nicheStr, "landscape");
+    } catch (err) {
+      console.warn("[Image] Pexels failed, falling back to AI generation:", err instanceof Error ? err.message : err);
+      let apiKey = process.env.GOOGLE_AI_API_KEY;
+      if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
+      apiKey = apiKey.replace(/\\n/g, "").trim();
+      imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, quality === "high" ? 3 : 2, "AI_GENERATED");
+    }
+  } else {
+    // AI_GENERATED or ILLUSTRATION — use Gemini
+    let apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
+    apiKey = apiKey.replace(/\\n/g, "").trim();
+
+    try {
+      imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, quality === "high" ? 3 : 2, imageSource);
+    } catch (err) {
+      console.warn("[Image] Gemini 3 Pro failed, falling back to Imagen:", err instanceof Error ? err.message : err);
+      const fallbackPrompt = imageSource === "ILLUSTRATION"
+        ? `Modern flat illustration for "${kw}" in ${nicheStr}. Stylized vector art, clean design, bold colors. No text or words. 16:9 landscape.`
+        : `Professional photorealistic blog hero image for "${kw}" in ${nicheStr}. Real photograph, natural lighting, no illustration or cartoon. No text or words. 16:9 landscape.`;
+      imageBytes = await generateWithImagen(fallbackPrompt, apiKey);
+    }
   }
 
   let processed = await sharp(imageBytes)
     .resize(1600, 840, { fit: "cover", position: "center" })
     .toBuffer();
-
-  if (overlayText) {
-    processed = await addTextOverlay(processed, overlayText);
-  }
 
   processed = await sharp(processed).webp({ quality: 92 }).toBuffer();
 
@@ -224,62 +329,6 @@ export async function generateBlogImage(
   const url = await uploadToB2(processed, key, "image/webp");
 
   return url;
-}
-
-async function addTextOverlay(imageBuffer: Buffer, text: string): Promise<Buffer> {
-  const width = 1600;
-  const height = 840;
-  const maxCharsPerLine = 35;
-  const words = text.split(" ");
-  const lines: string[] = [];
-  let currentLine = "";
-
-  for (const word of words) {
-    if ((currentLine + " " + word).trim().length > maxCharsPerLine) {
-      if (currentLine) lines.push(currentLine.trim());
-      currentLine = word;
-    } else {
-      currentLine = currentLine ? currentLine + " " + word : word;
-    }
-  }
-  if (currentLine) lines.push(currentLine.trim());
-
-  const displayLines = lines.slice(0, 3);
-  const fontSize = displayLines.length > 2 ? 40 : 48;
-  const lineHeight = fontSize * 1.3;
-  const totalTextHeight = displayLines.length * lineHeight;
-  const boxPadding = 30;
-  const boxHeight = totalTextHeight + boxPadding * 2;
-  const boxY = height - boxHeight - 40;
-
-  const escapedLines = displayLines.map(l =>
-    l.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-  );
-
-  const textElements = escapedLines.map((line, i) => {
-    const y = boxY + boxPadding + fontSize + i * lineHeight;
-    return `<text x="${width / 2}" y="${y}" font-family="Arial, Helvetica, sans-serif" font-size="${fontSize}" font-weight="bold" fill="white" text-anchor="middle" filter="url(#shadow)">${line}</text>`;
-  }).join("");
-
-  const svgOverlay = Buffer.from(`
-    <svg width="${width}" height="${height}">
-      <defs>
-        <filter id="shadow" x="-5%" y="-5%" width="110%" height="110%">
-          <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="rgba(0,0,0,0.8)" />
-        </filter>
-        <linearGradient id="grad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="rgba(0,0,0,0)" />
-          <stop offset="100%" stop-color="rgba(0,0,0,0.7)" />
-        </linearGradient>
-      </defs>
-      <rect x="0" y="${boxY - 20}" width="${width}" height="${height - boxY + 20}" fill="url(#grad)" />
-      ${textElements}
-    </svg>
-  `);
-
-  return sharp(imageBuffer)
-    .composite([{ input: svgOverlay, top: 0, left: 0 }])
-    .toBuffer();
 }
 
 /**
@@ -292,20 +341,37 @@ export async function generateInlineImage(
   websiteId: string,
   keyword?: string,
   niche?: string,
+  imageSource: ImageSourceType = "AI_GENERATED",
+  sectionHeading?: string,
 ): Promise<string> {
-  let apiKey = process.env.GOOGLE_AI_API_KEY;
-  if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
-  apiKey = apiKey.replace(/\\n/g, "").trim();
-
   const kw = keyword || slug.replace(/-/g, " ");
   const nicheStr = niche || "business";
 
   let imageBytes: Buffer;
 
-  try {
-    imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, 2);
-  } catch {
-    imageBytes = await generateWithImagen(`${prompt} Professional photorealistic style, real photograph, no illustration or cartoon. No text. 16:9.`, apiKey);
+  if (imageSource === "WEB_IMAGES") {
+    try {
+      imageBytes = await searchPexelsImage(kw, nicheStr, "landscape", sectionHeading);
+    } catch (err) {
+      console.warn(`[Image] Pexels inline ${index} failed, falling back to AI:`, err instanceof Error ? err.message : err);
+      let apiKey = process.env.GOOGLE_AI_API_KEY;
+      if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
+      apiKey = apiKey.replace(/\\n/g, "").trim();
+      imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, 2, "AI_GENERATED");
+    }
+  } else {
+    let apiKey = process.env.GOOGLE_AI_API_KEY;
+    if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
+    apiKey = apiKey.replace(/\\n/g, "").trim();
+
+    try {
+      imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, 2, imageSource);
+    } catch {
+      const fallbackPrompt = imageSource === "ILLUSTRATION"
+        ? `${prompt} Modern flat illustration, stylized vector art, clean design. No text. 16:9.`
+        : `${prompt} Professional photorealistic style, real photograph, no illustration or cartoon. No text. 16:9.`;
+      imageBytes = await generateWithImagen(fallbackPrompt, apiKey);
+    }
   }
 
   const processed = await sharp(imageBytes)

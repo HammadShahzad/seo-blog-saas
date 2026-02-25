@@ -35,6 +35,7 @@ export async function POST(
       keywordId,
       contentLength = "MEDIUM",
       includeImages = true,
+      imageSource = "AI_GENERATED",
       includeFAQ = true,
       includeProTips = true,
       includeTableOfContents = true,
@@ -45,6 +46,9 @@ export async function POST(
     if (!["SHORT", "MEDIUM", "LONG", "PILLAR"].includes(contentLength)) {
       return NextResponse.json({ error: "Invalid contentLength" }, { status: 400 });
     }
+
+    const validImageSources = ["AI_GENERATED", "WEB_IMAGES", "ILLUSTRATION"];
+    const safeImageSource = validImageSources.includes(imageSource) ? imageSource : "AI_GENERATED";
 
     let keyword;
     if (keywordId) {
@@ -85,6 +89,7 @@ export async function POST(
       websiteId,
       contentLength,
       includeImages,
+      imageSource: safeImageSource,
       includeFAQ,
       includeProTips,
       includeTableOfContents,

@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Bot, X, Plus, CalendarDays, Clock } from "lucide-react";
+import { Bot, X, Plus, CalendarDays, Clock, Image, Sparkles, Globe, Palette } from "lucide-react";
 import type { WebsiteData, BlogSettingsData, UpdateFieldFn } from "./settings-types";
 
 const ALL_DAYS = [
@@ -166,6 +166,38 @@ export function ContentSettings({
                 <SelectItem value="PILLAR">Pillar (~4,000 words)</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5">
+            <Image className="h-3.5 w-3.5" /> Image Style
+          </Label>
+          <div className="grid grid-cols-3 gap-2">
+            {([
+              { value: "AI_GENERATED", label: "AI Images", icon: Sparkles, desc: "AI-generated photorealistic images" },
+              { value: "WEB_IMAGES", label: "Web Images", icon: Globe, desc: "Stock photos from Pexels" },
+              { value: "ILLUSTRATION", label: "Illustrations", icon: Palette, desc: "AI-generated illustrations" },
+            ] as const).map((opt) => {
+              const active = blogSettings.imageSource === opt.value;
+              const Icon = opt.icon;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setBlogSettings((p) => ({ ...p, imageSource: opt.value }))}
+                  className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 text-center transition-colors ${
+                    active
+                      ? "border-primary bg-primary/5 text-primary"
+                      : "border-border bg-muted/20 text-muted-foreground hover:border-primary/40 hover:bg-muted/40"
+                  }`}
+                >
+                  <Icon className="h-5 w-5" />
+                  <span className="text-sm font-medium">{opt.label}</span>
+                  <span className="text-[11px] leading-tight opacity-70">{opt.desc}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

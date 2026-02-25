@@ -36,6 +36,7 @@ export interface BlogSettingsData {
   avoidTopics: string[];
   writingStyle: string;
   contentLength: string;
+  imageSource: string;
   includeFAQ: boolean;
   includeProTips: boolean;
   includeTableOfContents: boolean;
