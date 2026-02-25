@@ -70,7 +70,7 @@ jobs:
           rsync -avz --delete --exclude '.env' -e "$R" .next/standalone/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/.next/standalone/
           rsync -avz --delete -e "$R" .next/static/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/.next/static/
           rsync -avz --delete -e "$R" public/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/public/
-          rsync -avz -e "$R" ecosystem.config.js worker.js package.json prisma/ ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/
+          rsync -avz -e "$R" ecosystem.config.js worker.js package.json prisma ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }}:${{ env.DEPLOY_PATH }}/
 
       - name: Sync DB schema on droplet
         env:
