@@ -11,7 +11,7 @@ import { pushToGhost } from "./cms/ghost";
 import { pushToShopify, ShopifyConfig } from "./cms/shopify";
 import { pushToWebflow, WebflowConfig } from "./cms/webflow";
 import { sendPostGeneratedEmail } from "./email";
-import { markdownToHtml } from "./cms/wordpress";
+import { markdownToHtml, pushToWordPress, decodeWordPressConfig } from "./cms/wordpress";
 import { updateOldPostsWithLink } from "./internal-linker";
 
 interface PublishHookInput {
@@ -35,7 +35,7 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     prisma.website.findUnique({
       where: { id: websiteId },
       select: {
-        id: true, domain: true, subdomain: true, brandName: true,
+        id: true, domain: true, subdomain: true, brandName: true, brandUrl: true,
         indexNowKey: true,
         twitterApiKey: true,
         twitterApiSecret: true,
@@ -45,7 +45,7 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
         webhookUrl: true, webhookSecret: true,
         ghostConfig: true,
         shopifyConfig: true,
-        cmsType: true, cmsApiKey: true,
+        cmsType: true, cmsApiKey: true, cmsApiUrl: true,
         organization: {
           select: {
             members: {
@@ -60,8 +60,8 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
 
   if (!post || !website) return;
 
-  const baseUrl = website.subdomain
-    ? `${process.env.NEXTAUTH_URL}/blog/${website.subdomain}`
+  const baseUrl = website.brandUrl
+    ? website.brandUrl.replace(/\/$/, "")
     : `https://${website.domain}`;
   const postUrl = `${baseUrl}/${post.slug}`;
   const ownerMember = website.organization.members?.[0];
@@ -145,8 +145,8 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     );
   }
 
-  // 5. Shopify auto-push (if configured and it's auto-triggered)
-  if (website.shopifyConfig && triggeredBy === "auto") {
+  // 5. Shopify auto-push (if configured and auto or scheduled)
+  if (website.shopifyConfig && (triggeredBy === "auto" || triggeredBy === "scheduled")) {
     tasks.push((async () => {
       const config = JSON.parse(website.shopifyConfig as string) as ShopifyConfig;
       const result = await pushToShopify({
@@ -165,8 +165,8 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     })().catch(e => console.error("[Shopify] error:", e)));
   }
 
-  // 7. Ghost auto-push (if configured and it's auto-triggered)
-  if (website.ghostConfig && triggeredBy === "auto") {
+  // 7. Ghost auto-push (if configured and auto or scheduled)
+  if (website.ghostConfig && (triggeredBy === "auto" || triggeredBy === "scheduled")) {
     tasks.push((async () => {
       const config = JSON.parse(website.ghostConfig as string);
       const result = await pushToGhost({
@@ -185,8 +185,8 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
     })().catch(e => console.error("[Ghost] error:", e)));
   }
 
-  // 8. Webflow auto-push (if cmsType is WEBFLOW and it's auto-triggered)
-  if (website.cmsType === "WEBFLOW" && website.cmsApiKey && triggeredBy === "auto") {
+  // 8. Webflow auto-push (if cmsType is WEBFLOW and auto or scheduled)
+  if (website.cmsType === "WEBFLOW" && website.cmsApiKey && (triggeredBy === "auto" || triggeredBy === "scheduled")) {
     tasks.push((async () => {
       const config = JSON.parse(website.cmsApiKey as string) as WebflowConfig;
       const result = await pushToWebflow({
@@ -200,6 +200,35 @@ export async function runPublishHook({ postId, websiteId, triggeredBy = "manual"
       if (result.success) console.log(`[Webflow] Pushed item: ${result.itemId}`);
       else console.error("[Webflow] failed:", result.error);
     })().catch(e => console.error("[Webflow] error:", e)));
+  }
+
+  // 6. WordPress auto-push (if configured and auto or scheduled)
+  if (website.cmsApiUrl && website.cmsApiKey && website.cmsType !== "WEBFLOW" && (triggeredBy === "auto" || triggeredBy === "scheduled")) {
+    tasks.push((async () => {
+      const wpConfig = decodeWordPressConfig(website.cmsApiUrl!, website.cmsApiKey!);
+      const result = await pushToWordPress({
+        title: post.title,
+        content: post.content,
+        excerpt: post.excerpt || undefined,
+        slug: post.slug,
+        status: "publish",
+        featuredImageUrl: post.featuredImage || undefined,
+        metaTitle: post.metaTitle || undefined,
+        metaDescription: post.metaDescription || undefined,
+        tags: post.tags,
+      }, wpConfig);
+      if (result.success) {
+        console.log(`[WordPress] Pushed: ${result.wpPostUrl}`);
+        if (result.wpPostUrl) {
+          await prisma.blogPost.update({
+            where: { id: postId },
+            data: { externalUrl: result.wpPostUrl },
+          }).catch(() => {});
+        }
+      } else {
+        console.error("[WordPress] failed:", result.error);
+      }
+    })().catch(e => console.error("[WordPress] error:", e)));
   }
 
   // 9. Email notification to owner
