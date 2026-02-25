@@ -78,7 +78,7 @@ jobs:
         run: |
           sshpass -p "$DEPLOY_PASS" ssh -o StrictHostKeyChecking=no \
             ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} \
-            "cd ${{ env.DEPLOY_PATH }} && (test -f .env && export \$(grep -v '^#' .env | xargs) || true) && npx --yes prisma db push --accept-data-loss --schema prisma/schema.prisma 2>&1"
+            "cd ${{ env.DEPLOY_PATH }} && (test -f .env && export \$(grep -v '^#' .env | xargs) || true) && npx --yes prisma@6 db push --accept-data-loss --schema prisma/schema.prisma 2>&1"
 
       - name: Reload PM2 app
         env:
