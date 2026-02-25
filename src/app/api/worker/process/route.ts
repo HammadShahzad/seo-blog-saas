@@ -16,7 +16,11 @@ export async function POST(req: Request) {
   if (authError) return authError;
 
   try {
-    await recoverStuckJobs();
+    // Recover any stuck jobs (auto-retries up to 2x, then marks FAILED)
+    const recovered = await recoverStuckJobs();
+    if (recovered > 0) {
+      console.log(`[WORKER] Recovered ${recovered} stuck job(s)`);
+    }
 
     const body = await req.json().catch(() => ({}));
     const { jobId } = body as { jobId?: string };
@@ -40,13 +44,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ processed: false, reason: "no_queued_jobs" });
     }
 
+    const startTime = Date.now();
+    console.log(`[WORKER] Processing job ${job.id} (type: ${job.type}, website: ${job.websiteId})`);
+
     await processJob(job.id);
 
-    return NextResponse.json({ processed: true, jobId: job.id });
+    const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`[WORKER] Job ${job.id} completed in ${durationSec}s`);
+
+    return NextResponse.json({ processed: true, jobId: job.id, durationSec });
   } catch (error) {
-    console.error("[WORKER] Error:", error);
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error(`[WORKER] Processing error: ${msg}`);
     return NextResponse.json(
-      { error: "Worker processing failed" },
+      { error: "Worker processing failed", detail: msg },
       { status: 500 }
     );
   }

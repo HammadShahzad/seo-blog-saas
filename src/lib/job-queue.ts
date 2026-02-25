@@ -400,43 +400,75 @@ export async function getJobStatus(jobId: string) {
 
 /**
  * Recover jobs stuck in PROCESSING for more than 10 minutes.
- * Marks them as FAILED and resets their associated keywords to PENDING.
+ * Auto-retries up to MAX_AUTO_RETRIES times by resetting to QUEUED.
+ * After max retries, marks as FAILED.
  */
+const MAX_AUTO_RETRIES = 2;
+const STUCK_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+
 export async function recoverStuckJobs(): Promise<number> {
-  const tenMinutesAgo = new Date(Date.now() - 20 * 60 * 1000);
+  const cutoff = new Date(Date.now() - STUCK_THRESHOLD_MS);
 
   const stuckJobs = await prisma.generationJob.findMany({
     where: {
       status: "PROCESSING",
-      startedAt: { lt: tenMinutesAgo },
+      startedAt: { lt: cutoff },
     },
-    select: { id: true, keywordId: true },
+    select: { id: true, keywordId: true, error: true, input: true },
   });
 
   if (stuckJobs.length === 0) return 0;
 
-  await prisma.generationJob.updateMany({
-    where: { id: { in: stuckJobs.map((j) => j.id) } },
-    data: {
-      status: "FAILED",
-      error: "Job timed out. Click Retry to try again.",
-      completedAt: new Date(),
-    },
-  });
+  let recovered = 0;
+  for (const job of stuckJobs) {
+    // Count previous auto-retries from the error field
+    const prevError = job.error || "";
+    const retryMatch = prevError.match(/\[auto-retry (\d+)/);
+    const retryCount = retryMatch ? parseInt(retryMatch[1], 10) : 0;
 
-  const keywordIds = stuckJobs
-    .map((j) => j.keywordId)
-    .filter((id): id is string => id !== null);
-
-  if (keywordIds.length > 0) {
-    await prisma.blogKeyword.updateMany({
-      where: { id: { in: keywordIds } },
-      data: { status: "PENDING" },
-    });
+    if (retryCount < MAX_AUTO_RETRIES) {
+      // Auto-retry: reset to QUEUED
+      await prisma.generationJob.update({
+        where: { id: job.id },
+        data: {
+          status: "QUEUED",
+          progress: 0,
+          currentStep: null,
+          startedAt: null,
+          completedAt: null,
+          error: `[auto-retry ${retryCount + 1}/${MAX_AUTO_RETRIES}] Job stalled, auto-retrying...`,
+        },
+      });
+      if (job.keywordId) {
+        await prisma.blogKeyword.update({
+          where: { id: job.keywordId },
+          data: { status: "PENDING" },
+        }).catch(() => {});
+      }
+      console.log(`[recoverStuckJobs] Auto-retrying job ${job.id} (attempt ${retryCount + 1}/${MAX_AUTO_RETRIES})`);
+    } else {
+      // Max retries exceeded — mark as permanently failed
+      await prisma.generationJob.update({
+        where: { id: job.id },
+        data: {
+          status: "FAILED",
+          error: `Job failed after ${MAX_AUTO_RETRIES} auto-retries. Click Retry to try again.`,
+          completedAt: new Date(),
+        },
+      });
+      if (job.keywordId) {
+        await prisma.blogKeyword.update({
+          where: { id: job.keywordId },
+          data: { status: "FAILED", errorMessage: "Generation timed out after multiple retries" },
+        }).catch(() => {});
+      }
+      console.log(`[recoverStuckJobs] Job ${job.id} FAILED after ${MAX_AUTO_RETRIES} retries`);
+    }
+    recovered++;
   }
 
-  console.log(`[recoverStuckJobs] Recovered ${stuckJobs.length} stuck job(s)`);
-  return stuckJobs.length;
+  console.log(`[recoverStuckJobs] Processed ${recovered} stuck job(s)`);
+  return recovered;
 }
 
 /**
