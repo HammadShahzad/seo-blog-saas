@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { testWordPressConnection } from "@/lib/cms/wordpress";
 import { verifyWebsiteAccess } from "@/lib/api-helpers";
+import { isSafeUrl } from "@/lib/url-safety";
 
 type Params = { params: Promise<{ websiteId: string }> };
 
@@ -59,6 +60,9 @@ export async function POST(req: Request, { params }: Params) {
       if (!siteUrl || !pluginApiKey) {
         return NextResponse.json({ error: "siteUrl and pluginApiKey are required" }, { status: 400 });
       }
+      if (!(await isSafeUrl(cleanUrl))) {
+        return NextResponse.json({ error: "The site URL is not reachable or points to an internal network." }, { status: 400 });
+      }
       // Try both stackserp and blogforge plugin namespaces
       const namespaces = ["stackserp", "blogforge"];
       for (const ns of namespaces) {
@@ -87,6 +91,9 @@ export async function POST(req: Request, { params }: Params) {
     if (action === "test") {
       if (!siteUrl || !username || !appPassword) {
         return NextResponse.json({ error: "siteUrl, username, and appPassword are required" }, { status: 400 });
+      }
+      if (!(await isSafeUrl(cleanUrl))) {
+        return NextResponse.json({ error: "The site URL is not reachable or points to an internal network." }, { status: 400 });
       }
       const result = await testWordPressConnection({ siteUrl, username, appPassword, defaultStatus: defaultStatus || "draft" });
       return NextResponse.json(result);

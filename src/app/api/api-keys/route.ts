@@ -9,6 +9,23 @@ import { authOptions } from "@/lib/auth";
 import prisma from "@/lib/prisma";
 import { generateRawKey, hashKey } from "@/lib/api-auth";
 
+const ALLOWED_SCOPES = [
+  "posts:read",
+  "posts:write",
+  "keywords:read",
+  "keywords:write",
+  "generate:write",
+  "analytics:read",
+];
+
+function filterScopes(input: unknown): string[] {
+  if (!Array.isArray(input)) return ["posts:read", "posts:write"];
+  const valid = input.filter(
+    (s): s is string => typeof s === "string" && ALLOWED_SCOPES.includes(s)
+  );
+  return valid.length > 0 ? valid : ["posts:read", "posts:write"];
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
@@ -54,7 +71,7 @@ export async function POST(req: Request) {
       name,
       key: hashed,
       prefix,
-      scopes: body.scopes || ["posts:read", "posts:write"],
+      scopes: filterScopes(body.scopes),
       expiresAt: body.expiresAt ? new Date(body.expiresAt) : null,
       userId: session.user.id,
     },

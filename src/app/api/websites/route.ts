@@ -73,23 +73,6 @@ export async function POST(req: Request) {
 
     const subscription = membership.organization.subscription;
 
-    // Check website limit
-    const currentWebsiteCount = await prisma.website.count({
-      where: {
-        organizationId: membership.organizationId,
-        status: { not: "DELETED" },
-      },
-    });
-
-    if (subscription && currentWebsiteCount >= subscription.maxWebsites) {
-      return NextResponse.json(
-        {
-          error: `You've reached the limit of ${subscription.maxWebsites} websites on your ${subscription.plan} plan. Please upgrade to add more.`,
-        },
-        { status: 403 }
-      );
-    }
-
     const body = await req.json();
     const { ctaText, ctaUrl, writingStyle, ...rest } = body;
 
@@ -107,33 +90,57 @@ export async function POST(req: Request) {
       .replace(/[^a-zA-Z0-9]/g, "-")
       .toLowerCase();
 
-    // Check if subdomain is already taken
-    const existingSubdomain = await prisma.website.findUnique({
-      where: { subdomain },
-    });
+    // Use a transaction to atomically check limits + create website
+    const website = await prisma.$transaction(async (tx) => {
+      const currentWebsiteCount = await tx.website.count({
+        where: {
+          organizationId: membership.organizationId,
+          status: { not: "DELETED" },
+        },
+      });
 
-    const finalSubdomain = existingSubdomain
-      ? `${subdomain}-${Date.now().toString(36)}`
-      : subdomain;
+      if (subscription && currentWebsiteCount >= subscription.maxWebsites) {
+        throw new Error(
+          `LIMIT:You've reached the limit of ${subscription.maxWebsites} websites on your ${subscription.plan} plan. Please upgrade to add more.`
+        );
+      }
 
-    const website = await prisma.website.create({
-      data: {
-        ...validated,
-        subdomain: finalSubdomain,
-        organizationId: membership.organizationId,
-      },
-    });
+      const existingSubdomain = await tx.website.findUnique({
+        where: { subdomain },
+      });
 
-    const validStyles = ["informative", "conversational", "technical", "storytelling", "persuasive", "humorous"];
-    await prisma.blogSettings.create({
-      data: {
-        websiteId: website.id,
-        autoPublish: false,
-        postsPerWeek: 3,
-        ...(ctaText && typeof ctaText === "string" ? { ctaText: ctaText.trim() } : {}),
-        ...(ctaUrl && typeof ctaUrl === "string" ? { ctaUrl: ctaUrl.trim() } : {}),
-        ...(writingStyle && validStyles.includes(writingStyle) ? { writingStyle } : {}),
-      },
+      const finalSubdomain = existingSubdomain
+        ? `${subdomain}-${Date.now().toString(36)}`
+        : subdomain;
+
+      const newWebsite = await tx.website.create({
+        data: {
+          ...validated,
+          subdomain: finalSubdomain,
+          organizationId: membership.organizationId,
+        },
+      });
+
+      const validStyles = ["informative", "conversational", "technical", "storytelling", "persuasive", "humorous"];
+      await tx.blogSettings.create({
+        data: {
+          websiteId: newWebsite.id,
+          autoPublish: false,
+          postsPerWeek: 3,
+          ...(ctaText && typeof ctaText === "string" ? { ctaText: ctaText.trim() } : {}),
+          ...(ctaUrl && typeof ctaUrl === "string" ? { ctaUrl: ctaUrl.trim() } : {}),
+          ...(writingStyle && validStyles.includes(writingStyle) ? { writingStyle } : {}),
+        },
+      });
+
+      if (subscription) {
+        await tx.subscription.update({
+          where: { id: subscription.id },
+          data: { websitesUsed: currentWebsiteCount + 1 },
+        });
+      }
+
+      return newWebsite;
     });
 
     // Auto-fetch favicon from the live website (non-blocking)
@@ -148,14 +155,6 @@ export async function POST(req: Request) {
       }).catch(() => {});
     }
 
-    // Update subscription website count
-    if (subscription) {
-      await prisma.subscription.update({
-        where: { id: subscription.id },
-        data: { websitesUsed: currentWebsiteCount + 1 },
-      });
-    }
-
     return NextResponse.json(website, { status: 201 });
   } catch (error: unknown) {
     if (error instanceof ZodError) {
@@ -166,6 +165,12 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: `${field}: ${msg}`, details: error.issues },
         { status: 400 }
+      );
+    }
+    if (error instanceof Error && error.message.startsWith("LIMIT:")) {
+      return NextResponse.json(
+        { error: error.message.slice(6) },
+        { status: 403 }
       );
     }
     console.error("Error creating website:", error);

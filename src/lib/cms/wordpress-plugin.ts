@@ -1,5 +1,6 @@
 import type { WordPressPostPayload, WordPressPostResult } from "./wordpress-types";
 import { normalizeUrl, markdownToHtml } from "./wordpress-utils";
+import { isSafeUrl } from "../url-safety";
 
 const PLUGIN_NAMESPACES = ["stackserp", "blogforge"];
 
@@ -28,6 +29,11 @@ export async function pushToWordPressPlugin(
   pluginApiKey: string
 ): Promise<WordPressPostResult> {
   const base = normalizeUrl(siteUrl);
+
+  if (!(await isSafeUrl(base))) {
+    return { success: false, error: "The site URL is not reachable or points to an internal network." };
+  }
+
   const htmlContent = markdownToHtml(post.content);
 
   try {
@@ -43,21 +49,25 @@ export async function pushToWordPressPlugin(
     let featuredImageMime: string | undefined;
     if (post.featuredImageUrl) {
       try {
-        const imgRes = await fetch(post.featuredImageUrl, { signal: AbortSignal.timeout(20000) });
-        if (imgRes.ok) {
-          let mime = (imgRes.headers.get("content-type") || "").split(";")[0].trim();
-          if (!mime || mime === "application/octet-stream") {
-            const lower = post.featuredImageUrl.toLowerCase();
-            mime = lower.includes(".png") ? "image/png"
-              : lower.includes(".webp") ? "image/webp"
-              : lower.includes(".gif") ? "image/gif"
-              : "image/jpeg";
-          }
-          const buf = await imgRes.arrayBuffer();
-          featuredImageData = Buffer.from(buf).toString("base64");
-          featuredImageMime = mime;
+        if (!(await isSafeUrl(post.featuredImageUrl))) {
+          console.error("[WP plugin image] Blocked unsafe image URL");
         } else {
-          console.error(`[WP plugin image] Could not download ${post.featuredImageUrl}: HTTP ${imgRes.status}`);
+          const imgRes = await fetch(post.featuredImageUrl, { signal: AbortSignal.timeout(20000) });
+          if (imgRes.ok) {
+            let mime = (imgRes.headers.get("content-type") || "").split(";")[0].trim();
+            if (!mime || mime === "application/octet-stream") {
+              const lower = post.featuredImageUrl.toLowerCase();
+              mime = lower.includes(".png") ? "image/png"
+                : lower.includes(".webp") ? "image/webp"
+                : lower.includes(".gif") ? "image/gif"
+                : "image/jpeg";
+            }
+            const buf = await imgRes.arrayBuffer();
+            featuredImageData = Buffer.from(buf).toString("base64");
+            featuredImageMime = mime;
+          } else {
+            console.error(`[WP plugin image] Could not download ${post.featuredImageUrl}: HTTP ${imgRes.status}`);
+          }
         }
       } catch (imgErr) {
         console.error("[WP plugin image] Download error:", imgErr);

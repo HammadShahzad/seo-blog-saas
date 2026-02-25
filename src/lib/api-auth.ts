@@ -57,7 +57,6 @@ export async function authenticateApiKey(
 }
 
 export function hasScope(ctx: ApiKeyContext, required: string): boolean {
-  if (ctx.scopes.includes("*")) return true;
   return ctx.scopes.includes(required);
 }
 

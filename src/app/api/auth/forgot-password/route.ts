@@ -42,13 +42,14 @@ export async function POST(req: Request) {
       });
     }
 
-    const token = crypto.randomBytes(32).toString("hex");
+    const rawToken = crypto.randomBytes(32).toString("hex");
+    const hashedToken = crypto.createHash("sha256").update(rawToken).digest("hex");
     const expires = new Date(Date.now() + 1000 * 60 * 60);
 
     await prisma.passwordResetToken.create({
       data: {
         email: user.email,
-        token,
+        token: hashedToken,
         expires,
       },
     });
@@ -59,7 +60,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    const resetUrl = `${appUrl}/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`;
+    const resetUrl = `${appUrl}/reset-password?token=${rawToken}&email=${encodeURIComponent(user.email)}`;
 
     await sendPasswordResetEmail(user.email, resetUrl);
 

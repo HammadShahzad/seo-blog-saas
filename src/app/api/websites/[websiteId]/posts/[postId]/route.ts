@@ -148,8 +148,7 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    console.error("[delete-post]", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[delete-post]", error);
+    return NextResponse.json({ error: "Failed to delete post" }, { status: 500 });
   }
 }

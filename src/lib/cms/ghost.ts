@@ -4,6 +4,7 @@
  * Docs: https://ghost.org/docs/admin-api/
  */
 import crypto from "crypto";
+import { isSafeUrl } from "../url-safety";
 
 export interface GhostConfig {
   siteUrl: string;      // e.g. https://myblog.ghost.io
@@ -40,6 +41,9 @@ function generateGhostJWT(adminApiKey: string): string {
 
 export async function testGhostConnection(config: GhostConfig): Promise<{ success: boolean; siteName?: string; error?: string }> {
   const base = config.siteUrl.replace(/\/$/, "");
+  if (!(await isSafeUrl(base))) {
+    return { success: false, error: "The site URL is not reachable or points to an internal network." };
+  }
   try {
     const token = generateGhostJWT(config.adminApiKey);
     const res = await fetch(`${base}/ghost/api/admin/site/`, {
@@ -60,6 +64,10 @@ export async function testGhostConnection(config: GhostConfig): Promise<{ succes
 
 export async function pushToGhost(post: GhostPostPayload, config: GhostConfig): Promise<{ success: boolean; postUrl?: string; editUrl?: string; error?: string }> {
   const base = config.siteUrl.replace(/\/$/, "");
+
+  if (!(await isSafeUrl(base))) {
+    return { success: false, error: "The site URL is not reachable or points to an internal network." };
+  }
 
   try {
     const token = generateGhostJWT(config.adminApiKey);

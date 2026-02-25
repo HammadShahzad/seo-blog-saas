@@ -5,7 +5,7 @@ import bcrypt from "bcryptjs";
 import prisma from "@/lib/prisma";
 
 const TOKEN_CACHE = new Map<string, { data: Record<string, unknown>; expiresAt: number }>();
-const CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 1 * 60 * 1000; // 1 minute — limits stale role window
 
 function getCachedTokenData(userId: string) {
   const cached = TOKEN_CACHE.get(userId);
@@ -17,6 +17,14 @@ function getCachedTokenData(userId: string) {
 function setCachedTokenData(userId: string, data: Record<string, unknown>) {
   TOKEN_CACHE.set(userId, { data, expiresAt: Date.now() + CACHE_TTL_MS });
 }
+
+// Periodic cleanup to prevent memory leak from expired entries
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of TOKEN_CACHE) {
+    if (entry.expiresAt <= now) TOKEN_CACHE.delete(key);
+  }
+}, 5 * 60 * 1000);
 
 export function clearTokenCache(userId: string) {
   TOKEN_CACHE.delete(userId);

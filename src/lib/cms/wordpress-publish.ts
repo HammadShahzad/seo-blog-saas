@@ -1,5 +1,6 @@
 import type { WordPressConfig, WordPressPostPayload, WordPressPostResult } from "./wordpress-types";
 import { normalizeUrl, getAuthHeader, markdownToHtml } from "./wordpress-utils";
+import { isSafeUrl } from "../url-safety";
 
 async function uploadFeaturedImage(
   imageUrl: string,
@@ -8,6 +9,11 @@ async function uploadFeaturedImage(
 ): Promise<number | null> {
   const base = normalizeUrl(config.siteUrl);
   const auth = getAuthHeader(config.username, config.appPassword);
+
+  if (!(await isSafeUrl(base)) || !(await isSafeUrl(imageUrl))) {
+    console.error("[WP image] Blocked unsafe URL");
+    return null;
+  }
 
   try {
     const imgRes = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
@@ -119,6 +125,11 @@ export async function pushToWordPress(
   config: WordPressConfig
 ): Promise<WordPressPostResult> {
   const base = normalizeUrl(config.siteUrl);
+
+  if (!(await isSafeUrl(base))) {
+    return { success: false, error: "The site URL is not reachable or points to an internal network." };
+  }
+
   const auth = getAuthHeader(config.username, config.appPassword);
 
   try {

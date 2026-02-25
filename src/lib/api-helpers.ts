@@ -97,6 +97,8 @@ export function validateUrl(url: unknown): url is string {
   }
 }
 
+// NOTE: In-memory rate limiting — not shared across multiple server instances (e.g. PM2 cluster).
+// For multi-process deployments, switch to Redis-backed rate limiting.
 const RATE_STORE = new Map<string, { count: number; resetAt: number }>();
 
 function checkRateLimit(

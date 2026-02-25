@@ -7,7 +7,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { enqueueGenerationJob, checkGenerationLimit, recoverStuckJobs, triggerWorker } from "@/lib/job-queue";
-import { runPublishHook } from "@/lib/on-publish";
 import { requireCronAuth } from "@/lib/api-helpers";
 
 const DAY_NAMES = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"] as const;
@@ -53,32 +52,11 @@ export async function POST(req: Request) {
   if (authError) return authError;
 
   const results: { websiteId: string; name: string; action: string; jobId?: string }[] = [];
-  const scheduledResults: { postId: string; title: string }[] = [];
 
   try {
     const recovered = await recoverStuckJobs();
 
-    const dueScheduledPosts = await prisma.blogPost.findMany({
-      where: {
-        status: "SCHEDULED",
-        scheduledAt: { lte: new Date() },
-      },
-      select: { id: true, title: true, websiteId: true },
-    });
-
-    for (const post of dueScheduledPosts) {
-      try {
-        await prisma.blogPost.update({
-          where: { id: post.id },
-          data: { status: "PUBLISHED", publishedAt: new Date() },
-        });
-        runPublishHook({ postId: post.id, websiteId: post.websiteId, triggeredBy: "scheduled" })
-          .catch(e => console.error(`[Cron] Publish hook failed for post ${post.id}:`, e));
-        scheduledResults.push({ postId: post.id, title: post.title });
-      } catch (e) {
-        console.error(`[Cron] Failed to publish scheduled post ${post.id}:`, e);
-      }
-    }
+    // Scheduled post publishing is handled by /api/cron/publish-scheduled
 
     const websites = await prisma.website.findMany({
       where: {
@@ -145,10 +123,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       recoveredJobs: recovered,
-      scheduledPublished: scheduledResults.length,
       generated: results.filter((r) => r.action === "queued").length,
       results,
-      scheduledResults,
     });
   } catch (error) {
     console.error("[Cron] Fatal error:", error);

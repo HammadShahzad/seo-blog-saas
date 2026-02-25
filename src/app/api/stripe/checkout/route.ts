@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
       stripeCustomerId = customer.id;
     }
 
-    const origin = req.headers.get("origin") || process.env.NEXTAUTH_URL || "";
+    const origin = process.env.NEXTAUTH_URL || "";
 
     const checkoutSession = await stripe.checkout.sessions.create({
       customer: stripeCustomerId,

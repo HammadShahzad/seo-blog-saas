@@ -85,6 +85,11 @@ export async function POST(req: Request, { params }: Params) {
     return NextResponse.json({ error: "Email is required" }, { status: 400 });
   }
 
+  const ALLOWED_ROLES = ["MEMBER", "ADMIN"];
+  if (!ALLOWED_ROLES.includes(role)) {
+    return NextResponse.json({ error: "Invalid role. Must be MEMBER or ADMIN." }, { status: 400 });
+  }
+
   // Find target user's org
   const ownerMembership = await prisma.organizationMember.findFirst({
     where: { userId },

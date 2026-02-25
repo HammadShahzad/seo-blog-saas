@@ -7,6 +7,10 @@ import { NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { requireCronAuth } from "@/lib/api-helpers";
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 export async function POST(req: Request) {
   const authError = requireCronAuth(req);
   if (authError) return authError;
@@ -90,7 +94,7 @@ export async function POST(req: Request) {
           </div>
           <div style="padding:32px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px">
             <h2 style="margin:0 0 4px">${monthName} Report</h2>
-            <p style="color:#6b7280;margin:0 0 24px">Hey ${ownerName}, here's how <strong>${website.brandName}</strong> performed this month.</p>
+            <p style="color:#6b7280;margin:0 0 24px">Hey ${escapeHtml(ownerName)}, here's how <strong>${escapeHtml(website.brandName)}</strong> performed this month.</p>
 
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px">
               <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;text-align:center">
@@ -106,7 +110,7 @@ export async function POST(req: Request) {
             ${topPostTitle ? `
             <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin-bottom:24px">
               <p style="margin:0 0 4px;font-size:12px;color:#6b7280;text-transform:uppercase">Top Performing Post</p>
-              <p style="margin:0 0 4px;font-weight:600">${topPostTitle}</p>
+              <p style="margin:0 0 4px;font-weight:600">${escapeHtml(topPostTitle)}</p>
               <p style="margin:0;font-size:13px;color:#6b7280">${(topPost?.pageViews || 0).toLocaleString()} views</p>
             </div>` : ""}
 

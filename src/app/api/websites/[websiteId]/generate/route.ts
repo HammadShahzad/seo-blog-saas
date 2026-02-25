@@ -42,6 +42,10 @@ export async function POST(
       customDirection,
     } = body;
 
+    if (!["SHORT", "MEDIUM", "LONG", "PILLAR"].includes(contentLength)) {
+      return NextResponse.json({ error: "Invalid contentLength" }, { status: 400 });
+    }
+
     let keyword;
     if (keywordId) {
       keyword = await prisma.blogKeyword.findFirst({

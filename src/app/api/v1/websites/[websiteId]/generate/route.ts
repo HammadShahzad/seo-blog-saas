@@ -98,10 +98,11 @@ export async function POST(req: Request, { params }: Params) {
     keywordId: keyword.id,
     keyword: keyword.keyword,
     websiteId,
-    contentLength: (["SHORT", "MEDIUM"].includes(website?.blogSettings?.contentLength || "") ? website?.blogSettings?.contentLength : "MEDIUM") as "SHORT" | "MEDIUM",
+    contentLength: (["SHORT", "MEDIUM", "LONG", "PILLAR"].includes(website?.blogSettings?.contentLength || "") ? website?.blogSettings?.contentLength : "MEDIUM") as "SHORT" | "MEDIUM" | "LONG" | "PILLAR",
     includeImages: website?.blogSettings?.includeImages ?? true,
     includeFAQ: website?.blogSettings?.includeFAQ ?? true,
     includeProTips: website?.blogSettings?.includeProTips ?? true,
+    includeTableOfContents: website?.blogSettings?.includeTableOfContents ?? true,
     autoPublish: website?.autoPublish ?? false,
   });
 

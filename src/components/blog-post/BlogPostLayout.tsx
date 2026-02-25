@@ -1,6 +1,10 @@
 import Link from "next/link";
 import { ArrowLeft, ChevronRight } from "lucide-react";
 
+function safeJsonLd(obj: unknown): string {
+  return JSON.stringify(obj).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+}
+
 export interface BlogPostLayoutProps {
   children: React.ReactNode;
   jsonLdObjects: unknown[];
@@ -29,7 +33,7 @@ export function BlogPostLayout({
         <script
           key={i}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(obj) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(obj) }}
         />
       ))}
 

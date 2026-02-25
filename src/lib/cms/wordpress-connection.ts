@@ -1,10 +1,16 @@
 import type { WordPressConfig, WordPressConnectionResult } from "./wordpress-types";
 import { normalizeUrl, getAuthHeader } from "./wordpress-utils";
+import { isSafeUrl } from "../url-safety";
 
 export async function testWordPressConnection(
   config: WordPressConfig
 ): Promise<WordPressConnectionResult> {
   const base = normalizeUrl(config.siteUrl);
+
+  if (!(await isSafeUrl(base))) {
+    return { success: false, error: "The site URL is not reachable or points to an internal network." };
+  }
+
   const auth = getAuthHeader(config.username, config.appPassword);
 
   try {

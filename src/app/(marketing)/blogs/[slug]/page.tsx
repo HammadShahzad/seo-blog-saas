@@ -3,6 +3,10 @@ import prisma from "@/lib/prisma";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
+
+function safeJsonLd(obj: unknown): string {
+  return JSON.stringify(obj).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+}
 import { PostArticle } from "@/components/marketing-blog/PostArticle";
 import { RelatedPosts } from "@/components/marketing-blog/RelatedPosts";
 
@@ -245,7 +249,7 @@ export default async function StackSerpBlogPostPage({ params }: Props) {
         <script
           key={i}
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(obj) }}
+          dangerouslySetInnerHTML={{ __html: safeJsonLd(obj) }}
         />
       ))}
 

@@ -6,6 +6,8 @@
  * Credentials: storeUrl (e.g. mystore.myshopify.com) + Admin API access token
  */
 
+import { isSafeUrl } from "../url-safety";
+
 const SHOPIFY_API_VERSION = "2025-01";
 
 export interface ShopifyConfig {
@@ -63,6 +65,10 @@ function headers(accessToken: string) {
 export async function testShopifyConnection(
   config: Pick<ShopifyConfig, "storeUrl" | "accessToken">
 ): Promise<ShopifyConnectionResult> {
+  const base = storeBase(config.storeUrl);
+  if (!(await isSafeUrl(base))) {
+    return { success: false, error: "The store URL is not reachable or points to an internal network." };
+  }
   try {
     const res = await fetch(`${apiBase(config.storeUrl)}/shop.json`, {
       headers: headers(config.accessToken),
@@ -95,6 +101,8 @@ export async function testShopifyConnection(
 export async function listShopifyBlogs(
   config: Pick<ShopifyConfig, "storeUrl" | "accessToken">
 ): Promise<ShopifyBlog[]> {
+  const base = storeBase(config.storeUrl);
+  if (!(await isSafeUrl(base))) return [];
   try {
     const res = await fetch(`${apiBase(config.storeUrl)}/blogs.json`, {
       headers: headers(config.accessToken),
@@ -125,6 +133,10 @@ export async function pushToShopify(
   },
   config: ShopifyConfig
 ): Promise<ShopifyPushResult> {
+  const base = storeBase(config.storeUrl);
+  if (!(await isSafeUrl(base))) {
+    return { success: false, error: "The store URL is not reachable or points to an internal network." };
+  }
   try {
     // Resolve the blog ID — use configured one or fetch the first available
     let blogId = config.blogId;

@@ -39,6 +39,17 @@ export async function POST(
       return NextResponse.json({ error: "Invalid contentLength" }, { status: 400 });
     }
 
+    // Check for an already-active generation job for this website
+    const activeJob = await prisma.generationJob.findFirst({
+      where: { websiteId, status: { in: ["QUEUED", "PROCESSING"] } },
+    });
+    if (activeJob) {
+      return NextResponse.json(
+        { error: "A generation job is already in progress for this website." },
+        { status: 409 }
+      );
+    }
+
     // Check subscription limit (scoped to the org that owns this website)
     const websiteWithOrg = await prisma.website.findUnique({
       where: { id: websiteId },

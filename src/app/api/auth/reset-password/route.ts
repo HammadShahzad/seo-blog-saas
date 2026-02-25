@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import { timingSafeEqual } from "crypto";
+import { createHash } from "crypto";
 import { checkIpRateLimit, validateEmail } from "@/lib/api-helpers";
 
 export async function POST(req: Request) {
@@ -38,11 +38,13 @@ export async function POST(req: Request) {
       );
     }
 
+    const hashedToken = createHash("sha256").update(token).digest("hex");
+
     const resetToken = await prisma.passwordResetToken.findUnique({
       where: {
         email_token: {
           email,
-          token,
+          token: hashedToken,
         },
       },
     });
@@ -52,12 +54,6 @@ export async function POST(req: Request) {
         { error: "Invalid or expired reset link" },
         { status: 400 }
       );
-    }
-
-    const tokenValid = resetToken.token.length === token.length &&
-      timingSafeEqual(Buffer.from(resetToken.token), Buffer.from(token));
-    if (!tokenValid) {
-      return NextResponse.json({ error: "Invalid or expired reset link" }, { status: 400 });
     }
 
     if (resetToken.expires < new Date()) {
