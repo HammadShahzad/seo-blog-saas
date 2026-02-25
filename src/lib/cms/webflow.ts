@@ -75,28 +75,39 @@ export async function pushToWebflow(
   config: WebflowConfig
 ): Promise<WebflowPushResult> {
   try {
-    const payload = {
-      isArchived: false,
-      isDraft: false,
-      fieldData: {
-        name: post.title,
-        slug: post.slug,
-        "post-body": post.contentHtml,
-        "post-summary": post.excerpt || "",
-        "meta-title": post.metaTitle || post.title,
-        "meta-description": post.metaDescription || "",
-      },
+    // Check if item with this slug already exists — update instead of creating a duplicate
+    let existingItemId: string | undefined;
+    const listRes = await fetch(
+      `${WEBFLOW_API}/collections/${config.collectionId}/items?limit=100`,
+      { headers: headers(config.accessToken), signal: AbortSignal.timeout(10000) }
+    ).catch(() => null);
+    if (listRes?.ok) {
+      const listData = await listRes.json().catch(() => ({})) as { items?: { id: string; fieldData?: { slug?: string } }[] };
+      const match = listData.items?.find((i) => i.fieldData?.slug === post.slug);
+      if (match) existingItemId = match.id;
+    }
+
+    const fieldData = {
+      name: post.title,
+      slug: post.slug,
+      "post-body": post.contentHtml,
+      "post-summary": post.excerpt || "",
+      "meta-title": post.metaTitle || post.title,
+      "meta-description": post.metaDescription || "",
     };
 
-    const res = await fetch(
-      `${WEBFLOW_API}/collections/${config.collectionId}/items`,
-      {
-        method: "POST",
-        headers: headers(config.accessToken),
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(20000),
-      }
-    );
+    const payload = { isArchived: false, isDraft: false, fieldData };
+
+    const endpoint = existingItemId
+      ? `${WEBFLOW_API}/collections/${config.collectionId}/items/${existingItemId}`
+      : `${WEBFLOW_API}/collections/${config.collectionId}/items`;
+
+    const res = await fetch(endpoint, {
+      method: existingItemId ? "PATCH" : "POST",
+      headers: headers(config.accessToken),
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(20000),
+    });
 
     if (!res.ok) {
       const errBody = await res.json().catch(() => ({})) as { message?: string; code?: string };
@@ -107,7 +118,7 @@ export async function pushToWebflow(
     }
 
     const data = (await res.json()) as { id?: string };
-    return { success: true, itemId: data.id };
+    return { success: true, itemId: data.id || existingItemId };
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) };
   }

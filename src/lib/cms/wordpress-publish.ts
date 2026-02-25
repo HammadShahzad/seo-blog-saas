@@ -150,6 +150,19 @@ export async function pushToWordPress(
       tagIds = await ensureTags(post.tags, config);
     }
 
+    // Check if a post with this slug already exists — update instead of creating a duplicate
+    let existingWpId: number | undefined;
+    if (post.slug) {
+      const searchRes = await fetch(
+        `${base}/wp-json/wp/v2/posts?slug=${encodeURIComponent(post.slug)}&status=any&per_page=1`,
+        { headers: { Authorization: auth }, signal: AbortSignal.timeout(10000) }
+      ).catch(() => null);
+      if (searchRes?.ok) {
+        const existing = await searchRes.json().catch(() => []);
+        if (existing.length > 0) existingWpId = existing[0].id;
+      }
+    }
+
     const payload: Record<string, unknown> = {
       title: post.title,
       content: htmlContent,
@@ -179,7 +192,11 @@ export async function pushToWordPress(
       };
     }
 
-    const res = await fetch(`${base}/wp-json/wp/v2/posts`, {
+    const endpoint = existingWpId
+      ? `${base}/wp-json/wp/v2/posts/${existingWpId}`
+      : `${base}/wp-json/wp/v2/posts`;
+
+    const res = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: auth,

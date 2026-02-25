@@ -72,22 +72,42 @@ export async function pushToGhost(post: GhostPostPayload, config: GhostConfig): 
   try {
     const token = generateGhostJWT(config.adminApiKey);
 
-    const payload = {
-      posts: [{
-        title: post.title,
-        html: post.html || "",
-        custom_excerpt: post.excerpt || undefined,
-        slug: post.slug || undefined,
-        status: post.status || "draft",
-        tags: (post.tags || []).map((name) => ({ name })),
-        feature_image: post.featureImageUrl || undefined,
-        meta_title: post.metaTitle || undefined,
-        meta_description: post.metaDescription || undefined,
-      }],
-    };
+    // Check if post with this slug already exists — update instead of creating a duplicate
+    let existingId: string | undefined;
+    let existingUpdatedAt: string | undefined;
+    if (post.slug) {
+      const searchRes = await fetch(`${base}/ghost/api/admin/posts/slug/${encodeURIComponent(post.slug)}/`, {
+        headers: { Authorization: `Ghost ${token}`, "Accept-Version": "v5.0" },
+        signal: AbortSignal.timeout(10000),
+      }).catch(() => null);
+      if (searchRes?.ok) {
+        const data = await searchRes.json().catch(() => ({}));
+        const existing = data.posts?.[0];
+        if (existing) { existingId = existing.id; existingUpdatedAt = existing.updated_at; }
+      }
+    }
 
-    const res = await fetch(`${base}/ghost/api/admin/posts/`, {
-      method: "POST",
+    const postData: Record<string, unknown> = {
+      title: post.title,
+      html: post.html || "",
+      custom_excerpt: post.excerpt || undefined,
+      slug: post.slug || undefined,
+      status: post.status || "draft",
+      tags: (post.tags || []).map((name) => ({ name })),
+      feature_image: post.featureImageUrl || undefined,
+      meta_title: post.metaTitle || undefined,
+      meta_description: post.metaDescription || undefined,
+    };
+    // Ghost requires updated_at for optimistic concurrency on updates
+    if (existingId && existingUpdatedAt) postData.updated_at = existingUpdatedAt;
+
+    const payload = { posts: [postData] };
+    const endpoint = existingId
+      ? `${base}/ghost/api/admin/posts/${existingId}/`
+      : `${base}/ghost/api/admin/posts/`;
+
+    const res = await fetch(endpoint, {
+      method: existingId ? "PUT" : "POST",
       headers: {
         Authorization: `Ghost ${token}`,
         "Content-Type": "application/json",

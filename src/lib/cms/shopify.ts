@@ -150,6 +150,19 @@ export async function pushToShopify(
 
     const isPublished = post.status !== "draft";
 
+    // Check if article with this handle already exists — update instead of creating a duplicate
+    let existingArticleId: number | undefined;
+    if (post.slug) {
+      const searchRes = await fetch(
+        `${apiBase(config.storeUrl)}/blogs/${blogId}/articles.json?handle=${encodeURIComponent(post.slug)}&limit=1`,
+        { headers: headers(config.accessToken), signal: AbortSignal.timeout(10000) }
+      ).catch(() => null);
+      if (searchRes?.ok) {
+        const data = await searchRes.json().catch(() => ({})) as { articles?: { id: number }[] };
+        if (data.articles?.length) existingArticleId = data.articles[0].id;
+      }
+    }
+
     const payload: Record<string, unknown> = {
       article: {
         title: post.title,
@@ -166,8 +179,12 @@ export async function pushToShopify(
       },
     };
 
-    const res = await fetch(`${apiBase(config.storeUrl)}/blogs/${blogId}/articles.json`, {
-      method: "POST",
+    const endpoint = existingArticleId
+      ? `${apiBase(config.storeUrl)}/blogs/${blogId}/articles/${existingArticleId}.json`
+      : `${apiBase(config.storeUrl)}/blogs/${blogId}/articles.json`;
+
+    const res = await fetch(endpoint, {
+      method: existingArticleId ? "PUT" : "POST",
       headers: headers(config.accessToken),
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(30000),

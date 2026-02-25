@@ -101,18 +101,14 @@ export async function PATCH(
       }
     }
 
-    const wasPublished = (await prisma.blogPost.findUnique({
-      where: { id: postId },
-      select: { status: true },
-    }))?.status !== "PUBLISHED";
-
     const post = await prisma.blogPost.update({
       where: { id: postId, websiteId },
       data: updateData,
     });
 
-    // Fire publish hook when transitioning to PUBLISHED
-    if (body.status === "PUBLISHED" && wasPublished) {
+    // Fire publish hook whenever status is explicitly set to PUBLISHED
+    // (handles both first publish and re-saves that should sync to CMS)
+    if (body.status === "PUBLISHED") {
       runPublishHook({ postId, websiteId, triggeredBy: "manual" }).catch(console.error);
     }
 
