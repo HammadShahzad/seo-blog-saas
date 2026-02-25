@@ -78,7 +78,7 @@ jobs:
         run: |
           sshpass -p "$DEPLOY_PASS" ssh -o StrictHostKeyChecking=no \
             ${{ env.DEPLOY_USER }}@${{ env.DEPLOY_HOST }} \
-            "cd ${{ env.DEPLOY_PATH }}/.next/standalone && npm install --platform=linux --arch=x64 --libc=glibc sharp@'^0.34.5' 2>&1 | tail -5"
+            "cd ${{ env.DEPLOY_PATH }} && npm install --platform=linux --arch=x64 --libc=glibc sharp@'^0.34.5' 2>&1 | tail -5"
 
       - name: Sync DB schema on droplet
         env:
