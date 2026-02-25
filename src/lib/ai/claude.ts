@@ -25,11 +25,14 @@ async function withRetry<T>(fn: () => Promise<T>, maxRetries: number, label: str
     } catch (err: unknown) {
       const status = (err as { status?: number })?.status;
       const message = err instanceof Error ? err.message : String(err);
-      const isRetryable = status === 429 || status === 500 || status === 503 || status === 529 ||
-        message.includes("ECONNRESET") || message.includes("timeout") || message.includes("overloaded");
+      const isOverloaded = status === 529 || status === 429 || message.includes("overloaded");
+      const isRetryable = isOverloaded || status === 500 || status === 503 ||
+        message.includes("ECONNRESET") || message.includes("timeout");
       if (!isRetryable || attempt === maxRetries) throw err;
-      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 8000);
-      console.warn(`[${label}] Attempt ${attempt} failed (${status || message.slice(0, 80)}), retrying in ${delay}ms...`);
+      // Longer backoff for overload (up to 30s) vs transient errors (up to 8s)
+      const maxDelay = isOverloaded ? 30000 : 8000;
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), maxDelay);
+      console.warn(`[${label}] Attempt ${attempt}/${maxRetries} failed (${status || message.slice(0, 80)}), retrying in ${delay / 1000}s...`);
       await new Promise(r => setTimeout(r, delay));
     }
   }
@@ -67,7 +70,7 @@ export async function claudeGenerateTextWithMeta(
       ...(systemPrompt ? { system: systemPrompt } : {}),
       messages: [{ role: "user", content: prompt }],
     }),
-    3,
+    5,
     `claude:${modelName}`
   );
 
