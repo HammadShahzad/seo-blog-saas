@@ -12,7 +12,6 @@ import { Menu, X, LayoutDashboard, ArrowRight } from "lucide-react";
 
 const navLinks = [
   { href: "/features", label: "Features" },
-  { href: "/use-cases", label: "Use Cases" },
   { href: "/case-studies", label: "Case Studies" },
   { href: "/pricing", label: "Pricing" },
   { href: "/docs", label: "Docs" },
