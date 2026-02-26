@@ -36,6 +36,7 @@ const caseStudies = [
     ],
     timeframe: "6 months",
     accentColor: "text-orange-400",
+    hoverClass: "group-hover:text-orange-400",
     borderColor: "border-orange-500/20",
   },
   {
@@ -53,6 +54,7 @@ const caseStudies = [
     ],
     timeframe: "5 months",
     accentColor: "text-blue-400",
+    hoverClass: "group-hover:text-blue-400",
     borderColor: "border-blue-500/20",
   },
   {
@@ -70,6 +72,7 @@ const caseStudies = [
     ],
     timeframe: "4 months",
     accentColor: "text-purple-400",
+    hoverClass: "group-hover:text-purple-400",
     borderColor: "border-purple-500/20",
   },
   {
@@ -87,6 +90,7 @@ const caseStudies = [
     ],
     timeframe: "4 months",
     accentColor: "text-emerald-400",
+    hoverClass: "group-hover:text-emerald-400",
     borderColor: "border-emerald-500/20",
   },
 ];
@@ -186,7 +190,7 @@ export default function CaseStudiesPage() {
                         {cs.timeframe}
                       </span>
                     </div>
-                    <h3 className={`text-xl md:text-2xl font-bold text-zinc-900 mb-3 group-hover:${cs.accentColor} transition-colors`}>
+                    <h3 className={`text-xl md:text-2xl font-bold text-zinc-900 mb-3 ${cs.hoverClass} transition-colors`}>
                       {cs.headline}
                     </h3>
                     <p className="text-zinc-500 text-sm leading-relaxed mb-4">{cs.description}</p>

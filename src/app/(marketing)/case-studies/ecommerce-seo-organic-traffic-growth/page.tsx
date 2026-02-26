@@ -66,6 +66,18 @@ export default function EcommerceTrafficCaseStudy() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faqs.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
+        }) }}
+      />
 
       {/* ── HERO ── dark */}
       <section className="bg-zinc-950 pt-24 pb-20 px-4 relative overflow-hidden">

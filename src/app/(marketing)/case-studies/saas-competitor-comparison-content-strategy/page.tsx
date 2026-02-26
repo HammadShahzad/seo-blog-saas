@@ -66,6 +66,18 @@ export default function SaasCompetitorCaseStudy() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: faqs.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
+        }) }}
+      />
 
       {/* ── HERO ── dark */}
       <section className="bg-zinc-950 pt-24 pb-20 px-4 relative overflow-hidden">
@@ -440,7 +452,7 @@ export default function SaasCompetitorCaseStudy() {
               <Link href="/register">Start Free <ArrowRight className="ml-2 h-4 w-4" /></Link>
             </Button>
             <Button asChild variant="outline" size="lg" className="h-12 px-8 text-base text-zinc-300 border-white/15 bg-transparent hover:bg-white/5">
-              <Link href="/use-cases/saas">SaaS Use Case Guide</Link>
+              <Link href="/case-studies">View All Case Studies</Link>
             </Button>
           </div>
         </div>

@@ -111,7 +111,7 @@ export function PostsTable({ posts: initialPosts, websiteId }: Props) {
 
   return (
     <div className="overflow-x-auto w-full">
-    <Table>
+      <Table>
       <TableHeader>
         <TableRow>
           <TableHead className="w-[40%] min-w-[180px]">Title</TableHead>
@@ -250,7 +250,7 @@ export function PostsTable({ posts: initialPosts, websiteId }: Props) {
           </TableRow>
         ))}
       </TableBody>
-    </Table>
+      </Table>
     </div>
   );
 }
