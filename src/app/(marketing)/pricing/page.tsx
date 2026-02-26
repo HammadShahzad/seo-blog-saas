@@ -181,17 +181,17 @@ export default function PricingPage() {
           </p>
 
           {/* Billing Toggle */}
-          <div className="flex items-center justify-center gap-3">
+          <div className="inline-flex items-center justify-center gap-3 rounded-full bg-white/5 border border-white/10 px-5 py-2.5">
             <span className={`text-sm font-medium ${!annual ? "text-white" : "text-zinc-500"}`}>Monthly</span>
             <button
               onClick={() => setAnnual(!annual)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${annual ? "bg-indigo-600" : "bg-zinc-700"}`}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 ${annual ? "bg-indigo-600" : "bg-zinc-700"}`}
             >
               <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${annual ? "translate-x-6" : "translate-x-1"}`} />
             </button>
             <span className={`text-sm font-medium ${annual ? "text-white" : "text-zinc-500"}`}>Annual</span>
             {annual && (
-              <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-xs font-medium text-emerald-400">
+              <span className="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-xs font-medium text-emerald-400 whitespace-nowrap">
                 Save 20%
               </span>
             )}
@@ -202,7 +202,7 @@ export default function PricingPage() {
       {/* ── PRICING CARDS ── light */}
       <section className="py-16 px-4 bg-zinc-50 border-b border-zinc-200">
         <div className="max-w-6xl mx-auto">
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
             {plans.map((plan) => {
               const price = annual ? plan.annualPrice : plan.monthlyPrice;
               return (

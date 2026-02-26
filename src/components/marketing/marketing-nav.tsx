@@ -30,6 +30,7 @@ const featureCategories = [
     description: "7-step pipeline, brand voice, AI images, 1,500–2,500 word articles",
     iconBg: "bg-indigo-50",
     iconColor: "text-indigo-600",
+    href: "/features#ai-content",
   },
   {
     icon: Search,
@@ -37,6 +38,7 @@ const featureCategories = [
     description: "Meta tags, schema markup, internal linking, content scoring",
     iconBg: "bg-blue-50",
     iconColor: "text-blue-600",
+    href: "/features#seo-engine",
   },
   {
     icon: Network,
@@ -44,6 +46,7 @@ const featureCategories = [
     description: "Topic clusters, content calendar, keyword queue management",
     iconBg: "bg-emerald-50",
     iconColor: "text-emerald-600",
+    href: "/features#topic-clusters",
   },
   {
     icon: Plug,
@@ -51,6 +54,7 @@ const featureCategories = [
     description: "WordPress, Ghost, Shopify, Webflow, custom webhooks",
     iconBg: "bg-rose-50",
     iconColor: "text-rose-600",
+    href: "/features#cms-integrations",
   },
   {
     icon: BarChart3,
@@ -58,6 +62,7 @@ const featureCategories = [
     description: "Search Console, per-post traffic, keyword rankings, reports",
     iconBg: "bg-amber-50",
     iconColor: "text-amber-600",
+    href: "/features#analytics",
   },
   {
     icon: Share2,
@@ -65,6 +70,7 @@ const featureCategories = [
     description: "Twitter/X, LinkedIn auto-posting, IndexNow, RSS feeds",
     iconBg: "bg-cyan-50",
     iconColor: "text-cyan-600",
+    href: "/features#social-publishing",
   },
 ];
 
@@ -146,7 +152,7 @@ export function MarketingNav() {
                     {featureCategories.map((cat) => (
                       <Link
                         key={cat.title}
-                        href="/features"
+                        href={cat.href}
                         onClick={() => setMegaOpen(false)}
                         className="bg-background p-5 hover:bg-accent/50 transition-colors group"
                       >

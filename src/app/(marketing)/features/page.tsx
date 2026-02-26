@@ -39,10 +39,11 @@ export const metadata: Metadata = {
   },
 };
 
-const features: { icon: LucideIcon; title: string; description: string; bullets: string[]; accent: string; glow: string }[] = [
+const features: { icon: LucideIcon; title: string; slug: string; description: string; bullets: string[]; accent: string; glow: string }[] = [
   {
     icon: Brain,
     title: "AI Content Generation",
+    slug: "ai-content",
     description: "7-step pipeline: research, outline, draft, tone match, SEO optimize, metadata, and featured image.",
     bullets: ["Real-time web research", "Brand voice matching", "1,500–2,500 word articles", "AI-generated featured image"],
     accent: "text-indigo-400",
@@ -51,6 +52,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: Globe,
     title: "Multi-Website Management",
+    slug: "multi-website",
     description: "One dashboard for all your websites — each with its own keywords, settings, and publishing schedule.",
     bullets: ["Separate keyword queues", "Individual brand voices", "Per-site analytics", "Team permissions"],
     accent: "text-purple-400",
@@ -59,6 +61,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: Search,
     title: "SEO Engine",
+    slug: "seo-engine",
     description: "Every post is automatically optimized with meta tags, structured data, and on-page SEO scoring.",
     bullets: ["Auto meta titles & descriptions", "JSON-LD schema markup", "Content quality scoring", "IndexNow indexing"],
     accent: "text-blue-400",
@@ -67,6 +70,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: Plug,
     title: "CMS Integrations",
+    slug: "cms-integrations",
     description: "Push finished posts directly to WordPress, Ghost, Shopify, Webflow, or any platform via webhook.",
     bullets: ["WordPress REST API", "Ghost & Shopify support", "Webflow CMS collections", "Custom webhooks"],
     accent: "text-rose-400",
@@ -75,6 +79,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: Link2,
     title: "Internal Linking Engine",
+    slug: "internal-linking",
     description: "Automatically suggests and inserts contextual internal links to boost your site's link equity.",
     bullets: ["Keyword-to-URL mapping", "Auto-insert in new posts", "Avoids duplicate links", "Manual link overrides"],
     accent: "text-amber-400",
@@ -83,6 +88,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: Network,
     title: "Topic Clusters",
+    slug: "topic-clusters",
     description: "AI plans your entire content strategy — pillar pages and supporting articles that build topical authority.",
     bullets: ["Pillar + cluster generation", "Auto internal link mapping", "Topical authority scoring", "Cluster analytics"],
     accent: "text-emerald-400",
@@ -91,6 +97,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: Share2,
     title: "Social Publishing",
+    slug: "social-publishing",
     description: "Automatically share new posts on Twitter/X and LinkedIn with platform-optimized captions.",
     bullets: ["Twitter/X auto-posting", "LinkedIn auto-sharing", "Captions per platform", "Scheduled social posts"],
     accent: "text-cyan-400",
@@ -99,6 +106,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: BarChart3,
     title: "Analytics",
+    slug: "analytics",
     description: "Connect Google Search Console and track traffic, rankings, and content performance in real time.",
     bullets: ["Search Console integration", "Per-post traffic data", "Keyword ranking tracking", "Monthly reports"],
     accent: "text-green-400",
@@ -107,6 +115,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: CalendarDays,
     title: "Content Calendar",
+    slug: "content-calendar",
     description: "Visual calendar showing your entire content pipeline — scheduled, in-progress, and published.",
     bullets: ["Month / week / day views", "Drag-and-drop scheduling", "Multi-site overlay", "Bulk scheduling"],
     accent: "text-violet-400",
@@ -115,6 +124,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: Code2,
     title: "Public REST API",
+    slug: "rest-api",
     description: "Automate everything programmatically — create posts, trigger generation, pull analytics.",
     bullets: ["API key auth", "Webhook events", "All dashboard features via API", "Full documentation"],
     accent: "text-orange-400",
@@ -123,6 +133,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: ImageIcon,
     title: "AI Image Generation",
+    slug: "ai-images",
     description: "Every post gets a unique, high-quality featured image generated by Imagen and uploaded automatically.",
     bullets: ["Gemini + Imagen pipeline", "Niche-aware style selection", "1200×630 WebP output", "Custom prompt override"],
     accent: "text-pink-400",
@@ -131,6 +142,7 @@ const features: { icon: LucideIcon; title: string; description: string; bullets:
   {
     icon: Tags,
     title: "Metadata & Schema",
+    slug: "metadata-schema",
     description: "Auto-generated SEO metadata and structured data for every post — including social captions.",
     bullets: ["Meta title & description", "Article schema markup", "Twitter + OG tags", "Social captions for 4 platforms"],
     accent: "text-teal-400",
@@ -224,7 +236,8 @@ export default function FeaturesPage() {
               return (
                 <div
                   key={f.title}
-                  className="rounded-2xl border border-zinc-200 bg-white p-6 flex flex-col gap-4 hover:shadow-md transition-shadow"
+                  id={f.slug}
+                  className="rounded-2xl border border-zinc-200 bg-white p-6 flex flex-col gap-4 hover:shadow-md transition-shadow scroll-mt-24"
                 >
                   <div className="flex items-center gap-3">
                     <div className={`h-10 w-10 rounded-xl ${f.glow} flex items-center justify-center shrink-0`}>
@@ -267,7 +280,7 @@ export default function FeaturesPage() {
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
-            <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base text-zinc-300 border-white/15 hover:bg-white/5 hover:text-white w-full sm:w-auto">
+            <Button asChild size="lg" variant="outline" className="h-12 px-8 text-base text-zinc-300 border-white/15 bg-transparent hover:bg-white/5 hover:text-white w-full sm:w-auto">
               <Link href="/pricing">View Pricing</Link>
             </Button>
           </div>
