@@ -72,6 +72,7 @@ export async function POST(
     const activeJob = await prisma.generationJob.findFirst({
       where: {
         websiteId,
+        type: "BLOG_GENERATION",
         status: { in: ["QUEUED", "PROCESSING"] },
       },
     });

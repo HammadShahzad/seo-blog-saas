@@ -15,52 +15,141 @@ Website ID: <PASTE_YOUR_WEBSITE_ID_HERE>
 
 == AVAILABLE ENDPOINTS ==
 
-1. LIST POSTS (published only)
+--- WEBSITES ---
+
+1. LIST WEBSITES
+   GET /api/v1/websites
+   Scope: websites:read
+   Returns: { data: [{ id, name, domain, subdomain, customDomain, niche,
+   brandName, brandUrl, status, hostingMode, createdAt, updatedAt }],
+   meta: { total } }
+
+2. GET WEBSITE DETAILS
+   GET /api/v1/websites/{websiteId}
+   Scope: websites:read
+   Returns: { data: { id, name, domain, subdomain, niche, description,
+   targetAudience, tone, brandName, autoPublish, postsPerWeek,
+   blogSettings: { contentLength, includeImages, includeFAQ, includeProTips,
+   includeTableOfContents, writingStyle, preferredModel } } }
+
+--- POSTS ---
+
+3. LIST POSTS
    GET /api/v1/websites/{websiteId}/posts?page=1&limit=20&status=PUBLISHED
-   Returns: { posts: [...], total, page, limit }
+   Scope: posts:read
+   Returns: { posts: [...], pagination: { page, limit, total, totalPages } }
 
-2. GET SINGLE POST
+4. GET SINGLE POST
    GET /api/v1/websites/{websiteId}/posts/{slug}
-   Returns full post with: title, slug, content (markdown), contentHtml, excerpt,
-   metaTitle, metaDescription, focusKeyword, featuredImage, tags, category,
-   status, publishedAt, wordCount, readingTime
+   Scope: posts:read
+   Returns full post with: title, slug, content (markdown), contentHtml,
+   excerpt, metaTitle, metaDescription, focusKeyword, featuredImage,
+   tags, category, status, publishedAt, wordCount, readingTime
 
-3. CREATE POST
+5. CREATE POST
    POST /api/v1/websites/{websiteId}/posts
-   Body: { title, content, slug?, excerpt?, metaTitle?, metaDescription?,
-           focusKeyword?, featuredImage?, tags?, category?, status? }
+   Scope: posts:write
+   Body: { title, slug, content, excerpt?, metaTitle?, metaDescription?,
+   focusKeyword?, secondaryKeywords?, featuredImage?, featuredImageAlt?,
+   tags?, category?, status? }
+   Required fields: title, slug, content
+   Returns: created post object (201)
 
-4. UPDATE POST
+6. UPDATE POST
    PATCH /api/v1/websites/{websiteId}/posts/{slug}
-   Body: (same fields as create, partial update)
+   Scope: posts:write
+   Body: partial update — title, content, excerpt, metaTitle,
+   metaDescription, focusKeyword, secondaryKeywords, featuredImage,
+   featuredImageAlt, tags, category, status, scheduledAt
+   Returns: updated post object
 
-5. DELETE POST
+7. DELETE POST
    DELETE /api/v1/websites/{websiteId}/posts/{slug}
+   Scope: posts:write
+   Returns: { success: true }
 
-6. RSS FEED
+--- FEEDS ---
+
+8. RSS FEED
    GET /api/v1/websites/{websiteId}/feed.xml
-   Returns RSS 2.0 XML feed of published posts
+   Scope: posts:read
+   Returns: RSS 2.0 XML feed of published posts
 
-7. SITEMAP
+9. SITEMAP
    GET /api/v1/websites/{websiteId}/sitemap.xml
-   Returns XML sitemap of all published posts
+   Scope: posts:read
+   Returns: XML sitemap of all published posts
 
-8. TRIGGER CONTENT GENERATION
-   POST /api/v1/websites/{websiteId}/generate
-   Body: { keyword: string, options?: { tone?, wordCount?, includeImages? } }
-   Returns: { jobId, status: "queued" }
+--- KEYWORDS ---
 
-9. CHECK JOB STATUS
-   GET /api/v1/websites/{websiteId}/jobs/{jobId}
-   Returns: { id, status: "pending"|"running"|"completed"|"failed", result? }
+10. LIST KEYWORDS (paginated)
+    GET /api/v1/websites/{websiteId}/keywords?page=1&limit=50&status=PENDING
+    Scope: keywords:read
+    Returns: { data: [{ id, keyword, status, priority, searchVolume,
+    difficulty, intent, parentCluster, notes, blogPostId, createdAt }],
+    meta: { page, limit, total, totalPages } }
 
-10. LIST KEYWORDS
-    GET /api/v1/websites/{websiteId}/keywords
-    Returns: { keywords: [{ id, keyword, status, difficulty, volume }] }
-
-11. ADD KEYWORD
+11. ADD KEYWORD(S)
     POST /api/v1/websites/{websiteId}/keywords
-    Body: { keyword: string, priority?: "LOW"|"MEDIUM"|"HIGH" }
+    Scope: keywords:write
+    Body: { keyword: "string" } or { keywords: ["string", "string"] }
+    Returns: { data: { added: N, keywords: [...] } } (201)
+
+12. BULK ADD KEYWORDS (with priority & notes)
+    POST /api/v1/websites/{websiteId}/keywords/bulk
+    Scope: keywords:write
+    Body: { keywords: [{ keyword: "string", priority?: 0-100,
+    notes?: "string" }] }
+    Returns: { data: { added: N, keywords: [...] } } (201)
+
+--- CONTENT GENERATION ---
+
+13. TRIGGER AI CONTENT GENERATION
+    POST /api/v1/websites/{websiteId}/generate
+    Scope: generate:write
+    Body: { keywordId?: "uuid" }
+    If keywordId is provided, generates for that specific PENDING keyword.
+    If omitted, picks the next pending keyword by priority automatically.
+    Returns: { data: { jobId, keywordId, keyword, status: "QUEUED" },
+    meta: { remaining: N } } (202)
+
+14. CHECK JOB STATUS
+    GET /api/v1/websites/{websiteId}/jobs/{jobId}
+    Scope: generate:read
+    Returns: { data: { id, type, status, currentStep, progress, error,
+    startedAt, completedAt, createdAt, blogPostId, output } }
+    Status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED"
+
+--- TOPIC CLUSTERS ---
+
+15. LIST TOPIC CLUSTERS
+    GET /api/v1/websites/{websiteId}/clusters
+    Scope: clusters:read
+    Returns: { data: [{ id, name, pillarKeyword, pillarPostId,
+    supportingKeywords, status, totalPosts, publishedPosts }],
+    meta: { total } }
+
+16. CREATE TOPIC CLUSTER
+    POST /api/v1/websites/{websiteId}/clusters
+    Scope: clusters:write
+    Body: { name: "string", pillarKeyword: "string",
+    supportingKeywords?: ["string"] }
+    Returns: { data: cluster } (201)
+
+--- ANALYTICS ---
+
+17. GET ANALYTICS
+    GET /api/v1/websites/{websiteId}/analytics?from=ISO8601&to=ISO8601
+    Scope: analytics:read
+    Defaults to current month if from/to omitted.
+    Returns: { data: { period: { from, to }, posts: { total, published,
+    totalViews }, traffic: { pageViews, uniqueVisitors, organicTraffic,
+    impressions, clicks, socialShares }, topPosts: [{ id, title, slug,
+    views, publishedAt, contentScore }] } }
+
+== API SCOPES ==
+websites:read, posts:read, posts:write, keywords:read, keywords:write,
+generate:read, generate:write, clusters:read, clusters:write, analytics:read
 
 == WEBHOOK EVENTS ==
 StackSerp POSTs to your webhook URL on:
@@ -98,16 +187,68 @@ Verify webhook signature:
   Secret: <your_webhook_secret>
   Compute: HMAC-SHA256(raw_body, secret) and compare hex
 
+== INTEGRATING STACKSERP INTO YOUR WEBSITE ==
+
+To automatically receive blog posts from StackSerp into your custom website,
+you need to do TWO things:
+
+OPTION A — PULL: Fetch posts from the API
+  1. Call GET /api/v1/websites/{websiteId}/posts to list published posts
+  2. Call GET /api/v1/websites/{websiteId}/posts/{slug} to get full content
+  3. Store them in your database or render them directly
+  4. Poll periodically or trigger on demand
+
+OPTION B — PUSH (recommended): Receive posts via webhook
+  1. Create an API route in your project (e.g. /api/stackserp-webhook)
+  2. StackSerp will POST the full blog post to your endpoint on publish
+  3. Verify the signature, then save the post to your database/CMS/files
+
+Example webhook handler (Next.js App Router):
+
+  import crypto from "crypto";
+  import { NextResponse } from "next/server";
+
+  export async function POST(req: Request) {
+    const secret = process.env.STACKSERP_WEBHOOK_SECRET;
+    const body = await req.text();
+    const sig = req.headers.get("x-stackserp-signature") || "";
+    const expected = "sha256=" +
+      crypto.createHmac("sha256", secret).update(body).digest("hex");
+
+    if (sig !== expected) {
+      return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+    }
+
+    const { event, post } = JSON.parse(body);
+
+    if (event === "post.published") {
+      // Save to your database, write to MDX file, etc.
+      // post.title, post.slug, post.content (markdown),
+      // post.contentHtml, post.excerpt, post.metaTitle,
+      // post.metaDescription, post.featuredImage, post.tags,
+      // post.category, post.wordCount, post.readingTime
+      await savePostToDatabase(post);
+    }
+
+    return NextResponse.json({ received: true });
+  }
+
+Then set your webhook URL in StackSerp dashboard settings to:
+  https://yoursite.com/api/stackserp-webhook
+
 == INSTRUCTIONS ==
-- Always include Authorization header on every request
+- Always include Authorization header on every API request
 - Handle 429 rate limit responses with exponential backoff
 - Post content arrives as Markdown — convert to HTML for rendering
-- featuredImage is a CDN URL (Backblaze B2) — use directly in <img> tags
-- slugs are URL-safe lowercase strings with hyphens
+- featuredImage is a CDN URL — use directly in <img> tags
+- Slugs are URL-safe lowercase strings with hyphens
+- All statuses are UPPERCASE (PUBLISHED, DRAFT, PENDING, QUEUED, etc.)
 
-When asked to fetch posts, call endpoint #1.
-When asked to publish content, call endpoint #3.
-When asked to generate new AI content for a keyword, call endpoint #8 then poll #9.`;
+When asked to fetch posts, call endpoint #3.
+When asked to publish content, call endpoint #5.
+When asked to generate new AI content, call endpoint #13 then poll #14.
+When asked about analytics or traffic, call endpoint #17.
+When asked to integrate StackSerp into a website, follow the webhook setup above.`;
 
 export function AiAgentSection() {
   return (
@@ -154,11 +295,11 @@ export function AiAgentSection() {
         <div className="grid sm:grid-cols-2 gap-3">
           {[
             "\"Fetch all published posts and summarize them\"",
-            "\"Generate a new post about [keyword]\"",
-            "\"List posts published this week\"",
+            "\"Generate a new post for my next pending keyword\"",
+            "\"Show me my website analytics for this month\"",
             "\"Check the status of generation job job_abc123\"",
-            "\"Add keyword 'best CRM 2026' to my keyword list\"",
-            "\"Get the full content of post: saas-marketing-guide\"",
+            "\"Add a webhook route to receive posts from StackSerp\"",
+            "\"Create a topic cluster around 'SaaS marketing'\"",
           ].map((task) => (
             <div key={task} className="flex items-start gap-2 text-sm">
               <Terminal className="h-3.5 w-3.5 text-primary flex-shrink-0 mt-0.5" />
