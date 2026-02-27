@@ -1,11 +1,10 @@
 /**
  * AI Image Generation Pipeline
- * Gemini 3 Pro (native image gen) → Sharp → WebP → Backblaze B2
+ * Gemini 3.1 Flash (native image gen) → Sharp → WebP → Backblaze B2
  *
- * Single-step: Gemini 3 Pro generates images natively via responseModalities.
- * Supports 4K output, ~94% text rendering accuracy, up to 14 reference images.
+ * Single-step: Gemini 3.1 Flash generates images natively via responseModalities.
+ * Uses the standard generateContent endpoint with responseModalities: ["TEXT", "IMAGE"].
  *
- * Falls back to Imagen 4.0 if Gemini 3 Pro image gen fails.
  * Also supports web stock images (Pexels) and illustration style.
  */
 import sharp from "sharp";
@@ -13,8 +12,7 @@ import { uploadToB2 } from "./backblaze";
 
 export type ImageSourceType = "AI_GENERATED" | "WEB_IMAGES" | "ILLUSTRATION";
 
-const GEMINI_IMAGE_MODEL = "gemini-3-pro-image-preview";
-const IMAGEN_FALLBACK_MODEL = "imagen-4.0-fast-generate-001";
+const GEMINI_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
 
 const IMAGE_STYLES = [
   "high-quality photorealistic scene with natural lighting and professional composition",
@@ -39,10 +37,10 @@ const ILLUSTRATION_STYLES = [
 ];
 
 /**
- * Generate an image using Gemini 3 Pro native image generation.
+ * Generate an image using Gemini 3.1 Flash native image generation.
  * One API call — the model understands context and generates the image directly.
  */
-async function generateWithGemini3Pro(
+async function generateWithGemini(
   keyword: string,
   niche: string,
   blogContext: string,
@@ -109,12 +107,12 @@ Blog context: ${blogContext.slice(0, 400)}`;
 
       if (!response.ok) {
         const err = await response.text();
-        console.error(`[Gemini3Pro] attempt ${attempt}/${retries} — ${response.status}:`, err.slice(0, 300));
-        lastError = new Error(`Gemini 3 Pro image API error (${response.status})`);
+        console.error(`[GeminiFlash] attempt ${attempt}/${retries} — ${response.status}:`, err.slice(0, 300));
+        lastError = new Error(`Gemini Flash image API error (${response.status})`);
 
         if (response.status === 429) {
           const backoff = Math.min(attempt * 10000, 30000);
-          console.warn(`[Gemini3Pro] Rate limited, waiting ${backoff / 1000}s…`);
+          console.warn(`[GeminiFlash] Rate limited, waiting ${backoff / 1000}s…`);
           await new Promise((r) => setTimeout(r, backoff));
           continue;
         }
@@ -129,92 +127,35 @@ Blog context: ${blogContext.slice(0, 400)}`;
       const parts = data.candidates?.[0]?.content?.parts;
 
       if (!parts || !Array.isArray(parts)) {
-        lastError = new Error("No parts in Gemini 3 Pro response");
+        lastError = new Error("No parts in Gemini Flash response");
         await new Promise((r) => setTimeout(r, attempt * 3000));
         continue;
       }
 
       for (const part of parts) {
         if (part.inlineData?.data) {
-          console.log(`[Gemini3Pro] Image generated (style: ${style.split(" ").slice(0, 3).join(" ")}…)`);
+          console.log(`[GeminiFlash] Image generated (style: ${style.split(" ").slice(0, 3).join(" ")}…)`);
           return Buffer.from(part.inlineData.data, "base64");
         }
         if (part.inline_data?.data) {
-          console.log(`[Gemini3Pro] Image generated (style: ${style.split(" ").slice(0, 3).join(" ")}…)`);
+          console.log(`[GeminiFlash] Image generated (style: ${style.split(" ").slice(0, 3).join(" ")}…)`);
           return Buffer.from(part.inline_data.data, "base64");
         }
       }
 
-      console.warn(`[Gemini3Pro] attempt ${attempt} — no image data in response parts`);
-      lastError = new Error("No image data in Gemini 3 Pro response");
+      console.warn(`[GeminiFlash] attempt ${attempt} — no image data in response parts`);
+      lastError = new Error("No image data in Gemini Flash response");
       await new Promise((r) => setTimeout(r, attempt * 3000));
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       if (attempt < retries) {
-        console.warn(`[Gemini3Pro] attempt ${attempt} failed, retrying in ${attempt * 5}s…`);
+        console.warn(`[GeminiFlash] attempt ${attempt} failed, retrying in ${attempt * 5}s…`);
         await new Promise((r) => setTimeout(r, attempt * 5000));
       }
     }
   }
 
-  throw lastError || new Error("Gemini 3 Pro image generation failed after all retries");
-}
-
-/**
- * Fallback: Imagen 4.0 (used only if Gemini 3 Pro fails)
- */
-async function generateWithImagen(
-  prompt: string,
-  apiKey: string,
-  retries = 2,
-): Promise<Buffer> {
-  let lastError: Error | null = null;
-
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${IMAGEN_FALLBACK_MODEL}:predict`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-goog-api-key": apiKey,
-          },
-          signal: AbortSignal.timeout(60000),
-          body: JSON.stringify({
-            instances: [{ prompt }],
-            parameters: { sampleCount: 1, personGeneration: "allow_adult" },
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const err = await response.text();
-        console.error(`[Imagen fallback] attempt ${attempt}/${retries} — ${response.status}:`, err.slice(0, 300));
-        lastError = new Error(`Imagen API error (${response.status})`);
-        if (response.status === 429) {
-          await new Promise((r) => setTimeout(r, attempt * 8000));
-          continue;
-        }
-        throw lastError;
-      }
-
-      const data = await response.json();
-      const base64 = data.predictions?.[0]?.bytesBase64Encoded;
-      if (!base64) {
-        lastError = new Error("No image data from Imagen");
-        continue;
-      }
-      return Buffer.from(base64, "base64");
-    } catch (err) {
-      lastError = err instanceof Error ? err : new Error(String(err));
-      if (attempt < retries) {
-        await new Promise((r) => setTimeout(r, attempt * 5000));
-      }
-    }
-  }
-
-  throw lastError || new Error("Imagen fallback failed");
+  throw lastError || new Error("Gemini Flash image generation failed after all retries");
 }
 
 // Track used Pexels photo IDs within a single blog generation to avoid duplicates.
@@ -300,7 +241,7 @@ export async function generateBlogImage(
       let apiKey = process.env.GOOGLE_AI_API_KEY;
       if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
       apiKey = apiKey.replace(/\\n/g, "").trim();
-      imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, quality === "high" ? 3 : 2, "AI_GENERATED");
+      imageBytes = await generateWithGemini(kw, nicheStr, prompt, apiKey, quality === "high" ? 3 : 2, "AI_GENERATED");
     }
   } else {
     // AI_GENERATED or ILLUSTRATION — use Gemini
@@ -309,13 +250,10 @@ export async function generateBlogImage(
     apiKey = apiKey.replace(/\\n/g, "").trim();
 
     try {
-      imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, quality === "high" ? 3 : 2, imageSource);
+      imageBytes = await generateWithGemini(kw, nicheStr, prompt, apiKey, quality === "high" ? 3 : 2, imageSource);
     } catch (err) {
-      console.warn("[Image] Gemini 3 Pro failed, falling back to Imagen:", err instanceof Error ? err.message : err);
-      const fallbackPrompt = imageSource === "ILLUSTRATION"
-        ? `Modern flat illustration for "${kw}" in ${nicheStr}. Stylized vector art, clean design, bold colors. No text or words. 16:9 landscape.`
-        : `Professional photorealistic blog hero image for "${kw}" in ${nicheStr}. Real photograph, natural lighting, no illustration or cartoon. No text or words. 16:9 landscape.`;
-      imageBytes = await generateWithImagen(fallbackPrompt, apiKey);
+      console.warn("[Image] Gemini Flash failed, retrying with simplified prompt:", err instanceof Error ? err.message : err);
+      imageBytes = await generateWithGemini(kw, nicheStr, prompt, apiKey, 2, imageSource);
     }
   }
 
@@ -357,7 +295,7 @@ export async function generateInlineImage(
       let apiKey = process.env.GOOGLE_AI_API_KEY;
       if (!apiKey) throw new Error("GOOGLE_AI_API_KEY not configured");
       apiKey = apiKey.replace(/\\n/g, "").trim();
-      imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, 2, "AI_GENERATED");
+      imageBytes = await generateWithGemini(kw, nicheStr, prompt, apiKey, 2, "AI_GENERATED");
     }
   } else {
     let apiKey = process.env.GOOGLE_AI_API_KEY;
@@ -365,12 +303,10 @@ export async function generateInlineImage(
     apiKey = apiKey.replace(/\\n/g, "").trim();
 
     try {
-      imageBytes = await generateWithGemini3Pro(kw, nicheStr, prompt, apiKey, 2, imageSource);
+      imageBytes = await generateWithGemini(kw, nicheStr, prompt, apiKey, 2, imageSource);
     } catch {
-      const fallbackPrompt = imageSource === "ILLUSTRATION"
-        ? `${prompt} Modern flat illustration, stylized vector art, clean design. No text. 16:9.`
-        : `${prompt} Professional photorealistic style, real photograph, no illustration or cartoon. No text. 16:9.`;
-      imageBytes = await generateWithImagen(fallbackPrompt, apiKey);
+      console.warn("[Image] Gemini Flash inline failed, retrying with simplified prompt");
+      imageBytes = await generateWithGemini(kw, nicheStr, prompt, apiKey, 2, imageSource);
     }
   }
 

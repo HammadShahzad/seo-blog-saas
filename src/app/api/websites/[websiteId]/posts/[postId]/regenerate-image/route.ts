@@ -1,6 +1,6 @@
 /**
  * POST /api/websites/[websiteId]/posts/[postId]/regenerate-image
- * Generates a new featured OR inline image for the post via Imagen + uploads to B2.
+ * Generates a new featured OR inline image for the post via Gemini Flash + uploads to B2.
  *
  * Body:
  *   prompt?        — custom prompt override
@@ -99,7 +99,7 @@ export async function POST(req: Request, { params }: Params) {
         { status: 503 },
       );
     }
-    if (msg.includes("GOOGLE_AI_API_KEY") || msg.includes("Imagen")) {
+    if (msg.includes("GOOGLE_AI_API_KEY") || msg.includes("Gemini")) {
       return NextResponse.json(
         { error: "Image generation not configured. Add GOOGLE_AI_API_KEY to your environment variables." },
         { status: 503 },

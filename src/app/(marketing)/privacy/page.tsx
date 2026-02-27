@@ -99,7 +99,7 @@ export default function PrivacyPage() {
           </p>
           <ul className="list-disc list-inside space-y-2 text-muted-foreground">
             <li><strong>Payment processing:</strong> Stripe Inc. — for billing and subscription management.</li>
-            <li><strong>AI providers:</strong> Google (Gemini API, Imagen API) — for content and image generation. Prompts are sent but not permanently stored beyond the request lifecycle under our agreements.</li>
+            <li><strong>AI providers:</strong> Third-party AI services are used for content and image generation. Prompts are sent but not permanently stored beyond the request lifecycle under our agreements.</li>
             <li><strong>Cloud infrastructure:</strong> DigitalOcean or equivalent — for hosting the application and database.</li>
             <li><strong>Email delivery:</strong> A transactional email provider (e.g., Resend or SendGrid) — for system emails.</li>
             <li><strong>CMS platforms:</strong> Your credentials are used to connect to platforms you authorize (WordPress, Shopify, etc.). We only transmit content to those platforms on your explicit instruction.</li>

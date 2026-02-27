@@ -6,7 +6,7 @@ A SaaS platform that lets users manage **automated, AI-powered SEO blog content*
 
 1. **Researches** competitors and content gaps using Perplexity AI
 2. **Generates** high-quality, SEO-optimized blog posts using Gemini AI
-3. **Creates** featured images using Imagen 4.0
+3. **Creates** featured images using Gemini Flash
 4. **Optimizes** with internal linking, meta tags, structured data
 5. **Publishes** directly to the user's website (or hosts it)
 6. **Promotes** on social media (X/Twitter, LinkedIn)
@@ -23,7 +23,7 @@ A SaaS platform that lets users manage **automated, AI-powered SEO blog content*
 - **Stripe** - Billing & subscriptions
 - **Gemini AI** - Content generation
 - **Perplexity AI** - Research
-- **Imagen 4.0** - Image generation
+- **Gemini Flash** - Image generation
 - **Backblaze B2** - Media storage
 
 ## Getting Started
