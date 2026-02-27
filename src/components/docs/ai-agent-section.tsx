@@ -2,160 +2,23 @@ import { Cpu, Copy, Terminal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { SectionAnchor, Note } from "./docs-shared";
 
-const agentPrompt = `You are integrating with StackSerp — an AI-powered SEO content platform.
+const agentPrompt = `You are integrating StackSerp (an AI SEO blog platform) into a website.
+StackSerp generates blog posts automatically. Your job is to receive those
+posts and display them on this website.
 
-== STACKSERP API OVERVIEW ==
-Base URL: https://stackserp.com/api/v1
-Authentication: Bearer token in Authorization header
-  Authorization: Bearer <your_api_key>
-
-== YOUR CREDENTIALS ==
+== CREDENTIALS ==
 API Key: <PASTE_YOUR_API_KEY_HERE>
 Website ID: <PASTE_YOUR_WEBSITE_ID_HERE>
+Webhook Secret: <PASTE_YOUR_WEBHOOK_SECRET_HERE>
 
-== AVAILABLE ENDPOINTS ==
+== HOW IT WORKS ==
+StackSerp publishes blog posts via two methods. Use whichever fits your stack:
 
---- WEBSITES ---
+METHOD 1 — WEBHOOK (recommended)
+StackSerp POSTs a JSON payload to your endpoint every time a post is published.
+Create an API route to receive it.
 
-1. LIST WEBSITES
-   GET /api/v1/websites
-   Scope: websites:read
-   Returns: { data: [{ id, name, domain, subdomain, customDomain, niche,
-   brandName, brandUrl, status, hostingMode, createdAt, updatedAt }],
-   meta: { total } }
-
-2. GET WEBSITE DETAILS
-   GET /api/v1/websites/{websiteId}
-   Scope: websites:read
-   Returns: { data: { id, name, domain, subdomain, niche, description,
-   targetAudience, tone, brandName, autoPublish, postsPerWeek,
-   blogSettings: { contentLength, includeImages, includeFAQ, includeProTips,
-   includeTableOfContents, writingStyle, preferredModel } } }
-
---- POSTS ---
-
-3. LIST POSTS
-   GET /api/v1/websites/{websiteId}/posts?page=1&limit=20&status=PUBLISHED
-   Scope: posts:read
-   Returns: { posts: [...], pagination: { page, limit, total, totalPages } }
-
-4. GET SINGLE POST
-   GET /api/v1/websites/{websiteId}/posts/{slug}
-   Scope: posts:read
-   Returns full post with: title, slug, content (markdown), contentHtml,
-   excerpt, metaTitle, metaDescription, focusKeyword, featuredImage,
-   tags, category, status, publishedAt, wordCount, readingTime
-
-5. CREATE POST
-   POST /api/v1/websites/{websiteId}/posts
-   Scope: posts:write
-   Body: { title, slug, content, excerpt?, metaTitle?, metaDescription?,
-   focusKeyword?, secondaryKeywords?, featuredImage?, featuredImageAlt?,
-   tags?, category?, status? }
-   Required fields: title, slug, content
-   Returns: created post object (201)
-
-6. UPDATE POST
-   PATCH /api/v1/websites/{websiteId}/posts/{slug}
-   Scope: posts:write
-   Body: partial update — title, content, excerpt, metaTitle,
-   metaDescription, focusKeyword, secondaryKeywords, featuredImage,
-   featuredImageAlt, tags, category, status, scheduledAt
-   Returns: updated post object
-
-7. DELETE POST
-   DELETE /api/v1/websites/{websiteId}/posts/{slug}
-   Scope: posts:write
-   Returns: { success: true }
-
---- FEEDS ---
-
-8. RSS FEED
-   GET /api/v1/websites/{websiteId}/feed.xml
-   Scope: posts:read
-   Returns: RSS 2.0 XML feed of published posts
-
-9. SITEMAP
-   GET /api/v1/websites/{websiteId}/sitemap.xml
-   Scope: posts:read
-   Returns: XML sitemap of all published posts
-
---- KEYWORDS ---
-
-10. LIST KEYWORDS (paginated)
-    GET /api/v1/websites/{websiteId}/keywords?page=1&limit=50&status=PENDING
-    Scope: keywords:read
-    Returns: { data: [{ id, keyword, status, priority, searchVolume,
-    difficulty, intent, parentCluster, notes, blogPostId, createdAt }],
-    meta: { page, limit, total, totalPages } }
-
-11. ADD KEYWORD(S)
-    POST /api/v1/websites/{websiteId}/keywords
-    Scope: keywords:write
-    Body: { keyword: "string" } or { keywords: ["string", "string"] }
-    Returns: { data: { added: N, keywords: [...] } } (201)
-
-12. BULK ADD KEYWORDS (with priority & notes)
-    POST /api/v1/websites/{websiteId}/keywords/bulk
-    Scope: keywords:write
-    Body: { keywords: [{ keyword: "string", priority?: 0-100,
-    notes?: "string" }] }
-    Returns: { data: { added: N, keywords: [...] } } (201)
-
---- CONTENT GENERATION ---
-
-13. TRIGGER AI CONTENT GENERATION
-    POST /api/v1/websites/{websiteId}/generate
-    Scope: generate:write
-    Body: { keywordId?: "uuid" }
-    If keywordId is provided, generates for that specific PENDING keyword.
-    If omitted, picks the next pending keyword by priority automatically.
-    Returns: { data: { jobId, keywordId, keyword, status: "QUEUED" },
-    meta: { remaining: N } } (202)
-
-14. CHECK JOB STATUS
-    GET /api/v1/websites/{websiteId}/jobs/{jobId}
-    Scope: generate:read
-    Returns: { data: { id, type, status, currentStep, progress, error,
-    startedAt, completedAt, createdAt, blogPostId, output } }
-    Status: "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED"
-
---- TOPIC CLUSTERS ---
-
-15. LIST TOPIC CLUSTERS
-    GET /api/v1/websites/{websiteId}/clusters
-    Scope: clusters:read
-    Returns: { data: [{ id, name, pillarKeyword, pillarPostId,
-    supportingKeywords, status, totalPosts, publishedPosts }],
-    meta: { total } }
-
-16. CREATE TOPIC CLUSTER
-    POST /api/v1/websites/{websiteId}/clusters
-    Scope: clusters:write
-    Body: { name: "string", pillarKeyword: "string",
-    supportingKeywords?: ["string"] }
-    Returns: { data: cluster } (201)
-
---- ANALYTICS ---
-
-17. GET ANALYTICS
-    GET /api/v1/websites/{websiteId}/analytics?from=ISO8601&to=ISO8601
-    Scope: analytics:read
-    Defaults to current month if from/to omitted.
-    Returns: { data: { period: { from, to }, posts: { total, published,
-    totalViews }, traffic: { pageViews, uniqueVisitors, organicTraffic,
-    impressions, clicks, socialShares }, topPosts: [{ id, title, slug,
-    views, publishedAt, contentScore }] } }
-
-== API SCOPES ==
-websites:read, posts:read, posts:write, keywords:read, keywords:write,
-generate:read, generate:write, clusters:read, clusters:write, analytics:read
-
-== WEBHOOK EVENTS ==
-StackSerp POSTs to your webhook URL on:
-  - post.published → full post payload
-
-Webhook payload shape:
+Webhook payload:
 {
   "event": "post.published",
   "timestamp": "ISO8601",
@@ -170,46 +33,28 @@ Webhook payload shape:
     "metaDescription": "string",
     "focusKeyword": "string",
     "featuredImage": "url or null",
+    "featuredImageAlt": "string or null",
     "tags": ["string"],
     "category": "string or null",
     "status": "PUBLISHED",
     "publishedAt": "ISO8601",
     "wordCount": 1500,
-    "readingTime": 7,
-    "websiteId": "uuid",
-    "websiteDomain": "example.com",
-    "brandName": "My Brand"
+    "readingTime": 7
   }
 }
 
-Verify webhook signature:
+Verify the signature before processing:
   Header: X-StackSerp-Signature: sha256=<hmac>
-  Secret: <your_webhook_secret>
-  Compute: HMAC-SHA256(raw_body, secret) and compare hex
-
-== INTEGRATING STACKSERP INTO YOUR WEBSITE ==
-
-To automatically receive blog posts from StackSerp into your custom website,
-you need to do TWO things:
-
-OPTION A — PULL: Fetch posts from the API
-  1. Call GET /api/v1/websites/{websiteId}/posts to list published posts
-  2. Call GET /api/v1/websites/{websiteId}/posts/{slug} to get full content
-  3. Store them in your database or render them directly
-  4. Poll periodically or trigger on demand
-
-OPTION B — PUSH (recommended): Receive posts via webhook
-  1. Create an API route in your project (e.g. /api/stackserp-webhook)
-  2. StackSerp will POST the full blog post to your endpoint on publish
-  3. Verify the signature, then save the post to your database/CMS/files
+  Compute: HMAC-SHA256(raw_body, webhook_secret) → compare hex digest
 
 Example webhook handler (Next.js App Router):
 
+  // app/api/stackserp-webhook/route.ts
   import crypto from "crypto";
   import { NextResponse } from "next/server";
 
   export async function POST(req: Request) {
-    const secret = process.env.STACKSERP_WEBHOOK_SECRET;
+    const secret = process.env.STACKSERP_WEBHOOK_SECRET!;
     const body = await req.text();
     const sig = req.headers.get("x-stackserp-signature") || "";
     const expected = "sha256=" +
@@ -222,33 +67,60 @@ Example webhook handler (Next.js App Router):
     const { event, post } = JSON.parse(body);
 
     if (event === "post.published") {
-      // Save to your database, write to MDX file, etc.
-      // post.title, post.slug, post.content (markdown),
-      // post.contentHtml, post.excerpt, post.metaTitle,
-      // post.metaDescription, post.featuredImage, post.tags,
-      // post.category, post.wordCount, post.readingTime
+      // Save to your database, write as MDX file, or however you store content.
+      // Fields available: post.title, post.slug, post.content (markdown),
+      // post.contentHtml (ready-to-render HTML), post.excerpt, post.metaTitle,
+      // post.metaDescription, post.featuredImage, post.featuredImageAlt,
+      // post.tags, post.category, post.wordCount, post.readingTime
       await savePostToDatabase(post);
     }
 
     return NextResponse.json({ received: true });
   }
 
-Then set your webhook URL in StackSerp dashboard settings to:
+Then set your webhook URL in StackSerp dashboard → Settings → Webhook:
   https://yoursite.com/api/stackserp-webhook
 
-== INSTRUCTIONS ==
-- Always include Authorization header on every API request
-- Handle 429 rate limit responses with exponential backoff
-- Post content arrives as Markdown — convert to HTML for rendering
-- featuredImage is a CDN URL — use directly in <img> tags
-- Slugs are URL-safe lowercase strings with hyphens
-- All statuses are UPPERCASE (PUBLISHED, DRAFT, PENDING, QUEUED, etc.)
+METHOD 2 — PULL VIA API
+Fetch posts on demand. Useful for static site builds or initial sync.
 
-When asked to fetch posts, call endpoint #3.
-When asked to publish content, call endpoint #5.
-When asked to generate new AI content, call endpoint #13 then poll #14.
-When asked about analytics or traffic, call endpoint #17.
-When asked to integrate StackSerp into a website, follow the webhook setup above.`;
+Base URL: https://stackserp.com/api/v1
+Auth header: Authorization: Bearer <your_api_key>
+
+LIST POSTS (paginated):
+  GET /api/v1/websites/{websiteId}/posts?page=1&limit=20&status=PUBLISHED
+  Returns: { posts: [{ id, title, slug, excerpt, metaTitle, metaDescription,
+  focusKeyword, featuredImage, status, publishedAt, wordCount, readingTime,
+  category, tags }], pagination: { page, limit, total, totalPages } }
+
+GET SINGLE POST (full content):
+  GET /api/v1/websites/{websiteId}/posts/{slug}
+  Returns full post object including content (markdown) and contentHtml
+
+RSS FEED:
+  GET /api/v1/websites/{websiteId}/feed.xml
+  Returns RSS 2.0 XML — useful for feed readers or static site ingestion
+
+SITEMAP:
+  GET /api/v1/websites/{websiteId}/sitemap.xml
+  Returns XML sitemap of all published posts
+
+== POST DATA GUIDE ==
+- content: raw Markdown — convert to HTML yourself, or use contentHtml
+- contentHtml: pre-rendered HTML — ready to inject into your page
+- featuredImage: CDN URL — use directly in <img> tags
+- metaTitle / metaDescription: use in <head> for SEO
+- slug: URL-safe lowercase string with hyphens — use as your URL path
+- tags: array of strings — use for filtering, tag pages, or related posts
+- category: string or null — use for blog sections
+
+== INSTRUCTIONS ==
+- When asked to set up StackSerp integration, create the webhook handler above
+- When asked to display blog posts, fetch from the API or read from your DB
+- When asked to build a blog page, use the post fields to render the layout
+- Post content is Markdown — use contentHtml for direct rendering
+- featuredImage is a CDN URL — use directly, no download needed
+- Handle 429 rate limit responses with exponential backoff on API calls`;
 
 export function AiAgentSection() {
   return (
@@ -259,13 +131,12 @@ export function AiAgentSection() {
         <h2 className="text-2xl font-bold">AI Agent Prompt</h2>
       </div>
       <p className="text-muted-foreground mb-2">
-        Building an AI agent or automation that needs to talk to StackSerp? Copy the prompt below and paste it
-        into your agent&apos;s system prompt or configuration. Fill in your API key and website ID — that&apos;s it.
+        Building a website and want it to auto-receive blog posts from StackSerp? Copy the prompt below and paste it
+        into your AI coding tool. Fill in your credentials — that&apos;s it.
       </p>
       <p className="text-sm text-muted-foreground mb-6">
-        Works with <strong>ChatGPT</strong>, <strong>Claude</strong>, <strong>Cursor</strong>,{" "}
-        <strong>n8n AI agents</strong>, <strong>LangChain</strong>, <strong>Zapier AI</strong>, and any other LLM
-        or automation platform.
+        Works with <strong>Cursor</strong>, <strong>Claude Code</strong>, <strong>Windsurf</strong>,{" "}
+        <strong>GitHub Copilot</strong>, <strong>v0</strong>, <strong>Bolt</strong>, and any other AI coding assistant.
       </p>
 
       <div className="relative rounded-xl bg-zinc-950 border border-violet-500/30 overflow-hidden">
@@ -285,21 +156,22 @@ export function AiAgentSection() {
       </div>
 
       <Note>
-        Replace <code className="font-mono text-xs">&lt;PASTE_YOUR_API_KEY_HERE&gt;</code> and{" "}
-        <code className="font-mono text-xs">&lt;PASTE_YOUR_WEBSITE_ID_HERE&gt;</code> with your actual values
-        before giving this to your agent.
+        Replace <code className="font-mono text-xs">&lt;PASTE_YOUR_API_KEY_HERE&gt;</code>,{" "}
+        <code className="font-mono text-xs">&lt;PASTE_YOUR_WEBSITE_ID_HERE&gt;</code>, and{" "}
+        <code className="font-mono text-xs">&lt;PASTE_YOUR_WEBHOOK_SECRET_HERE&gt;</code> with your actual values
+        from the StackSerp dashboard before pasting into your AI coding tool.
       </Note>
 
       <div className="mt-8 p-6 rounded-xl border bg-muted/30">
         <h3 className="font-semibold mb-3">Example agent tasks this prompt enables</h3>
         <div className="grid sm:grid-cols-2 gap-3">
           {[
-            "\"Fetch all published posts and summarize them\"",
-            "\"Generate a new post for my next pending keyword\"",
-            "\"Show me my website analytics for this month\"",
-            "\"Check the status of generation job job_abc123\"",
-            "\"Add a webhook route to receive posts from StackSerp\"",
-            "\"Create a topic cluster around 'SaaS marketing'\"",
+            "\"Set up StackSerp webhook to receive blog posts\"",
+            "\"Build a blog listing page using posts from StackSerp\"",
+            "\"Create a dynamic blog post page with SEO meta tags\"",
+            "\"Fetch all published posts and display them on the homepage\"",
+            "\"Add an RSS feed page that pulls from StackSerp\"",
+            "\"Build a blog with categories and tag filtering\"",
           ].map((task) => (
             <div key={task} className="flex items-start gap-2 text-sm">
               <Terminal className="h-3.5 w-3.5 text-primary flex-shrink-0 mt-0.5" />
